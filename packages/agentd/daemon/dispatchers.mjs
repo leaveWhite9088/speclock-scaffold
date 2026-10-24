@@ -6,7 +6,7 @@
 
 import { join } from 'node:path';
 import { BASE_CWD, CONFIG, getAgent, pool } from '../core/agent-pool.mjs';
-import { DATA_DIR } from '../core/data-dir.mjs';
+import { CONVERSATIONS_DIR } from '../core/data-dir.mjs';
 import { Dispatcher } from '../core/dispatcher.mjs';
 import { createHandoffs } from '../core/handoff.mjs';
 import * as projects from '../core/projects.mjs';
@@ -50,7 +50,7 @@ export function getDispatcher(project = null) {
     d = new Dispatcher({
       cwd: projects.projectRoot(project),
       project,
-      sessionDir: join(DATA_DIR, 'dispatcher-sessions', project),
+      sessionDir: join(CONVERSATIONS_DIR, 'dispatcher-sessions', project),
       onEvent: (ev) => publishLive('dispatcher.event', { project, data: ev }),
       compactAt: projects.dispatcherCompactAt(project),
     });

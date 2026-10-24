@@ -15,11 +15,11 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { CONFIG } from './app-config.mjs';
-import { DATA_DIR } from './data-dir.mjs';
+import { STATE_DIR } from './data-dir.mjs';
 
 const log = (...a) => process.stderr.write(`[tasks] ${a.join(' ')}\n`);
 
-const FILE = process.env.AGENTD_TASKS_FILE || join(DATA_DIR, 'tasks.json');
+const FILE = process.env.AGENTD_TASKS_FILE || join(STATE_DIR, 'tasks.json');
 /** The same prompt counts as a resend for this long after a failure. */
 const RESEND_WINDOW_MS = 30 * 60_000;
 const KEEP_TASKS = 300;

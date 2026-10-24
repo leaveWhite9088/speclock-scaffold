@@ -5,7 +5,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CONFIG } from '../app-config.mjs';
-import { DATA_DIR } from '../data-dir.mjs';
+import { DATA_DIR, RUNTIME_DIR, STATE_DIR } from '../data-dir.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** packages/agentd */
@@ -19,10 +19,10 @@ const NODE_MODULES = 'D:/Environment/nodejs/node_modules';
 /** Base working directory for every agent session. */
 export const BASE_CWD = process.env.AGENTD_BASE_CWD || 'D:/Project2/code-261013-speclock2/speclock2';
 
-export const LABELS_FILE = process.env.AGENTD_LABELS_FILE || join(DATA_DIR, 'session-labels.json');
+export const LABELS_FILE = process.env.AGENTD_LABELS_FILE || join(STATE_DIR, 'session-labels.json');
 
 /** One log file per run, so output can be tailed externally while it streams. */
-export const RUNS_DIR = process.env.AGENTD_RUNS_DIR || join(DATA_DIR, 'runs');
+export const RUNS_DIR = process.env.AGENTD_RUNS_DIR || join(RUNTIME_DIR, 'runs');
 
 /** Registry: add an entry to support another ACP-capable CLI. */
 /** The `env` block of the user's Claude Code settings, as plain strings. Never logged. */

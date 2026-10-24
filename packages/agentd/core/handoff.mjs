@@ -12,10 +12,10 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DATA_DIR } from './data-dir.mjs';
+import { OUTPUTS_DIR } from './data-dir.mjs';
 import { handoffStartPrompt, handoffWritePrompt } from './rules.mjs';
 
-const COPIES_DIR = join(DATA_DIR, 'handoffs');
+const COPIES_DIR = join(OUTPUTS_DIR, 'handoffs');
 const OPEN = ['pending', 'generating', 'review', 'applying'];
 
 /** A readable short form of a conversation's id: executors have a uuid, the dispatcher's is a file `<time>_<uuid>.jsonl`. */

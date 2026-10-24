@@ -16,9 +16,10 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DATA_DIR, log } from './config.mjs';
+import { OUTPUTS_DIR } from '../data-dir.mjs';
+import { log } from './config.mjs';
 
-const RULES_DIR = join(DATA_DIR, 'rules');
+const RULES_DIR = join(OUTPUTS_DIR, 'rules');
 const safe = (s) => String(s).replace(/[^A-Za-z0-9._~-]/g, '_');
 
 /** @returns {{ args: string[], env: Record<string,string>, meta: object | null, prefix: boolean, file: string | null }} */

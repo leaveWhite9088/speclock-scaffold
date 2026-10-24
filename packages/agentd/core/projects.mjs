@@ -23,14 +23,14 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DATA_DIR } from './data-dir.mjs';
+import { RUNTIME_DIR, STATE_DIR } from './data-dir.mjs';
 import { executorRulesFor, getTemplate } from './templates.mjs';
 import { dshSessions } from './session-disk.mjs';
 import { AGENTS, buildInstance, defaultModelFor, listInstances, pool } from './agent-pool.mjs';
 
 export const SEP = '~';
 
-const FILE = process.env.AGENTD_PROJECTS_FILE || join(DATA_DIR, 'projects.json');
+const FILE = process.env.AGENTD_PROJECTS_FILE || join(STATE_DIR, 'projects.json');
 const ID_RE = /^[a-z][a-z0-9_-]{0,31}$/;
 
 const log = (...a) => process.stderr.write(`[projects] ${a.join(' ')}\n`);
@@ -271,7 +271,7 @@ export function templateUsers(templateId) {
 
 // -- probes: what can I pick before the instance exists? -----------------------------
 
-const PROBE_DIR = join(DATA_DIR, 'probe');
+const PROBE_DIR = join(RUNTIME_DIR, 'probe');
 const modelCache = new Map();
 
 /** Models a CLI type offers. Needs a session, so it runs in a scratch directory, once per type. */

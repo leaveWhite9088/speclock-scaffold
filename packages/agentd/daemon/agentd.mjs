@@ -28,6 +28,8 @@
  *   lifecycle.mjs    idle recycling, idle exit, shutdown
  */
 
+// First: it moves the files of an older data directory into place, before any module below reads them.
+import './data-layout.mjs';
 import { join } from 'node:path';
 import { BASE_CWD, CONFIG, pool, seedContexts } from '../core/agent-pool.mjs';
 import { DATA_DIR } from '../core/data-dir.mjs';

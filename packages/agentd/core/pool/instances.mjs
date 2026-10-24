@@ -7,13 +7,14 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { AcpClient } from './acp-client.mjs';
 import { canCompact, contextOf } from './compaction.mjs';
-import { AGENTS, DATA_DIR, log } from './config.mjs';
+import { CONVERSATIONS_DIR, STATE_DIR } from '../data-dir.mjs';
+import { AGENTS, log } from './config.mjs';
 import { pool } from './registry.mjs';
 import { saved } from './store.mjs';
 
 for (const [name, spec] of Object.entries(AGENTS)) pool.set(name, new AcpClient(name, spec));
 
-const INSTANCES_FILE = process.env.AGENTD_INSTANCES_FILE || join(DATA_DIR, 'instances.json');
+const INSTANCES_FILE = process.env.AGENTD_INSTANCES_FILE || join(STATE_DIR, 'instances.json');
 const INSTANCE_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/;
 
 /** @type {Array<{id: string, type: string, cwd: string, createdAt: string}>} */
@@ -44,7 +45,7 @@ export function buildInstance({ id, type, cwd, project = null, shortId = id, rol
     role,
     label: `${base.label} (${shortId})`,
     defaultCwd: cwd,
-    env: { ...base.env, ...(type === 'pi' ? { PI_SESSION_DIR: join(DATA_DIR, 'pi-sessions', id) } : {}) },
+    env: { ...base.env, ...(type === 'pi' ? { PI_SESSION_DIR: join(CONVERSATIONS_DIR, 'pi-sessions', id) } : {}) },
   };
   return new AcpClient(id, spec);
 }

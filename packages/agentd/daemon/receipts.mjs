@@ -2,9 +2,9 @@
 
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { DATA_DIR } from '../core/data-dir.mjs';
+import { STATE_DIR } from '../core/data-dir.mjs';
 
-const RECEIPTS_FILE = process.env.AGENTD_RECEIPTS_FILE || join(DATA_DIR, 'receipts.jsonl');
+const RECEIPTS_FILE = process.env.AGENTD_RECEIPTS_FILE || join(STATE_DIR, 'receipts.jsonl');
 const log = (...a) => process.stderr.write(`[agentd] ${a.join(' ')}\n`);
 
 export function appendReceipt(agent, result, prompt, eventId = null, task = {}) {

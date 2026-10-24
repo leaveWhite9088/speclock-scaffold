@@ -40,8 +40,8 @@
 **三项扩展（协议版本 2）**
 
 - **多实例**：池里的单位是「实例」而不是「CLI 类型」。实例 id → 一个 AcpClient 进程 → 一个固定目录。
-  内置实例 id 等于类型名；自建实例存 `data/instances.json`。
-- **对话记录**：`core/transcripts.mjs` 把经手的每一轮追加到 `data/transcripts/<实例>/<sessionId>.jsonl`，
+  内置实例 id 等于类型名；自建实例存 `data/state/instances.json`。
+- **对话记录**：`core/transcripts.mjs` 把经手的每一轮追加到 `data/conversations/transcripts/<实例>/<sessionId>.jsonl`，
   `seq` 做游标。这是「补 harness 缺的」：ACP 不提供读历史的统一方式。
 - **调度器就是 pi**：`core/dispatcher/dispatcher.mjs` 持有一个 `pi --mode rpc`（加载 agent-router 扩展），
   由它的 LLM 决定调哪个实例。池里的 `pi` agent 是 `--no-extensions` 的执行者，二者是两个进程。
@@ -115,12 +115,25 @@ SSE 把 `subscribe('*')` 收到的事件原样转发。业务规则只在 agentd
 依赖方向是单向的：入口 → 客户端 → daemon → core（`core/pool/` 内：acp/client → acp/ 里的各块、registry/store/metrics/compaction → config；acp/ 里的各块互相不引用，只被 client 组合）。`core` 不知道 HTTP、MCP、pi 扩展、
 命名管道的存在，所以能被任何前端复用（测试脚本就通过同样的 socket 驱动它）。
 
-**层次由测试守着**（`tools/layers-test.mjs`，直接读源码里的 import，不启动任何东西）：
+**层次由测试守着**（`tools/unit/layers-test.mjs`，直接读源码里的 import，不启动任何东西）：
 
 - 叶子（`data-dir`、`app-config`、`transcripts`、`rules`、`reply`、`pi-rpc`、`pi-models`、`session-disk`、`journal`、`tasks`）只引用叶子。
 - `core/pool/` 只引用池里的文件，加上只管数据和文件的 `data-dir`、`app-config`、`transcripts`。
 - `core/` 不引用 `daemon/`、`client/`、`extension/`、`server/`；池外面的只经 `core/agent-pool.mjs`（或调度器共用的 `compaction`、`store`、`system-prompt`）进池；`daemon/` 里的 `ops/` 文件互不引用。
 - 例如"上次被中断的任务"（`interrupted`）不在池的实例列表里，是守护进程在返回前加上的（`daemon/startup.mjs` 的 `withInterrupted`），因为那是启动对账的信息，不是池的事实。
+
+**数据目录**（`packages/agentd/data/`，已被 git 忽略；`AGENTD_DATA_DIR` 可整体换位置）按用途分四个文件夹，路径都集中在 `core/data-dir.mjs`：
+
+| 文件夹 | 放什么 | 能不能删 |
+|---|---|---|
+| `state/` | 系统记住的：`projects.json`、`instances.json`、`tasks.json`、`session-labels.json`、`journal.jsonl`、`receipts.jsonl` | 要备份，删了就丢数据 |
+| `conversations/` | 对话本身：`transcripts/`、`dispatcher-sessions/`、`pi-sessions/` | 要备份 |
+| `outputs/` | agentd 写给人和 CLI 的文档：`handoffs/`、`results/`（长回复全文）、`rules/`（交给各 CLI 的规则文件，每次启动重写） | `rules/` 可删；其余按需 |
+| `runtime/` | 守护进程日志 `agentd.log`、每次运行的日志 `runs/` | 可以删；超过 14 天的运行日志启动时自动清 |
+
+`agentd.endpoint.json` 留在最上层：客户端靠它找到正在运行的守护进程。旧的平铺目录由 `daemon/data-layout.mjs` 在守护进程启动时移进这些文件夹（不覆盖已有文件，移动失败就拒绝启动并说明原因）。
+
+**脚本目录**（`packages/agentd/tools/`）：`unit/` 不启动进程或用假的 CLI，`live/` 需要守护进程或真实 CLI/模型，`ops/` 是 `restart-daemon`、`run-isolated`，`explore/` 是接入新 CLI 时用的探针（调真实模型），`lib/` 是共用的连接封装。
 
 ---
 
@@ -173,7 +186,7 @@ extension          daemon              AcpClient            agent
 | `agent.exit` | ✓ | ✓ | 进程异常退出（无 jobId，广播给所有连接） |
 | `progress` | ✗ | ✗ | 累计字符数快照，重放无意义 |
 
-正文的持久形态是 `data/runs/<jobId>.log`，不是进度事件。
+正文的持久形态是 `data/runtime/runs/<jobId>.log`，不是进度事件。
 
 ### 投递规则
 
@@ -227,7 +240,7 @@ dsh 新建会话时不会关闭上一个，多个会话可同时处于「活跃�
 ### 标签
 
 三个 agent 都没有 rename API（`session/set_title`、`session/rename` 等均 Method not found），
-所以标签是本地 sidecar：`data/session-labels.json`，展示时与 agent 自带的 title 合并，
+所以标签是本地 sidecar：`data/state/session-labels.json`，展示时与 agent 自带的 title 合并，
 标签优先。
 
 ---
@@ -286,7 +299,7 @@ slow_run                                           → info
 ```
 
 - 只杀直接子进程不够：适配器、真正的 CLI、它启动的工具是三层进程，卡住的构建会留下来。
-  `tools/forced-stop-test.mjs` 用「脱离父进程的孙进程」验证这一点。
+  `tools/unit/forced-stop-test.mjs` 用「脱离父进程的孙进程」验证这一点。
 - 强制结束不算崩溃：不发 `agent.exit`，发 `agent.forced-stop`（带次数）。
 - 每个任务有明确终态 `outcome`：`done / failed / timeout / cancelled`（另有 `unstable`，见下），
   回执的 `status` 取自它；`forced` 表示是靠杀进程收尾的。
@@ -305,10 +318,10 @@ slow_run                                           → info
 回执在任务**结束**时才写，所以守护进程在任务运行中被重启或崩溃，原本不会留下任何痕迹。
 做法是先记下来，重启后对账（思路同预写日志）：
 
-- `core/journal.mjs` 把每个任务交出去时记一条 `start`，结束时记一条 `end`（`data/journal.jsonl`，追加式）。
+- `core/journal.mjs` 把每个任务交出去时记一条 `start`，结束时记一条 `end`（`data/state/journal.jsonl`，追加式）。
 - 守护进程启动时读一遍：有 `start` 没有 `end` 的就是上一个进程没做完的（排队中或运行中），
   补写一条 `interrupted` 回执，发 `job.interrupted` 事件，然后清空日志，每个任务只报一次。
-- 每个执行者记住自己最近一次被中断的任务（`data/journal.jsonl.interrupted.json`），直到它收到新任务才清掉；
+- 每个执行者记住自己最近一次被中断的任务（`data/state/journal.jsonl.interrupted.json`），直到它收到新任务才清掉；
   它出现在实例行的 `interrupted` 字段里，界面标题栏显示「上次任务因服务重启被中断」，
   调度器每一轮的系统提示里也会看到这一条，和 `unstable` 一起。
 - 执行者自己的对话里也要看得到：启动对账时，在它那次任务所在的会话（按任务号在会话记录里找）末尾追加一条 `error` 条目（`interrupted: true`），网页显示为「被中断」，不带用时。
@@ -321,7 +334,7 @@ slow_run                                           → info
 调度器拿到的每一段内容都会一直留在它的对话里。执行者一次贴出几万字（整份文件、长日志），调度器就被撑满。
 
 - `core/reply.mjs` 的 `fitReply`：回复不超过 6000 字符（`AGENTD_REPLY_CHARS`）原样给；
-  超过则全文存进 `data/results/<jobId>.md`，调度器只收到开头、结尾，和「省略了多少字、全文在哪个文件」的提示。
+  超过则全文存进 `data/outputs/results/<jobId>.md`，调度器只收到开头、结尾，和「省略了多少字、全文在哪个文件」的提示。
 - 只在给调度器的那一层裁剪：网页、会话记录、`run` 操作的返回仍然是全文。
 - 文件夹只保留最新 200 个。
 - 这也是「用文件传递大量信息」的兜底：调度器想看中间部分可以自己读那个文件。
@@ -331,7 +344,7 @@ slow_run                                           → info
 `jobId` 是一次运行。同一件事失败后再发，要能认出它们是同一个任务，并且不能无限重试：
 
 - `core/tasks.mjs`：每次运行归入一个任务（`taskId`），带第几次尝试（`attempt`）和重试的是哪一次运行（`retryOf`）。
-  任务状态在 `data/tasks.json`，重启后仍在。
+  任务状态在 `data/state/tasks.json`，重启后仍在。
 - 怎么认出是重试（不依赖调度器配合）：
   1. `agent_run` 的 `retry_of` 参数给出上一次的任务号或运行号；
   2. 或者同一个执行者在失败后 30 分钟内收到**同样的提示词**（空白不影响）。
@@ -455,10 +468,10 @@ pi 没有 ACP，官方集成方式是 `pi --mode rpc`。适配器负责翻译：
 | --- | --- | --- |
 | 对话历史 | 各 harness 的磁盘 | 不碰，只要求 resume |
 | 会话 id | harness 生成 | 记录 + 映射 |
-| 对话内容（经 agentd 的） | 我们（`data/transcripts/`） | 追加记录 |
-| 调度器对话历史 | pi（`data/dispatcher-sessions/`） | 不复制，按需读取 |
-| 自建实例清单 | 我们（`data/instances.json`） | 持久化 + 启动时恢复 |
-| 项目清单（根目录、实例、角色） | 我们（`data/projects.json`） | 持久化 + 启动时恢复；项目调度器会话在 `data/dispatcher-sessions/<项目>/` |
+| 对话内容（经 agentd 的） | 我们（`data/conversations/transcripts/`） | 追加记录 |
+| 调度器对话历史 | pi（`data/conversations/dispatcher-sessions/`） | 不复制，按需读取 |
+| 自建实例清单 | 我们（`data/state/instances.json`） | 持久化 + 启动时恢复 |
+| 项目清单（根目录、实例、角色） | 我们（`data/state/projects.json`） | 持久化 + 启动时恢复；项目调度器会话在 `data/conversations/dispatcher-sessions/<项目>/` |
 | pi 的 LLM 清单 | pi（`models.json`） | 显式命令才写，写前备份 |
 | 活跃会话指针 | 我们（连接内） | 持有 |
 | 标签 / 模型选择 | 我们（sidecar） | 补 harness 的缺口 |
@@ -479,11 +492,11 @@ pi 没有 ACP，官方集成方式是 `pi --mode rpc`。适配器负责翻译：
   （同一会话压缩 ≥3 次、连续失败 ≥3 次）出现时自动提出。之后必须由人：生成交接文档 → 查看并可修改 →
   确认，才会开新会话。交接文档由执行者直接作为回复交出（提示词在 `contexts/handoff-write.md`，开新会话那条在 `handoff-start.md`，
   都只在交接那一步发出、每次现读；不再用 skill 文件，也不写进执行者目录），
-  副本留在 `data/handoffs/`；新会话的第一条消息里带着这份文档。
+  副本留在 `data/outputs/handoffs/`；新会话的第一条消息里带着这份文档。
 - **支持的 CLI**：mcode、dsh、pi、opencode（原生 ACP）、claude 和 codex（经官方适配器 `@agentclientprotocol/claude-agent-acp`、`codex-acp`，全局安装在 Node 目录）。注册表在 `core/pool/config.mjs`；claude 用 `CLAUDE.md`、技能放 `.claude/skills`，opencode 技能放 `.opencode/skills`，codex 与 dsh、pi 一样用 `.agents/skills`。opencode 的 `/compact` 虽不在 ACP 的命令列表里，但可用（实测占用 8512→806）。
 - **规则**：不写进项目（没有 AGENTS.md、CLAUDE.md、skills），通过各 CLI 的额外系统提示入口交：mcode 启动参数、pi 启动参数、
   claude / codex 的 `session/new` `_meta`、opencode 的配置环境变量，dsh 没有入口，放在每个会话第一条消息前面（压缩后再补一次）。
-  六种都实测过：新会话、恢复会话后都生效（`tools/system-prompt-probe.mjs`、`tools/rules-live-test.mjs`）。
+  六种都实测过：新会话、恢复会话后都生效（`tools/explore/system-prompt-probe.mjs`、`tools/live/rules-live-test.mjs`）。
 
 ---
 

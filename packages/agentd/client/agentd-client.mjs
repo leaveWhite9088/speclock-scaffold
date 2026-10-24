@@ -15,12 +15,12 @@ import { spawn } from 'node:child_process';
 import { openSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DATA_DIR } from '../core/data-dir.mjs';
+import { DATA_DIR, RUNTIME_DIR } from '../core/data-dir.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const NODE_BIN = process.env.MCODE_NODE_BIN || 'D:/Environment/nodejs/node.exe';
 const DAEMON = join(ROOT, 'daemon', 'agentd.mjs');
-const LOG = join(DATA_DIR, 'agentd.log');
+const LOG = join(RUNTIME_DIR, 'agentd.log');
 const PIPE_NAME = process.env.AGENTD_PIPE || '\\\\.\\pipe\\pi-agentd';
 const PORT = process.env.AGENTD_PORT ? Number(process.env.AGENTD_PORT) : null;
 const ENDPOINT_FILE = join(DATA_DIR, 'agentd.endpoint.json');
