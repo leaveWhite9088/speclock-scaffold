@@ -1,5 +1,5 @@
 {
-  "name": "@speclock/agentd",
+  "name": "@speclock-scaffold/agentd",
   "version": "1.0.0",
   "private": true,
   "description": "Resident multi-agent scheduler for pi: agentd daemon + pi extension, driven over ACP.",

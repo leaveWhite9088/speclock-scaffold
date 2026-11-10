@@ -1,14 +1,17 @@
 {
-  "name": "speclock2",
+  "name": "speclock-scaffold",
   "version": "1.0.0",
   "private": true,
   "description": "pi agent router monorepo: agentd (scheduler daemon), backend (HTTP gateway), web (dashboard).",
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "test": "npm test -w @speclock/agentd && npm test -w @speclock/backend",
-    "daemon": "npm run daemon -w @speclock/agentd",
-    "daemon:stop": "npm run daemon:stop -w @speclock/agentd",
-    "backend": "npm start -w @speclock/backend",
-    "web": "npm run dev -w @speclock/web"
+    "restart-daemon": "node packages/agentd/tools/ops/restart-daemon.mjs",
+    "test": "npm test -w @speclock-scaffold/agentd && npm test -w @speclock-scaffold/backend",
+    "daemon": "npm run daemon -w @speclock-scaffold/agentd",
+    "daemon:stop": "npm run daemon:stop -w @speclock-scaffold/agentd",
+    "backend": "npm start -w @speclock-scaffold/backend",
+    "web": "npm run dev -w @speclock-scaffold/web"
   }
 }

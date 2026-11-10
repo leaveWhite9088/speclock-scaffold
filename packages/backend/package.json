@@ -1,5 +1,5 @@
 {
-  "name": "@speclock/backend",
+  "name": "@speclock-scaffold/backend",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -9,6 +9,6 @@
     "test": "node test/api-test.mjs"
   },
   "dependencies": {
-    "@speclock/agentd": "*"
+    "@speclock-scaffold/agentd": "*"
   }
 }
