@@ -22,14 +22,12 @@ import { AcpTransport } from './transport.mjs';
 
 export class AcpClient {
   constructor(name, spec) {
-    /** Instance id. For the built-in instances it equals the agent type. */
+    /** Instance id: `<project>~<id>`. */
     this.name = name;
     this.spec = spec;
     /** Which CLI this instance runs: mcode, dsh or pi. */
     this.type = spec.type ?? name;
-    /** True for instances created at run time (not mcode / dsh / pi themselves). */
-    this.custom = Boolean(spec.custom);
-    /** Project this instance belongs to (null for the global instances). */
+    /** Project this instance belongs to. */
     this.project = spec.project ?? null;
     /** Name inside its project. The pool key is `<project>~<shortId>`. */
     this.shortId = spec.shortId ?? name;
@@ -574,7 +572,6 @@ export class AcpClient {
     return {
       agent: this.name,
       type: this.type,
-      custom: this.custom,
       label: this.spec.label,
       alive: Boolean(this.child),
       sessionId: this.sessionId,

@@ -79,8 +79,6 @@ const routes = [
   ['GET', '/api/health', () => call('health')],
   ['GET', '/api/agents', () => call('agents')],
   ['GET', '/api/instances', () => call('instances')],
-  ['POST', '/api/instances', ({ body }) => call('instance.create', body)],
-  ['DELETE', '/api/instances/:id', ({ params }) => call('instance.remove', { id: params.id })],
 
   ['GET', '/api/agents/:id/status', ({ params }) => call('status', { agent: params.id })],
   ['GET', '/api/agents/:id/sessions', ({ params }) => call('sessions', { agent: params.id })],
@@ -101,8 +99,8 @@ const routes = [
   ['GET', '/api/agents/:id/tail', ({ params }) => call('tail', { agent: params.id })],
   ['POST', '/api/agents/:id/cancel', ({ params, body }) => call('cancel', { agent: params.id, jobId: body?.jobId })],
 
-  // Projects. `?project=<id>` on the dispatcher routes picks that project's dispatcher;
-  // without it they address the global one.
+  // Projects. Everything belongs to one: the dispatcher routes need `?project=<id>`, and executors are created under
+  // `/api/projects/:id/instances`.
   ['GET', '/api/projects', () => call('projects')],
   ['POST', '/api/projects', ({ body }) => call('project.create', body)],
   ['DELETE', '/api/projects/:id', ({ params, query }) => call('project.remove', { project: params.id, force: query.force === '1' })],

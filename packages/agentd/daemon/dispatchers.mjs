@@ -5,7 +5,7 @@
  */
 
 import { join } from 'node:path';
-import { BASE_CWD, CONFIG, getAgent, pool } from '../core/agent-pool.mjs';
+import { getAgent, pool } from '../core/agent-pool.mjs';
 import { CONVERSATIONS_DIR } from '../core/data-dir.mjs';
 import { Dispatcher } from '../core/dispatcher.mjs';
 import { createHandoffs } from '../core/handoff.mjs';
@@ -39,45 +39,38 @@ for (const agent of pool.values()) wireAgent(agent);
 // Dispatcher: the pi that picks the agent. Started on first use.
 // ---------------------------------------------------------------------------
 
-/** One dispatcher per project, plus the global one under the key ''. */
+/** One dispatcher per project, by project id. There is none without a project. */
 export const dispatchers = new Map();
 
-export function getDispatcher(project = null) {
-  const key = project || '';
-  let d = dispatchers.get(key);
+export function getDispatcher(project) {
+  if (!project) throw new Error('a project is required: a dispatcher belongs to a project, and nothing works outside one');
+  let d = dispatchers.get(project);
   if (d) return d;
-  if (project) {
-    d = new Dispatcher({
-      cwd: projects.projectRoot(project),
-      project,
-      sessionDir: join(CONVERSATIONS_DIR, 'dispatcher-sessions', project),
-      onEvent: (ev) => publishLive('dispatcher.event', { project, data: ev }),
-      compactAt: projects.dispatcherCompactAt(project),
-    });
-    // Like an executor's: a compaction is announced, and a conversation compacted again and again is proposed for a handoff.
-    d.onCompact = (info) => {
-      publish(allocEvent('agent.compacted', { ...info, agent: DISPATCHER_ID }));
-      if (info.compactions >= COMPACTIONS_BEFORE_HANDOFF) {
-        try {
-          handoffs.propose({
-            project,
-            agent: DISPATCHER_ID,
-            reason: `这个会话已经压缩了 ${info.compactions} 次`,
-            // right after a compaction pi may not know the new size yet: then only the size before is said
-            evidence: `压缩 ${info.compactions} 次；最近一次压缩前约 ${info.before?.used} token${info.after?.used != null ? `，压缩后约 ${info.after.used}` : ''}`,
-          });
-        } catch (err) {
-          log('handoff proposal skipped:', err.message);
-        }
+  d = new Dispatcher({
+    cwd: projects.projectRoot(project),
+    project,
+    sessionDir: join(CONVERSATIONS_DIR, 'dispatcher-sessions', project),
+    onEvent: (ev) => publishLive('dispatcher.event', { project, data: ev }),
+    compactAt: projects.dispatcherCompactAt(project),
+  });
+  // Like an executor's: a compaction is announced, and a conversation compacted again and again is proposed for a handoff.
+  d.onCompact = (info) => {
+    publish(allocEvent('agent.compacted', { ...info, agent: DISPATCHER_ID }));
+    if (info.compactions >= COMPACTIONS_BEFORE_HANDOFF) {
+      try {
+        handoffs.propose({
+          project,
+          agent: DISPATCHER_ID,
+          reason: `这个会话已经压缩了 ${info.compactions} 次`,
+          // right after a compaction pi may not know the new size yet: then only the size before is said
+          evidence: `压缩 ${info.compactions} 次；最近一次压缩前约 ${info.before?.used} token${info.after?.used != null ? `，压缩后约 ${info.after.used}` : ''}`,
+        });
+      } catch (err) {
+        log('handoff proposal skipped:', err.message);
       }
-    };
-  } else {
-    d = new Dispatcher({
-      cwd: process.env.AGENTD_CWD_DISPATCHER || CONFIG?.dispatcher?.cwd || BASE_CWD,
-      onEvent: (ev) => publishLive('dispatcher.event', { project: null, data: ev }),
-    });
-  }
-  dispatchers.set(key, d);
+    }
+  };
+  dispatchers.set(project, d);
   return d;
 }
 
@@ -88,7 +81,7 @@ export async function restartRunningDispatchers() {
   const out = [];
   for (const [key, d] of dispatchers) {
     if (!d.child) continue;
-    out.push({ project: key || null, ...(await d.restart()) });
+    out.push({ project: key, ...(await d.restart()) });
   }
   return out;
 }

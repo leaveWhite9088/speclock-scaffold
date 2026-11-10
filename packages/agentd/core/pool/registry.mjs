@@ -1,6 +1,6 @@
 /** The pool of agent instances, plus the limits and locks that apply across them. */
 
-import { CONFIG, DEFAULT_AGENT, normPath } from './config.mjs';
+import { CONFIG } from './config.mjs';
 
 export const pool = new Map();
 
@@ -29,18 +29,10 @@ export function aliveCount(filter = () => true) {
   return n;
 }
 
-/** True when `cwd` is the directory of a created instance of the same CLI type. */
-export function ownedByInstance(agent, cwd) {
-  for (const other of pool.values()) {
-    if (other === agent || !other.custom || other.type !== agent.type) continue;
-    if (normPath(other.spec.defaultCwd) === normPath(cwd)) return true;
-  }
-  return false;
-}
-
+/** An executor by its pool key (`<project>~<id>`). There is no default one: nothing exists outside a project. */
 export function getAgent(name) {
-  const key = name || DEFAULT_AGENT;
-  const agent = pool.get(key);
-  if (!agent) throw new Error(`unknown agent "${key}"; available: ${[...pool.keys()].join(', ')}`);
+  if (!name) throw new Error('an executor is required (<project>~<id>); there is no default one');
+  const agent = pool.get(name);
+  if (!agent) throw new Error(`unknown agent "${name}"; available: ${[...pool.keys()].join(', ') || '(no executors yet: create a project and an executor first)'}`);
   return agent;
 }

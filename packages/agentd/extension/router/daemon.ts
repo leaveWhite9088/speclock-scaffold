@@ -57,7 +57,7 @@ export async function closeDaemon(): Promise<void> {
 	}
 }
 
-/** Instance ids known to the daemon: the built-in types and any created instance. */
+/** The executors known to the daemon (inside a project: this project's, by short name). */
 export async function agentNames(c: Daemon): Promise<string[]> {
 	const { agents } = await c.call("agents");
 	return agents.map((a: any) => a.name);

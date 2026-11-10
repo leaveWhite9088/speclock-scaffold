@@ -5,9 +5,9 @@
  * what it needs to know about the executor through `agent` (its name, type, directory, whether it works).
  */
 
-import { BASE_CWD, CONFIG, flattenOptions, log, normPath } from '../config.mjs';
+import { CONFIG, flattenOptions, log, normPath } from '../config.mjs';
 import { acpMcpServers } from '../mcp.mjs';
-import { defaultModelFor, ownedByInstance } from '../registry.mjs';
+import { defaultModelFor } from '../registry.mjs';
 import { entry, noteSession, saveStore, saved, savedAll } from '../store.mjs';
 
 export class Sessions {
@@ -31,7 +31,7 @@ export class Sessions {
     /** The session it is on, or null before the first use and after the process went away. */
     this.sessionId = null;
     /** Where it works. Before the first start this is the directory it will start in, not the global base. */
-    this.cwd = spec.defaultCwd || BASE_CWD;
+    this.cwd = spec.defaultCwd;
     /** Session to come back to: the one chosen at creation, then whichever was last active. */
     this.preferSession = spec.sessionId ?? null;
     /** Model this instance should use (config value); applied to sessions that have no choice of their own. */
@@ -140,7 +140,7 @@ export class Sessions {
   /** Init + ensure an active session for `cwd`. */
   async ensureReady(cwd) {
     await this.init();
-    const wantCwd = cwd || this.agent.spec.defaultCwd || this.cwd || BASE_CWD;
+    const wantCwd = cwd || this.agent.spec.defaultCwd || this.cwd;
     if (this.sessionId && wantCwd === this.cwd) return this.sessionId;
 
     // First use after a (re)start: go back to the chosen / last active session.
@@ -176,7 +176,7 @@ export class Sessions {
   }
 
   async attachRaw(sessionId, cwd) {
-    const wantCwd = cwd || saved(this.agent.name, sessionId)?.cwd || this.cwd || BASE_CWD;
+    const wantCwd = cwd || saved(this.agent.name, sessionId)?.cwd || this.cwd;
 
     if (this.live.has(sessionId)) {
       this.sessionId = sessionId;
@@ -287,11 +287,8 @@ export class Sessions {
     const hidden = (id) => Boolean(local[id]?.hidden);
     for (const s of remote) {
       if (hidden(s.sessionId)) continue;
-      // An agent lists every session of its CLI. A custom instance only owns the
-      // ones in its own directory, so two instances of one CLI do not mix.
-      if (this.agent.custom && s.cwd && normPath(s.cwd) !== normPath(this.agent.spec.defaultCwd)) continue;
-      // The built-in instance leaves out the sessions that belong to a created one.
-      if (!this.agent.custom && s.cwd && ownedByInstance(this.agent, s.cwd)) continue;
+      // A CLI lists every session it has. An instance only owns the ones in its own directory, so two instances of one CLI do not mix.
+      if (s.cwd && normPath(s.cwd) !== normPath(this.agent.spec.defaultCwd)) continue;
       byId.set(s.sessionId, {
         sessionId: s.sessionId,
         cwd: s.cwd ?? local[s.sessionId]?.cwd ?? null,

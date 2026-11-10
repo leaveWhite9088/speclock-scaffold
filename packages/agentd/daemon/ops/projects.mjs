@@ -34,7 +34,7 @@ export function projectOps(ctx) {
         instances: withInterrupted(p.instances, (i) => i.key),
         dispatcher: { alive: Boolean(dispatchers.get(p.id)?.child), busy: Boolean(dispatchers.get(p.id)?.busy), compactAt: projects.dispatcherCompactAt(p.id), compactions: dispatchers.get(p.id)?.compactions() ?? 0, queued: (dispatchers.get(p.id)?.queue ?? []).map((m) => m.slice(0, 300)), context: (dispatchers.get(p.id)?.child ? dispatchers.get(p.id)?.context : null) ?? savedContext(join(CONVERSATIONS_DIR, 'dispatcher-sessions', p.id)) },
       })),
-      limits: { maxProcesses: MAX_PROCESSES, alive: aliveCount(), global: aliveCount((a) => !a.project), idleMinutes: ctx.idleInstanceMs / 60_000 },
+      limits: { maxProcesses: MAX_PROCESSES, alive: aliveCount(), idleMinutes: ctx.idleInstanceMs / 60_000 },
     }),
 
     /** The size at which the project's dispatcher compacts its conversation (null: never). */

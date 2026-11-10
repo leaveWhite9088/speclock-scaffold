@@ -1,9 +1,10 @@
 /**
  * `agentd.config.json` next to the daemon (or the file AGENTD_CONFIG names), parsed once. It holds the settings that
- * are not about one part of agentd: per-CLI directories, limits (`limits.maxAttempts`, `limits.forcedStopLimit`, …), the
- * global dispatcher's directory, roles. Each part reads its own section; this file only reads the file.
+ * are not about one part of agentd: limits (`limits.maxAttempts`, `limits.forcedStopLimit`, …), the default model per CLI
+ * type, the default role per CLI type. Each part reads its own section; this file only reads the file. There is no
+ * setting for where an executor works: that is the project's root and the executor's own subdirectory.
  *
- *   { "agents": { "mcode": { "cwd": "D:/work/project-a" } }, "limits": { "maxAttempts": 3 } }
+ *   { "defaultModels": { "mcode": "m:minimax:MiniMax-M3:v:" }, "limits": { "maxAttempts": 3 } }
  */
 
 import { existsSync, readFileSync } from 'node:fs';

@@ -12,7 +12,7 @@
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { registerCommands } from "./router/commands.ts";
-import { closeDaemon } from "./router/daemon.ts";
+import { PROJECT, closeDaemon } from "./router/daemon.ts";
 import { registerRoster } from "./router/roster.ts";
 import { runTool } from "./router/tools/run.ts";
 import { proposeHandoffTool } from "./router/tools/handoff.ts";
@@ -20,6 +20,10 @@ import { createInstanceTool, instancesTool } from "./router/tools/instances.ts";
 import { modelsTool, sessionsTool, setModelTool, statusTool } from "./router/tools/sessions.ts";
 
 export default function agentRouter(pi: ExtensionAPI) {
+	// Everything belongs to a project: unless agentd started this pi as a project's dispatcher (it sets AGENTD_PROJECT),
+	// there is nothing to dispatch to, so nothing is registered.
+	if (!PROJECT) return;
+
 	// Without this the open daemon socket keeps pi's event loop alive, so `pi -p`
 	// prints its answer and then never exits.
 	pi.on("session_shutdown", async () => {

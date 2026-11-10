@@ -3,7 +3,7 @@
  * who listens to a job.
  */
 
-import { AGENTS, BASE_CWD, getAgent, pool } from '../../core/agent-pool.mjs';
+import { AGENTS, getAgent, pool } from '../../core/agent-pool.mjs';
 import { dispatchers } from '../dispatchers.mjs';
 import { EPOCH, RING_MAX, eventsSince, subscribe, unsubscribe } from '../events.mjs';
 import { readReceipts } from '../receipts.mjs';
@@ -16,7 +16,6 @@ export function systemOps(ctx) {
       epoch: EPOCH,
       pid: process.pid,
       startedAt: ctx.startedAt,
-      baseCwd: BASE_CWD,
       agents: [...pool.keys()],
       types: Object.keys(AGENTS),
     }),
@@ -53,7 +52,7 @@ export function systemOps(ctx) {
     'daemon.shutdown': () => {
       const busy = [
         ...[...pool.values()].filter((a) => a.busy || a.inflight > 0).map((a) => a.name),
-        ...[...dispatchers].filter(([, d]) => d.busy || d.queue.length).map(([key]) => `${key || 'global'} dispatcher`),
+        ...[...dispatchers].filter(([, d]) => d.busy || d.queue.length).map(([key]) => `${key} dispatcher`),
       ];
       if (busy.length) throw new Error(`not stopping: still working on ${busy.join(', ')}`);
       // After the answer has gone out.

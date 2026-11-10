@@ -1,6 +1,5 @@
 /** Constants, the CLI registry and `agentd.config.json`. Nothing here talks to a process. */
 
-import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CONFIG } from '../app-config.mjs';
@@ -15,9 +14,6 @@ const ROOT = join(HERE, '..', '..');
 export { DATA_DIR };
 
 export const NODE_BIN = nodeBin();
-
-/** Base working directory for every agent session. */
-export const BASE_CWD = process.env.AGENTD_BASE_CWD || join(ROOT, '..', '..');
 
 export const LABELS_FILE = process.env.AGENTD_LABELS_FILE || join(STATE_DIR, 'session-labels.json');
 
@@ -47,7 +43,6 @@ function specFor(driver) {
       return launch().env;
     },
     envFn: driver.envFn,
-    defaultCwd: process.env[`AGENTD_CWD_${driver.type.toUpperCase()}`] || null,
   };
 }
 
@@ -65,36 +60,8 @@ export const CANCEL_GRACE_MS = Number(process.env.AGENTD_CANCEL_GRACE_MS) || 15_
 
 export const log = (...a) => process.stderr.write(`[agent-pool] ${a.join(' ')}\n`);
 
-export const DEFAULT_AGENT = process.env.AGENTD_DEFAULT_AGENT || 'mcode';
-
-/**
- * Optional per-agent startup configuration, from `agentd.config.json` (see core/app-config.mjs).
- *
- *   { "agents": { "mcode": { "cwd": "D:/work/project-a" },
- *                 "dsh":   { "cwd": "D:/work/project-b" } } }
- *
- * Precedence: explicit cwd on the request > AGENTD_CWD_<AGENT> env > this file >
- * the agent's built-in default > BASE_CWD.
- */
+/** `agentd.config.json` (see core/app-config.mjs). */
 export { CONFIG };
-
-(function applyConfig() {
-  const cfg = CONFIG;
-  for (const [name, spec] of Object.entries(AGENTS)) {
-    spec.type = name;
-    const fromEnv = process.env[`AGENTD_CWD_${name.toUpperCase()}`];
-    const fromFile = cfg?.agents?.[name]?.cwd;
-    spec.defaultCwd = fromEnv || fromFile || spec.defaultCwd || null;
-    if (spec.defaultCwd) {
-      // A configured workspace that does not exist yet would fail session/new.
-      try {
-        mkdirSync(spec.defaultCwd, { recursive: true });
-      } catch (err) {
-        log(`could not create cwd for ${name}:`, err.message);
-      }
-    }
-  }
-})();
 
 /**
  * An executor whose process had to be killed this many times within the window is marked unstable and gets no

@@ -31,7 +31,7 @@
 // First: it moves the files of an older data directory into place, before any module below reads them.
 import './data-layout.mjs';
 import { join } from 'node:path';
-import { BASE_CWD, CONFIG, pool, seedContexts } from '../core/agent-pool.mjs';
+import { CONFIG, pool, seedContexts } from '../core/agent-pool.mjs';
 import { DATA_DIR } from '../core/data-dir.mjs';
 import * as projects from '../core/projects.mjs';
 import { dispatchers } from './dispatchers.mjs';
@@ -66,13 +66,13 @@ const { stats } = startServer({
   pipe: PIPE_NAME,
   port: PORT,
   endpointFile: ENDPOINT_FILE,
-  info: { protocol: PROTOCOL, startedAt, baseCwd: BASE_CWD },
+  info: { protocol: PROTOCOL, startedAt },
   onListening: (endpoint) => {
     seedContexts(readReceipts(500)); // the newest figure of a session wins
     for (const j of lostJobs) publish(allocEvent('job.interrupted', { ...j }));
     if (lostJobs.length) log(`interrupted by the last shutdown: ${lostJobs.map((j) => `${j.agent}/${j.jobId}`).join(', ')}`);
     log(`listening on ${endpoint} (pid ${process.pid})`);
-    log(`base cwd: ${BASE_CWD}; instances: ${[...pool.keys()].join(', ')}`);
+    log(`executors: ${[...pool.keys()].join(', ') || '(none yet: nothing works until a project has one)'}`);
   },
   log,
 });

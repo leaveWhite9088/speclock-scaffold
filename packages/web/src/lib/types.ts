@@ -74,7 +74,6 @@ export interface Project {
 export interface Limits {
   alive: number;
   maxProcesses: number;
-  global?: number;
   idleMinutes: number;
 }
 

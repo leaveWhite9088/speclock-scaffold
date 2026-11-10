@@ -1,12 +1,4 @@
 {
-  "agents": {
-    "mcode": {
-      "cwd": "E:/Project/Code-261013-speclock2/testpath/mcodetestpath"
-    },
-    "dsh": {
-      "cwd": "E:/Project/Code-261013-speclock2/testpath/dshtestpath"
-    }
-  },
   "roles": {
     "mcode": "MiniMax Code: general coding agent",
     "dsh": "DeepSeek Harness: general coding agent, good for long reads and reviews",

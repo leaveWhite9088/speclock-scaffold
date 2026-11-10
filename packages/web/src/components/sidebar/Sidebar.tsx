@@ -11,7 +11,7 @@ function StatusBar() {
   const conn = useUi((s) => s.conn);
   const { data } = useProjectsQuery();
   const l = data?.limits;
-  const full = l ? `进程 ${l.alive}/${l.maxProcesses}${l.global ? `，其中项目外 ${l.global}` : ''}，空闲 ${l.idleMinutes} 分钟回收` : '';
+  const full = l ? `进程 ${l.alive}/${l.maxProcesses}，空闲 ${l.idleMinutes} 分钟回收` : '';
   return (
     <div className="flex min-w-0 items-center gap-1.5 text-[11.5px] whitespace-nowrap text-muted">
       <Dot state={conn === 'on' ? 'on' : conn === 'off' ? 'off' : 'idle'} />

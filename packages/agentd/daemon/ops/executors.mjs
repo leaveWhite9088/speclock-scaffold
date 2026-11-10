@@ -1,9 +1,9 @@
 /**
- * Operations on the executors: the pool (listing, creating, removing), a single executor (sessions, models, start,
+ * Operations on the executors: the pool (listing, creating in a project), a single executor (sessions, models, start,
  * cancel, recover, tail) and what it has said (the transcript).
  */
 
-import { AGENTS, createInstance, getAgent, listInstances, pool, readTranscript, removeInstance } from '../../core/agent-pool.mjs';
+import { AGENTS, getAgent, listInstances, pool, readTranscript } from '../../core/agent-pool.mjs';
 import * as projects from '../../core/projects.mjs';
 import { wireAgent } from '../dispatchers.mjs';
 import { allocEvent, publish } from '../events.mjs';
@@ -13,7 +13,7 @@ import { withInterrupted } from '../startup.mjs';
 /** @param {{ protocol: number, startedAt: string, idleInstanceMs: number }} ctx */
 export function executorOps(ctx) {
   return {
-    /** Every instance in the pool, built-in and created. */
+    /** Every executor in the pool (all of them belong to a project). */
     agents: ({ project, short } = {}) => ({
       agents: viewRows([...pool.entries()].map(([name, a]) => ({
         name,
@@ -21,7 +21,6 @@ export function executorOps(ctx) {
         shortId: a.shortId,
         role: a.role,
         type: a.type,
-        custom: a.custom,
         label: a.spec.label,
         description: a.spec.description,
         cwd: a.spec.defaultCwd ?? null,
@@ -37,19 +36,13 @@ export function executorOps(ctx) {
       types: Object.keys(AGENTS),
     }),
 
+    /** Add an executor to a project; its directory is relative to the project root. Without a project there is nothing to add it to. */
     'instance.create': ({ id, type, cwd, dir, role, project }) => {
-      // Inside a project the directory is relative to the project root.
-      if (project) {
-        const r = projects.addInstance(project, { id, type, dir: dir ?? cwd ?? '.', role });
-        wireAgent(pool.get(r.key));
-        return { id: r.id, type: r.type, cwd: r.cwd, key: r.key, role: r.role };
-      }
-      const agent = createInstance({ id, type, cwd });
-      wireAgent(agent);
-      return { id: agent.name, type: agent.type, cwd: agent.spec.defaultCwd };
+      if (!project) throw new Error('a project is required: executors belong to a project (project.addInstance)');
+      const r = projects.addInstance(project, { id, type, dir: dir ?? cwd ?? '.', role });
+      wireAgent(pool.get(r.key));
+      return { id: r.id, type: r.type, cwd: r.cwd, key: r.key, role: r.role };
     },
-
-    'instance.remove': ({ id }) => removeInstance(id),
 
     /**
      * Conversation record of one session, as agentd saw it. Without sessionId it

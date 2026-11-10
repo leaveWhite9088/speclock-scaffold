@@ -36,7 +36,7 @@ export function startLifecycle({ endpointFile, pool, dispatchers, sweepIdle, sta
       for (const [key, d] of dispatchers) {
         if (d.child && !d.busy && Date.now() - d.lastActive > idleInstanceMs) {
           await d.shutdown();
-          stopped.push(`dispatcher:${key || 'global'}`);
+          stopped.push(`dispatcher:${key}`);
         }
       }
       if (stopped.length) log(`idle, stopped: ${stopped.join(', ')}`);
