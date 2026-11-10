@@ -29,7 +29,7 @@ function saveInstances() {
   }
 }
 
-export function buildInstance({ id, type, cwd, project = null, shortId = id, role = null, model = null, sessionId = null, onSession = null, compactAt = null, systemPrompt = null }) {
+export function buildInstance({ id, type, cwd, project = null, shortId = id, role = null, model = null, sessionId = null, onSession = null, compactAt = null, systemPrompt = null, mcpServers = [] }) {
   const base = AGENTS[type];
   const spec = {
     ...base,
@@ -39,6 +39,8 @@ export function buildInstance({ id, type, cwd, project = null, shortId = id, rol
     onSession,
     compactAt,
     systemPrompt,
+    // MCP servers handed to the CLI whenever a session starts or resumes (see pool/mcp.mjs). A list, or a function giving it.
+    mcpServers,
     custom: true,
     project,
     shortId,

@@ -51,8 +51,8 @@ export function projectOps(ctx) {
       return p;
     },
 
-    'project.addInstance': ({ project, id, type, dir, role, model, sessionId, compactAt, template }) => {
-      const r = projects.addInstance(project, { id, type, dir, role, model, sessionId, compactAt, template });
+    'project.addInstance': ({ project, id, type, dir, role, model, sessionId, compactAt, template, mcpServers }) => {
+      const r = projects.addInstance(project, { id, type, dir, role, model, sessionId, compactAt, template, mcpServers });
       wireAgent(pool.get(r.key));
       return r;
     },
@@ -64,8 +64,8 @@ export function projectOps(ctx) {
     'project.sessions': ({ project, type, dir }) => projects.probeSessions(project, type, dir),
 
     /** Edit an instance: role and preferred model. A running instance with a session switches model now. */
-    'project.updateInstance': async ({ project, id, role, model, name, dir, compactAt, template }) => {
-      const r = await projects.updateInstance(project, id, { role, model, name, dir, compactAt, template });
+    'project.updateInstance': async ({ project, id, role, model, name, dir, compactAt, template, mcpServers }) => {
+      const r = await projects.updateInstance(project, id, { role, model, name, dir, compactAt, template, mcpServers });
       const agent = pool.get(r.key);
       wireAgent(agent);
       if (model && agent.child && agent.sessionId && !agent.busy) {

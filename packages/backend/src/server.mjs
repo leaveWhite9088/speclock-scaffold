@@ -118,7 +118,7 @@ const routes = [
   [
     'PATCH',
     '/api/projects/:id/instances/:iid',
-    ({ params, body }) => call('project.updateInstance', { project: params.id, id: params.iid, role: body.role, model: body.model, name: body.name, dir: body.dir, compactAt: body.compactAt, template: body.template }),
+    ({ params, body }) => call('project.updateInstance', { project: params.id, id: params.iid, role: body.role, model: body.model, name: body.name, dir: body.dir, compactAt: body.compactAt, template: body.template, mcpServers: body.mcpServers }),
   ],
   ['GET', '/api/handoffs', ({ query }) => call('handoff.list', { project: query.project })],
   ['POST', '/api/handoffs/:id/generate', ({ params }) => call('handoff.generate', { id: params.id })],

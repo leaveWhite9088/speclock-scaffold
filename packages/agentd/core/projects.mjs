@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { RUNTIME_DIR, STATE_DIR } from './data-dir.mjs';
 import { executorRulesFor, getTemplate } from './templates.mjs';
 import { dshSessions } from './session-disk.mjs';
-import { AGENTS, buildInstance, defaultModelFor, listInstances, pool } from './agent-pool.mjs';
+import { AGENTS, buildInstance, cleanMcpServers, defaultModelFor, describeMcpServers, listInstances, pool } from './agent-pool.mjs';
 
 export const SEP = '~';
 
@@ -128,6 +128,8 @@ function register(project, inst) {
     role: inst.role ?? null,
     model: inst.model ?? null,
     sessionId: inst.sessionId ?? null,
+    // A function, like the rules: an edit applies the next time a session starts or resumes.
+    mcpServers: () => inst.mcpServers ?? [],
     compactAt: inst.compactAt ?? null,
     // A function: the rules are read again whenever the agent starts, so an edited template applies at once.
     systemPrompt: () => executorRulesFor(inst.template) || null,
@@ -186,6 +188,8 @@ export function listProjects() {
         id: r.shortId,
         key: r.id,
         dir: p.instances.find((i) => i.id === r.shortId)?.dir ?? '.',
+        // Names and kinds only: an environment or a header can hold a key.
+        mcp: describeMcpServers(p.instances.find((i) => i.id === r.shortId)?.mcpServers),
         template: p.instances.find((i) => i.id === r.shortId)?.template ?? null,
       })),
       alive: rows.filter((r) => r.alive).length,
@@ -240,6 +244,7 @@ export function addInstance(projectId, spec, { persist = true } = {}) {
   const dir = spec.dir || tpl?.dir || '.';
   const role = spec.role || tpl?.role || null;
   const model = spec.model || tpl?.model || null;
+  const mcpServers = cleanMcpServers(spec.mcpServers);
   const { sessionId = null, compactAt = null } = spec;
   checkId('instance', id);
   if (!AGENTS[type]) throw new Error(`unknown type "${type}"; available: ${Object.keys(AGENTS).join(', ')}`);
@@ -256,12 +261,13 @@ export function addInstance(projectId, spec, { persist = true } = {}) {
     // "new" (or nothing) means: start a fresh session on first use.
     sessionId: sessionId && sessionId !== 'new' ? String(sessionId).slice(0, 200) : null,
     compactAt: cleanCompactAt(compactAt),
+    ...(mcpServers.length ? { mcpServers } : {}),
     template: tpl?.id ?? null,
   };
   project.instances.push(inst);
   const agent = register(project, inst);
   if (persist) save();
-  return { key: agent.name, id, type, dir: rel, cwd: abs, role: inst.role, model: inst.model, sessionId: inst.sessionId, compactAt: inst.compactAt, template: inst.template };
+  return { key: agent.name, id, type, dir: rel, cwd: abs, role: inst.role, model: inst.model, sessionId: inst.sessionId, compactAt: inst.compactAt, template: inst.template, mcp: describeMcpServers(inst.mcpServers) };
 }
 
 /** Executors (in any project) made from a template: [{ project, id }]. */
@@ -335,7 +341,7 @@ export function setDispatcherCompactAt(projectId, value) {
   return project.dispatcherCompactAt;
 }
 
-export async function updateInstance(projectId, id, { role, model, name, dir, compactAt, template }) {
+export async function updateInstance(projectId, id, { role, model, name, dir, compactAt, template, mcpServers }) {
   const project = find(projectId);
   const inst = project.instances.find((i) => i.id === id);
   if (!inst) throw new Error(`unknown instance "${id}" in project "${projectId}"`);
@@ -363,6 +369,12 @@ export async function updateInstance(projectId, id, { role, model, name, dir, co
     // Takes effect the next time the process starts (or a new session begins).
     if (template && !getTemplate(template)) throw new Error(`unknown template "${template}"`);
     inst.template = template || null;
+  if (mcpServers !== undefined) {
+    // For the CLIs that take them in the session request this applies to the next session or resume; pi, at its next start.
+    const clean = cleanMcpServers(mcpServers);
+    if (clean.length) inst.mcpServers = clean;
+    else delete inst.mcpServers;
+  }
   }
   if (compactAt !== undefined) {
     inst.compactAt = cleanCompactAt(compactAt);

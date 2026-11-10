@@ -8,6 +8,7 @@
 import { appendEntry } from '../../transcripts.mjs';
 import { COMPACT_PROMPT, maybeCompact } from '../compaction.mjs';
 import { CANCEL_GRACE_MS, CONFIG, MAX_RUN_MS, log } from '../config.mjs';
+import { mcpServersOf, piMcpServers } from '../mcp.mjs';
 import { modelName, runMetrics } from '../metrics.mjs';
 import { MAX_PROCESSES, START_ATTEMPTS, aliveCount, withStartLock } from '../registry.mjs';
 import { entry, noteSession, saved } from '../store.mjs';
@@ -123,6 +124,12 @@ export class AcpClient {
     const inj = this._inj();
     const env = { ...process.env, ...(this.spec.env ?? {}), ...(this.spec.envFn?.() ?? {}), ...inj.env };
     if (this.type === 'pi' && this.spec.defaultCwd) env.AGENTD_BASE_CWD = this.spec.defaultCwd;
+    // pi has no `mcpServers` in its session requests: its adapter loads the servers from here (server/pi-mcp-bridge.ts).
+    if (this.type === 'pi') {
+      delete env.AGENTD_MCP_SERVERS;
+      const servers = piMcpServers(mcpServersOf(this.spec));
+      if (Object.keys(servers).length) env.AGENTD_MCP_SERVERS = JSON.stringify(servers);
+    }
     this.transport.spawn({ cmd: this.spec.cmd, args: [...this.spec.args, ...inj.args], env });
   }
 

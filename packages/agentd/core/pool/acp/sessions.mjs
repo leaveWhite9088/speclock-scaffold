@@ -6,6 +6,7 @@
  */
 
 import { BASE_CWD, CONFIG, flattenOptions, log, normPath } from '../config.mjs';
+import { acpMcpServers } from '../mcp.mjs';
 import { defaultModelFor, ownedByInstance } from '../registry.mjs';
 import { entry, noteSession, saveStore, saved, savedAll } from '../store.mjs';
 
@@ -25,6 +26,7 @@ export class Sessions {
     this.init = init;
     this.enqueue = enqueue;
     this.rulesMeta = rulesMeta;
+    this.mcpServers = () => acpMcpServers(agent.spec);
     const spec = agent.spec;
     /** The session it is on, or null before the first use and after the process went away. */
     this.sessionId = null;
@@ -153,7 +155,7 @@ export class Sessions {
     }
 
     const t0 = Date.now();
-    const sess = await this.request('session/new', { cwd: wantCwd, mcpServers: [], ...this.rulesMeta() });
+    const sess = await this.request('session/new', { cwd: wantCwd, mcpServers: this.mcpServers(), ...this.rulesMeta() });
     this.sessionId = sess?.sessionId;
     this.cwd = wantCwd;
     if (this.sessionId) this.live.add(this.sessionId);
@@ -185,7 +187,8 @@ export class Sessions {
     }
 
     try {
-      const res = await this.request('session/resume', { sessionId, cwd: wantCwd, ...this.rulesMeta() });
+      // A CLI starts a session's MCP servers only if this very request names them, resume included.
+      const res = await this.request('session/resume', { sessionId, cwd: wantCwd, mcpServers: this.mcpServers(), ...this.rulesMeta() });
       this.sessionId = res?.sessionId ?? sessionId;
       this.cwd = wantCwd;
       this.models = res?.models ?? this.models;

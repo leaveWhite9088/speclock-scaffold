@@ -26,6 +26,8 @@
  *     and could call back into the server that spawned it)
  *   - `--no-extensions` keeps the process from emitting extension UI requests
  *     that this adapter does not render
+ * The one exception: when agentd hands this executor MCP servers (AGENTD_MCP_SERVERS), `--no-mcp` is dropped and only
+ * the built-in MCP client plus pi-mcp-bridge.ts are loaded, so the executor sees those servers and nothing else.
  */
 
 import { PiRpc } from '../core/pi-rpc.mjs';
@@ -41,6 +43,7 @@ const PI_CLI =
 const SESSION_DIR =
   process.env.PI_SESSION_DIR ||
   join(process.env.AGENTD_DATA_DIR || join(dirname(dirname(fileURLToPath(import.meta.url))), 'data'), 'conversations', 'pi-sessions');
+const MCP_BRIDGE = join(dirname(fileURLToPath(import.meta.url)), 'pi-mcp-bridge.ts');
 
 const MAP_FILE = join(SESSION_DIR, 'acp-session-map.json');
 const DEFAULT_CWD = process.env.AGENTD_BASE_CWD || 'D:/Project2/code-261013-speclock2/speclock2';
@@ -137,7 +140,12 @@ class AdapterPi extends PiRpc {
     }
     this.cwd = cwd || DEFAULT_CWD;
 
-    const args = [PI_CLI, '--mode', 'rpc', '--no-mcp', '--no-extensions', '--session-dir', SESSION_DIR];
+    // MCP stays off unless agentd gave this executor servers. Then only those load: --no-extensions drops everything
+    // discovered, and the two -e bring back the built-in MCP client and the bridge that registers agentd's servers.
+    const withMcp = Boolean(process.env.AGENTD_MCP_SERVERS);
+    const args = withMcp
+      ? [PI_CLI, '--mode', 'rpc', '--no-extensions', '-e', 'builtin:mcp', '-e', MCP_BRIDGE, '--session-dir', SESSION_DIR]
+      : [PI_CLI, '--mode', 'rpc', '--no-mcp', '--no-extensions', '--session-dir', SESSION_DIR];
     // Rules from agentd, given as extra system instructions instead of a file in the project.
     if (process.env.AGENTD_APPEND_SYSTEM_PROMPT_FILE) args.push('--append-system-prompt', process.env.AGENTD_APPEND_SYSTEM_PROMPT_FILE);
     log(`spawning pi rpc (cwd=${this.cwd})`);
