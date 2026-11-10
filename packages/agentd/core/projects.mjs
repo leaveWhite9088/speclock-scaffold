@@ -25,8 +25,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RUNTIME_DIR, STATE_DIR } from './data-dir.mjs';
 import { executorRulesFor, getTemplate } from './templates.mjs';
-import { dshSessions } from './session-disk.mjs';
-import { AGENTS, buildInstance, cleanMcpServers, defaultModelFor, describeMcpServers, listInstances, pool } from './agent-pool.mjs';
+import { AGENTS, buildInstance, driverOf, cleanMcpServers, defaultModelFor, describeMcpServers, listInstances, pool } from './agent-pool.mjs';
 
 export const SEP = '~';
 
@@ -128,9 +127,9 @@ function register(project, inst) {
     role: inst.role ?? null,
     model: inst.model ?? null,
     sessionId: inst.sessionId ?? null,
+    compactAt: inst.compactAt ?? null,
     // A function, like the rules: an edit applies the next time a session starts or resumes.
     mcpServers: () => inst.mcpServers ?? [],
-    compactAt: inst.compactAt ?? null,
     // A function: the rules are read again whenever the agent starts, so an edited template applies at once.
     systemPrompt: () => executorRulesFor(inst.template) || null,
     // The instance comes back to the session it last used, also after a daemon restart.
@@ -188,9 +187,9 @@ export function listProjects() {
         id: r.shortId,
         key: r.id,
         dir: p.instances.find((i) => i.id === r.shortId)?.dir ?? '.',
+        template: p.instances.find((i) => i.id === r.shortId)?.template ?? null,
         // Names and kinds only: an environment or a header can hold a key.
         mcp: describeMcpServers(p.instances.find((i) => i.id === r.shortId)?.mcpServers),
-        template: p.instances.find((i) => i.id === r.shortId)?.template ?? null,
       })),
       alive: rows.filter((r) => r.alive).length,
       busy: rows.filter((r) => r.busy).length,
@@ -244,8 +243,8 @@ export function addInstance(projectId, spec, { persist = true } = {}) {
   const dir = spec.dir || tpl?.dir || '.';
   const role = spec.role || tpl?.role || null;
   const model = spec.model || tpl?.model || null;
-  const mcpServers = cleanMcpServers(spec.mcpServers);
   const { sessionId = null, compactAt = null } = spec;
+  const mcpServers = cleanMcpServers(spec.mcpServers);
   checkId('instance', id);
   if (!AGENTS[type]) throw new Error(`unknown type "${type}"; available: ${Object.keys(AGENTS).join(', ')}`);
   if (project.instances.some((i) => i.id === id)) throw new Error(`instance "${id}" already exists in project "${projectId}"`);
@@ -261,8 +260,8 @@ export function addInstance(projectId, spec, { persist = true } = {}) {
     // "new" (or nothing) means: start a fresh session on first use.
     sessionId: sessionId && sessionId !== 'new' ? String(sessionId).slice(0, 200) : null,
     compactAt: cleanCompactAt(compactAt),
-    ...(mcpServers.length ? { mcpServers } : {}),
     template: tpl?.id ?? null,
+    ...(mcpServers.length ? { mcpServers } : {}),
   };
   project.instances.push(inst);
   const agent = register(project, inst);
@@ -309,7 +308,7 @@ export async function probeSessions(projectId, type, dir = '.') {
   const abs = resolveInside(project.root, dir);
   const taken0 = new Set(project.instances.map((i) => i.sessionId).filter(Boolean));
   // Reading the CLI's own session folder takes milliseconds; starting the CLI takes seconds.
-  const disk = type === 'dsh' ? dshSessions(abs) : null;
+  const disk = driverOf(type)?.diskSessions?.(abs) ?? null;
   if (disk) return { sessions: disk.sessions.filter((x) => !taken0.has(x.sessionId)), remoteError: null };
   const tmp = buildInstance({ id: `probe-${type}-s`, type, cwd: abs });
   try {
@@ -369,12 +368,12 @@ export async function updateInstance(projectId, id, { role, model, name, dir, co
     // Takes effect the next time the process starts (or a new session begins).
     if (template && !getTemplate(template)) throw new Error(`unknown template "${template}"`);
     inst.template = template || null;
+  }
   if (mcpServers !== undefined) {
     // For the CLIs that take them in the session request this applies to the next session or resume; pi, at its next start.
     const clean = cleanMcpServers(mcpServers);
     if (clean.length) inst.mcpServers = clean;
     else delete inst.mcpServers;
-  }
   }
   if (compactAt !== undefined) {
     inst.compactAt = cleanCompactAt(compactAt);

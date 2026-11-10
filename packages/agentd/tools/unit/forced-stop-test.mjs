@@ -60,8 +60,7 @@ const alive = (pid) => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const a = buildInstance({ id: 'force-test', type: 'dsh', cwd: dir });
-a.spec.cmd = process.execPath;
-a.spec.args = [script];
+a.spec.launch = () => ({ cmd: process.execPath, args: [script], env: {}, missing: [] });
 let exits = 0;
 a.onExit = () => exits++;
 const stops = [];

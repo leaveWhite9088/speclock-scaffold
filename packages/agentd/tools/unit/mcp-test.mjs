@@ -3,7 +3,8 @@
  * (new and resume). No process, no model.
  */
 
-import { cleanMcpServers, describeMcpServers, mcpServersOf, piMcpServers } from '../../core/pool/mcp.mjs';
+import { cleanMcpServers, describeMcpServers, mcpServersOf } from '../../core/pool/mcp.mjs';
+import { piMcpServers } from '@speclock-scaffold/drivers';
 import { Sessions } from '../../core/pool/acp/sessions.mjs';
 
 let failed = 0;
@@ -41,7 +42,7 @@ check('a function giving the list is read each time', (() => {
   return before === 0 && mcpServersOf(spec).length === 1;
 })());
 
-const pi = piMcpServers([stdio, { name: 'h', url: 'https://e.com/mcp', headers: [{ name: 'A', value: 'b' }] }]);
+const pi = piMcpServers(cleanMcpServers([stdio, { name: 'h', url: 'https://e.com/mcp', headers: [{ name: 'A', value: 'b' }] }]));
 check('pi form: stdio becomes command/args/env', pi.speclock.command === 'speclock' && pi.speclock.args[2] === 'executor-agent--be.key' && pi.speclock.env.SPECLOCK_HOME === 'D:/x/.speclock');
 check('pi form: http becomes url/headers', pi.h.url === 'https://e.com/mcp' && pi.h.headers.A === 'b');
 

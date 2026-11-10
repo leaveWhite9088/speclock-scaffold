@@ -17,7 +17,7 @@
 
 import { readTranscript } from './transcripts.mjs';
 
-export { AGENTS, BASE_CWD, CONFIG, DEFAULT_AGENT, IDLE_RUN_MS, flattenOptions } from './pool/config.mjs';
+export { AGENTS, BASE_CWD, CONFIG, DEFAULT_AGENT, IDLE_RUN_MS, driverOf, flattenOptions } from './pool/config.mjs';
 export { seedContexts } from './pool/store.mjs';
 export { MAX_PROCESSES, aliveCount, defaultModelFor, getAgent, pool } from './pool/registry.mjs';
 export { cleanMcpServers, describeMcpServers } from './pool/mcp.mjs';

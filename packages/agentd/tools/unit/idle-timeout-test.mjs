@@ -53,8 +53,7 @@ process.stdin.on('data', async (d) => {
 );
 
 const a = buildInstance({ id: 'idle-test', type: 'dsh', cwd: dir });
-a.spec.cmd = process.execPath;
-a.spec.args = [script];
+a.spec.launch = () => ({ cmd: process.execPath, args: [script], env: {}, missing: [] });
 
 const run = (text, idleMs) => a.startPrompt(text, { timeoutMs: idleMs }).done.then((r) => r, (e) => e);
 

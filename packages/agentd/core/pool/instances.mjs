@@ -47,7 +47,8 @@ export function buildInstance({ id, type, cwd, project = null, shortId = id, rol
     role,
     label: `${base.label} (${shortId})`,
     defaultCwd: cwd,
-    env: { ...base.env, ...(type === 'pi' ? { PI_SESSION_DIR: join(CONVERSATIONS_DIR, 'pi-sessions', id) } : {}) },
+    // What the driver needs fixed for this instance (pi: its own session folder). The rest of the environment is worked out at each start.
+    env: base.driver.instanceEnv?.({ id, conversationsDir: CONVERSATIONS_DIR }) ?? {},
   };
   return new AcpClient(id, spec);
 }

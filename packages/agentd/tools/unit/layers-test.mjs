@@ -2,13 +2,14 @@
  * Which part may import which, checked from the source with nothing started. A part only reaches downward: a rule here
  * is there so that nobody adds an import in the wrong direction without the test saying so.
  *
- *   leaves        core/{data-dir, app-config, transcripts, rules, reply, pi-rpc, pi-models, session-disk, journal, tasks}.mjs
+ *   leaves        core/{data-dir, app-config, transcripts, rules, reply, pi-rpc, pi-models, journal, tasks}.mjs
  *                 import only other leaves
  *   pool          core/pool/** imports pool files and the leaves that hold nothing but data and files
  *                 (data-dir, app-config, transcripts)
  *   core          core/** imports nothing from daemon/, client/, extension/, server/
  *   into the pool the rest of core and the daemon reach the pool through core/agent-pool.mjs, and the few helpers the
- *                 dispatcher shares with the executors (compaction, store, system-prompt)
+ *                 dispatcher shares with the executors (compaction, store, system-prompt, install)
+ *   drivers       what is specific to one CLI is in packages/drivers; only the pool imports it, and it imports nothing of ours
  *   daemon        daemon/ is imported by nothing but daemon/ and the tools
  *   ops           daemon/ops/ files do not import each other
  */
@@ -32,6 +33,14 @@ function sources(dir) {
   return out;
 }
 
+const stripComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+/** The scaffold packages a source imports (bare specifiers). */
+function packagesOf(file) {
+  const text = stripComments(readFileSync(file, 'utf8'));
+  return [...text.matchAll(/\b(?:from|import)\s*\(?\s*['"](@speclock-scaffold\/[^'"]+)['"]/g)].map((m) => m[1]);
+}
+
 /** The files a source imports (relative specifiers only), as paths relative to the package. */
 function importsOf(file) {
   const text = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -44,9 +53,9 @@ console.log('\n=== layers ===\n');
 const files = [...sources(join(ROOT, 'core')), ...sources(join(ROOT, 'daemon')), ...sources(join(ROOT, 'client')), ...sources(join(ROOT, 'extension')), ...sources(join(ROOT, 'server'))];
 const graph = new Map(files.map((f) => [rel(f), importsOf(f)]));
 
-const LEAVES = ['data-dir', 'app-config', 'transcripts', 'rules', 'reply', 'pi-rpc', 'pi-models', 'session-disk', 'journal', 'tasks'].map((n) => `core/${n}.mjs`);
+const LEAVES = ['data-dir', 'app-config', 'transcripts', 'rules', 'reply', 'pi-rpc', 'pi-models', 'journal', 'tasks'].map((n) => `core/${n}.mjs`);
 const POOL_MAY_USE = ['core/data-dir.mjs', 'core/app-config.mjs', 'core/transcripts.mjs'];
-const SHARED_FROM_POOL = ['core/pool/compaction.mjs', 'core/pool/store.mjs', 'core/pool/system-prompt.mjs'];
+const SHARED_FROM_POOL = ['core/pool/compaction.mjs', 'core/pool/store.mjs', 'core/pool/system-prompt.mjs', 'core/pool/install.mjs'];
 const POOL_GATEWAY = ['core/agent-pool.mjs'];
 
 const violations = (rule, test) => {
@@ -67,6 +76,18 @@ violations('core imports nothing from the daemon, the client, the extension or t
 violations('what is outside the pool reaches in through its gateway or the shared helpers only', (from, to) => !inPool(from) && inPool(to) && !SHARED_FROM_POOL.includes(to) && !POOL_GATEWAY.includes(from));
 violations('nothing imports the daemon from outside it', (from, to) => !from.startsWith('daemon/') && to.startsWith('daemon/'));
 violations('the operation files do not import each other', (from, to) => from.startsWith('daemon/ops/') && to.startsWith('daemon/ops/') && from !== 'daemon/ops/index.mjs');
+
+// the drivers: used by the pool (and the project code through the gateway's driverOf), never the other way round
+const usesDrivers = files.filter((f) => packagesOf(f).includes('@speclock-scaffold/drivers')).map(rel);
+check('only the pool uses the drivers package', usesDrivers.every((f) => inPool(f)), usesDrivers.filter((f) => !inPool(f)).join(', '));
+function driverSources() {
+  const dir = join(ROOT, '..', 'drivers');
+  return sources(dir)
+    .filter((f) => !/[\\/]test[\\/]/.test(f))
+    .map((f) => stripComments(readFileSync(f, 'utf8')))
+    .join('\n');
+}
+check('the drivers package imports nothing of the scaffold', !/@speclock-scaffold|\.\.\/agentd/.test(driverSources()), 'a driver imports outside itself');
 
 // the gateway: what it hands out
 const gateway = graph.get('core/agent-pool.mjs') ?? [];

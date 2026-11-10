@@ -42,8 +42,7 @@ process.stdin.on('data', (d) => {
 
 const make = (id, failFirst) => {
   const a = buildInstance({ id, type: 'dsh', cwd: dir });
-  a.spec.cmd = process.execPath;
-  a.spec.args = [script, String(failFirst)];
+  a.spec.launch = () => ({ cmd: process.execPath, args: [script, String(failFirst)], env: {}, missing: [] });
   return a;
 };
 

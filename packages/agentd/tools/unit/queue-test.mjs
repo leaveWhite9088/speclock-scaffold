@@ -56,8 +56,7 @@ process.stdin.on('data', (d) => {
 const prompts = () => readFileSync(seen, 'utf8').split('\n').filter(Boolean);
 
 const a = buildInstance({ id: 'queue-test', type: 'dsh', cwd: dir });
-a.spec.cmd = process.execPath;
-a.spec.args = [script];
+a.spec.launch = () => ({ cmd: process.execPath, args: [script], env: {}, missing: [] });
 const started = [];
 a.onRunStart = ({ jobId }) => started.push({ jobId, at: Date.now() });
 const outcome = (p) => p.done.then((r) => ({ ok: true, r }), (e) => ({ ok: false, e }));

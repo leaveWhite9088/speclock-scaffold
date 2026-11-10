@@ -78,8 +78,7 @@ process.stdin.on('data', async (d) => {
 );
 
 const a = buildInstance({ id: 'pieces-test', type: 'dsh', cwd: dir });
-a.spec.cmd = process.execPath;
-a.spec.args = [script];
+a.spec.launch = () => ({ cmd: process.execPath, args: [script], env: {}, missing: [] });
 const run = (t) => a.startPrompt(t, { timeoutMs: 20_000 }).done.then((r) => r, (e) => e);
 const entries = (sid) => readTranscript('pieces-test', sid, { limit: 200 }).entries;
 const brief = (es) => es.map((e) => (e.role === 'assistant' ? `a${e.piece ? '~' : ''}:${e.text}` : e.role === 'tool' ? `tool:${e.status}` : e.role === 'thought' ? `th:${e.text}` : e.role)).join(' | ');

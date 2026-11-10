@@ -1,11 +1,12 @@
 /** Constants, the CLI registry and `agentd.config.json`. Nothing here talks to a process. */
 
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CONFIG } from '../app-config.mjs';
 import { DATA_DIR, RUNTIME_DIR, STATE_DIR } from '../data-dir.mjs';
+import { driverTypes, getDriver } from '@speclock-scaffold/drivers';
+import { currentInstall, nodeBin } from './install.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** packages/agentd */
@@ -13,80 +14,47 @@ const ROOT = join(HERE, '..', '..');
 
 export { DATA_DIR };
 
-export const NODE_BIN = process.env.MCODE_NODE_BIN || 'D:/Environment/nodejs/node.exe';
-const NODE_MODULES = 'D:/Environment/nodejs/node_modules';
+export const NODE_BIN = nodeBin();
 
 /** Base working directory for every agent session. */
-export const BASE_CWD = process.env.AGENTD_BASE_CWD || 'D:/Project2/code-261013-speclock2/speclock2';
+export const BASE_CWD = process.env.AGENTD_BASE_CWD || join(ROOT, '..', '..');
 
 export const LABELS_FILE = process.env.AGENTD_LABELS_FILE || join(STATE_DIR, 'session-labels.json');
 
 /** One log file per run, so output can be tailed externally while it streams. */
 export const RUNS_DIR = process.env.AGENTD_RUNS_DIR || join(RUNTIME_DIR, 'runs');
 
-/** Registry: add an entry to support another ACP-capable CLI. */
-/** The `env` block of the user's Claude Code settings, as plain strings. Never logged. */
-function claudeSettingsEnv() {
-  try {
-    const file = join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'settings.json');
-    const env = JSON.parse(readFileSync(file, 'utf8'))?.env ?? {};
-    return Object.fromEntries(Object.entries(env).map(([k, v]) => [k, String(v)]));
-  } catch {
-    return {};
-  }
+/**
+ * The CLIs, as the rest of the daemon sees them. Everything that is specific to one CLI lives in its driver
+ * (packages/drivers); this only adds where each is found on this machine (pool/install.mjs) and the configured
+ * start directory. `cmd`, `args` and `env` are worked out when read, from what is installed now.
+ */
+function specFor(driver) {
+  const launch = () => driver.launch(currentInstall(), { agentdRoot: ROOT });
+  return {
+    type: driver.type,
+    label: driver.label,
+    description: driver.description,
+    driver,
+    launch,
+    get cmd() {
+      return launch().cmd;
+    },
+    get args() {
+      return launch().args;
+    },
+    get env() {
+      return launch().env;
+    },
+    envFn: driver.envFn,
+    defaultCwd: process.env[`AGENTD_CWD_${driver.type.toUpperCase()}`] || null,
+  };
 }
 
-export const AGENTS = {
-  mcode: {
-    label: 'MiniMax Code',
-    cmd: NODE_BIN,
-    args: [`${NODE_MODULES}/@minimax-ai/code/cli.js`, 'acp'],
-    description: 'MiniMax Code agent. Slower to start, strong at multi-step coding.',
-    defaultCwd: process.env.AGENTD_CWD_MCODE || null,
-  },
-  dsh: {
-    label: 'DeepSeek Harness',
-    cmd: NODE_BIN,
-    args: [`${NODE_MODULES}/@deepseek-ai/dsh/lib/bin.js`, '--profile', 'acp'],
-    description: 'DeepSeek Harness agent. Fast startup and short answers.',
-    defaultCwd: process.env.AGENTD_CWD_DSH || null,
-  },
-  opencode: {
-    label: 'OpenCode',
-    cmd: `${NODE_MODULES}/opencode-ai/bin/opencode.exe`,
-    args: ['acp'],
-    description: 'OpenCode. Speaks ACP natively; many providers.',
-    defaultCwd: process.env.AGENTD_CWD_OPENCODE || null,
-  },
-  claude: {
-    label: 'Claude Code',
-    cmd: NODE_BIN,
-    args: [`${NODE_MODULES}/@agentclientprotocol/claude-agent-acp/dist/index.js`],
-    // Use the installed Claude Code, and the `env` block of the user's own ~/.claude/settings.json (endpoint, model, token):
-    // the adapter does not read that block itself, so without it the CLI reports "not logged in".
-    env: { CLAUDE_CODE_EXECUTABLE: `${NODE_MODULES}/@anthropic-ai/claude-code/bin/claude.exe` },
-    // Read again at every process start, so a profile switched with cc-switch applies the next time the executor starts.
-    envFn: claudeSettingsEnv,
-    description: 'Claude Code through the ACP adapter. Uses the endpoint and login configured in ~/.claude/settings.json.',
-    defaultCwd: process.env.AGENTD_CWD_CLAUDE || null,
-  },
-  codex: {
-    label: 'Codex',
-    cmd: NODE_BIN,
-    args: [`${NODE_MODULES}/@agentclientprotocol/codex-acp/dist/index.js`],
-    description: 'OpenAI Codex through the ACP adapter. Uses the ChatGPT login of the Codex app.',
-    defaultCwd: process.env.AGENTD_CWD_CODEX || null,
-  },
-  pi: {
-    label: 'independent process',
-    cmd: NODE_BIN,
-    args: [join(ROOT, 'server', 'pi-acp-adapter.mjs')],
-    description:
-      'A separate pi instance, exposed through an ACP adapter over pi RPC mode. ' +
-      'Runs with --no-mcp so it cannot call back into this server.',
-    defaultCwd: process.env.AGENTD_CWD_PI || null,
-  },
-};
+export const AGENTS = Object.fromEntries(driverTypes.map((t) => [t, specFor(getDriver(t))]));
+
+/** The driver of a CLI type, or null. */
+export const driverOf = getDriver;
 
 /** A prompt is cancelled when the agent is silent this long (tool calls in progress do not count as silence). */
 export const IDLE_RUN_MS = 300_000;

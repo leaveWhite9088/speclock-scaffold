@@ -1,0 +1,14 @@
+{
+  "name": "@speclock-scaffold/drivers",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "What is specific to each CLI (how to start it, hand it rules and MCP servers, which versions were checked). No dependencies.",
+  "main": "index.mjs",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "scripts": {
+    "test": "node test/drivers-test.mjs"
+  }
+}

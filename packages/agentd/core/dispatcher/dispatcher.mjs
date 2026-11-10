@@ -16,6 +16,7 @@
 
 import { PiRpc } from '../pi-rpc.mjs';
 import { dispatcherRules } from '../rules.mjs';
+import { nodeBin, piPaths } from '../pool/install.mjs';
 import { injectionFor } from '../pool/system-prompt.mjs';
 import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -27,10 +28,14 @@ import { SessionStore } from './sessions.mjs';
 import { TurnQueue } from './turn-queue.mjs';
 
 const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
-const NODE_BIN = process.env.PI_NODE_BIN || process.env.MCODE_NODE_BIN || 'D:/Environment/nodejs/node.exe';
-const PI_CLI =
-  process.env.PI_CLI ||
-  'D:/Environment/nodejs/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js';
+// Where node and pi's cli.js are is worked out at each start (pool/install.mjs): the environment first, then the preflight's manifest.
+const nodeForPi = () => process.env.PI_NODE_BIN || nodeBin();
+const piCli = () => {
+  if (process.env.PI_CLI) return process.env.PI_CLI;
+  const p = piPaths();
+  if (p.missing.length) throw new Error(`pi is not installed: ${p.missing.join(', ')} not found. Run the preflight (npm run preflight) to see what is missing and where it looks.`);
+  return p.cli;
+};
 const EXTENSION = process.env.DISPATCHER_EXTENSION || join(ROOT, 'extension', 'agent-router.ts');
 const SESSION_DIR = process.env.DISPATCHER_SESSION_DIR || join(CONVERSATIONS_DIR, 'dispatcher-sessions');
 
@@ -136,7 +141,7 @@ export class Dispatcher {
     // --no-extensions plus -e: load exactly one extension, whatever the user
     // installed globally. --no-mcp avoids loading a project's MCP servers.
     const args = [
-      PI_CLI,
+      piCli(),
       '--mode',
       'rpc',
       '--no-extensions',
@@ -158,7 +163,7 @@ export class Dispatcher {
     const env = { ...process.env };
     if (this.project) env.AGENTD_PROJECT = this.project;
     else delete env.AGENTD_PROJECT;
-    this.pi.start({ cmd: NODE_BIN, args, cwd: this.cwd, env });
+    this.pi.start({ cmd: nodeForPi(), args, cwd: this.cwd, env });
 
     // After a daemon restart nothing is remembered in memory: go back to the newest conversation.
     if (!this.resumeFile) this.resumeFile = this.store.list().sessions[0]?.file ?? null;

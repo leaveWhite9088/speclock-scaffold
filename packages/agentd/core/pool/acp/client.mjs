@@ -8,7 +8,7 @@
 import { appendEntry } from '../../transcripts.mjs';
 import { COMPACT_PROMPT, maybeCompact } from '../compaction.mjs';
 import { CANCEL_GRACE_MS, CONFIG, MAX_RUN_MS, log } from '../config.mjs';
-import { mcpServersOf, piMcpServers } from '../mcp.mjs';
+import { mcpServersOf } from '../mcp.mjs';
 import { modelName, runMetrics } from '../metrics.mjs';
 import { MAX_PROCESSES, START_ATTEMPTS, aliveCount, withStartLock } from '../registry.mjs';
 import { entry, noteSession, saved } from '../store.mjs';
@@ -118,19 +118,24 @@ export class AcpClient {
     this.spawnCount += 1;
     log(`[${this.name}] spawning (spawn #${this.spawnCount})`);
 
-    // The pi adapter reads its start directory from AGENTD_BASE_CWD, so each pi
-    // instance gets its own. Custom pi instances also get their own session dir,
-    // because the adapter keeps a session map file there.
-    const inj = this._inj();
-    const env = { ...process.env, ...(this.spec.env ?? {}), ...(this.spec.envFn?.() ?? {}), ...inj.env };
-    if (this.type === 'pi' && this.spec.defaultCwd) env.AGENTD_BASE_CWD = this.spec.defaultCwd;
-    // pi has no `mcpServers` in its session requests: its adapter loads the servers from here (server/pi-mcp-bridge.ts).
-    if (this.type === 'pi') {
-      delete env.AGENTD_MCP_SERVERS;
-      const servers = piMcpServers(mcpServersOf(this.spec));
-      if (Object.keys(servers).length) env.AGENTD_MCP_SERVERS = JSON.stringify(servers);
+    // How to start it comes from its driver and from what is installed now, so a manifest written since the daemon
+    // started applies. A CLI that is not installed says so, instead of starting node on a path that is not there.
+    const l = this.spec.launch();
+    if (l.missing?.length) {
+      throw new Error(`${this.type} is not installed: ${l.missing.join(', ')} not found. Run the preflight (npm run preflight) to see what is missing and where it looks.`);
     }
-    this.transport.spawn({ cmd: this.spec.cmd, args: [...this.spec.args, ...inj.args], env });
+    const inj = this._inj();
+    const driver = this.spec.driver;
+    const env = {
+      ...process.env,
+      ...l.env,
+      ...(this.spec.env ?? {}),
+      ...(this.spec.envFn?.() ?? {}),
+      // pi: its adapter's start directory, and the MCP servers it loads (it has no such parameter in a session request)
+      ...(driver.spawnEnv?.({ cwd: this.spec.defaultCwd, mcpServers: mcpServersOf(this.spec) }) ?? {}),
+      ...inj.env,
+    };
+    this.transport.spawn({ cmd: l.cmd, args: [...l.args, ...inj.args], env });
   }
 
   // The wire's state, under the names the rest of the daemon and the tests use.
@@ -632,10 +637,10 @@ export class AcpClient {
   async shutdown() {
     if (!this.child) return;
     this.stopping = true;
-    this.transport.stop();
-  }
-}
     // Forget the process now. Its `close` arrives later, and if the executor was started again in between it is treated
     // as a replaced process and skips this, which left the old session id to be sent to the new process ("unknown session").
     this.initPromise = null;
     this.sessions.forgetProcess();
+    this.transport.stop();
+  }
+}

@@ -35,18 +35,19 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const NODE_BIN = process.env.PI_NODE_BIN || 'D:/Environment/nodejs/node.exe';
+// agentd sets PI_CLI and PI_NODE_BIN when it starts the adapter (from the pi driver). Run by hand, it looks next to node.
+const NODE_BIN = process.env.PI_NODE_BIN || process.execPath;
 const PI_CLI =
   process.env.PI_CLI ||
-  'D:/Environment/nodejs/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js';
+  join(dirname(NODE_BIN), 'node_modules', '@earendil-works', 'pi-coding-agent', 'dist', 'bundle', 'cli.js');
 
 const SESSION_DIR =
   process.env.PI_SESSION_DIR ||
   join(process.env.AGENTD_DATA_DIR || join(dirname(dirname(fileURLToPath(import.meta.url))), 'data'), 'conversations', 'pi-sessions');
-const MCP_BRIDGE = join(dirname(fileURLToPath(import.meta.url)), 'pi-mcp-bridge.ts');
 
 const MAP_FILE = join(SESSION_DIR, 'acp-session-map.json');
-const DEFAULT_CWD = process.env.AGENTD_BASE_CWD || 'D:/Project2/code-261013-speclock2/speclock2';
+const MCP_BRIDGE = join(dirname(fileURLToPath(import.meta.url)), 'pi-mcp-bridge.ts');
+const DEFAULT_CWD = process.env.AGENTD_BASE_CWD || dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
 
 const log = (...a) => process.stderr.write(`[pi-acp] ${a.join(' ')}\n`);
 

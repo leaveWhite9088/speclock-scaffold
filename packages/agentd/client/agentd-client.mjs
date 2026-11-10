@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { DATA_DIR, RUNTIME_DIR } from '../core/data-dir.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
-const NODE_BIN = process.env.MCODE_NODE_BIN || 'D:/Environment/nodejs/node.exe';
+const NODE_BIN = process.env.MCODE_NODE_BIN || process.execPath;
 const DAEMON = join(ROOT, 'daemon', 'agentd.mjs');
 const LOG = join(RUNTIME_DIR, 'agentd.log');
 const PIPE_NAME = process.env.AGENTD_PIPE || '\\\\.\\pipe\\pi-agentd';

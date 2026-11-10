@@ -50,17 +50,6 @@ export const mcpServersOf = (spec) => cleanMcpServers(typeof spec?.mcpServers ==
 /** For `session/new` and `session/resume`. */
 export const acpMcpServers = mcpServersOf;
 
-/** The same servers as the `mcp.json` entries pi reads (what `server/pi-mcp-bridge.ts` registers). */
-export function piMcpServers(list) {
-  const toObj = (arr) => Object.fromEntries((arr ?? []).map((p) => [p.name, p.value]));
-  return Object.fromEntries(
-    cleanMcpServers(list).map((s) => [
-      s.name,
-      s.type === 'http' ? { url: s.url, headers: toObj(s.headers) } : { command: s.command, args: s.args, env: toObj(s.env) },
-    ]),
-  );
-}
-
 /** What a status row may show: names and kinds, never an environment or a header (they can hold keys). */
 export const describeMcpServers = (list) =>
   cleanMcpServers(list).map((s) => ({ name: s.name, kind: s.type === 'http' ? 'http' : 'stdio' }));
