@@ -1,0 +1,17 @@
+{
+  "name": "@speclock-scaffold/preflight",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Finds the CLIs on this machine, checks them against the versions the drivers were verified on, and can install those versions into the scaffold's own folder. Run before the daemon; the daemon only reads what it writes.",
+  "bin": {
+    "speclock-preflight": "bin/preflight.mjs"
+  },
+  "scripts": {
+    "start": "node bin/preflight.mjs",
+    "test": "node test/preflight-test.mjs"
+  },
+  "dependencies": {
+    "@speclock-scaffold/drivers": "*"
+  }
+}

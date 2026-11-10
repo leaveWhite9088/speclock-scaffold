@@ -45,4 +45,5 @@ export function wantedPackages() {
 }
 
 export { piMcpServers } from './pi.mjs';
+export { FAKE_MCP_PATH, PROBE_IDS, probeDriver } from './probes/index.mjs';
 export { dshFolderName, dshSessions } from './dsh-sessions.mjs';
