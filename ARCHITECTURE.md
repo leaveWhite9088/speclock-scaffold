@@ -111,6 +111,9 @@ SSE 把 `subscribe('*')` 收到的事件原样转发。业务规则只在 agentd
 | | `core/dispatcher/context.mjs` | 上下文数字（存盘）与超过阈值的压缩；规则和执行者共用 `pool/compaction.mjs` |
 | | `core/handoff.mjs` | 交接：提案、生成文档、开新会话 |
 | 适配 | `server/pi-acp-adapter.mjs` | ACP ↔ pi RPC（含 `/compact`） |
+| 驱动 | `packages/drivers/` | 每个 CLI 特有的一切，一个文件一个 CLI：npm 包与验证过的版本、启动方式、规则和 MCP 怎么交、能力（`compact`、`rules`、`mcp`、`sessionsOnDisk`）、pi 的两个环境变量、dsh 的磁盘会话读取。没有任何依赖，池里的代码问它的 `capabilities`，不再判断「是哪个 CLI」 |
+| | `core/pool/install.mjs` | 本机装了什么：读预检的清单（`data/state/clis.json`），没有就在 node 旁边找；给驱动 `{ node, dir(包), version(包) }`。每次调用都重新算，清单改了不用重启 |
+| 预检 | `packages/preflight/` | 在 daemon 之外：探测、对照驱动验证过的版本、写清单、（可选，显式 `--yes`）把验证过的版本装进 `data/tools`。和 daemon 之间只共享清单这一份文件 |
 
 依赖方向是单向的：入口 → 客户端 → daemon → core（`core/pool/` 内：acp/client → acp/ 里的各块、registry/store/metrics/compaction → config；acp/ 里的各块互相不引用，只被 client 组合）。`core` 不知道 HTTP、MCP、pi 扩展、
 命名管道的存在，所以能被任何前端复用（测试脚本就通过同样的 socket 驱动它）。
@@ -120,6 +123,7 @@ SSE 把 `subscribe('*')` 收到的事件原样转发。业务规则只在 agentd
 - 叶子（`data-dir`、`app-config`、`transcripts`、`rules`、`reply`、`pi-rpc`、`pi-models`、`session-disk`、`journal`、`tasks`）只引用叶子。
 - `core/pool/` 只引用池里的文件，加上只管数据和文件的 `data-dir`、`app-config`、`transcripts`。
 - `core/` 不引用 `daemon/`、`client/`、`extension/`、`server/`；池外面的只经 `core/agent-pool.mjs`（或调度器共用的 `compaction`、`store`、`system-prompt`）进池；`daemon/` 里的 `ops/` 文件互不引用。
+- 驱动包只被池里的代码引用，它自己不引用脚手架的任何东西（预检读的是同一份文件）；这两条也在 `layers-test.mjs` 里检查。
 - 例如"上次被中断的任务"（`interrupted`）不在池的实例列表里，是守护进程在返回前加上的（`daemon/startup.mjs` 的 `withInterrupted`），因为那是启动对账的信息，不是池的事实。
 
 **数据目录**（`packages/agentd/data/`，已被 git 忽略；`AGENTD_DATA_DIR` 可整体换位置）按用途分四个文件夹，路径都集中在 `core/data-dir.mjs`：
@@ -133,7 +137,7 @@ SSE 把 `subscribe('*')` 收到的事件原样转发。业务规则只在 agentd
 
 `agentd.endpoint.json` 留在最上层：客户端靠它找到正在运行的守护进程。旧的平铺目录由 `daemon/data-layout.mjs` 在守护进程启动时移进这些文件夹（不覆盖已有文件，移动失败就拒绝启动并说明原因）。
 
-**脚本目录**（`packages/agentd/tools/`）：`unit/` 不启动进程或用假的 CLI，`live/` 需要守护进程或真实 CLI/模型，`ops/` 是 `restart-daemon`、`run-isolated`，`explore/` 是接入新 CLI 时用的探针（调真实模型），`lib/` 是共用的连接封装。
+**脚本目录**（`packages/agentd/tools/`）：`unit/` 不启动进程或用假的 CLI，`live/` 需要守护进程或真实 CLI/模型，`ops/` 是 `restart-daemon`、`run-isolated`，`explore/` 是一次性的探针（`executors-activity-probe`：各 CLI 能看到什么，调真实模型），`lib/` 是共用的连接封装。各 CLI 的行为探针（规则、MCP、恢复会话）随驱动放在 `packages/drivers/probes`，由 `preflight probe` 运行。
 
 ---
 
@@ -496,7 +500,10 @@ pi 没有 ACP，官方集成方式是 `pi --mode rpc`。适配器负责翻译：
 - **支持的 CLI**：mcode、dsh、pi、opencode（原生 ACP）、claude 和 codex（经官方适配器 `@agentclientprotocol/claude-agent-acp`、`codex-acp`，全局安装在 Node 目录）。注册表在 `core/pool/config.mjs`；claude 用 `CLAUDE.md`、技能放 `.claude/skills`，opencode 技能放 `.opencode/skills`，codex 与 dsh、pi 一样用 `.agents/skills`。opencode 的 `/compact` 虽不在 ACP 的命令列表里，但可用（实测占用 8512→806）。
 - **规则**：不写进项目（没有 AGENTS.md、CLAUDE.md、skills），通过各 CLI 的额外系统提示入口交：mcode 启动参数、pi 启动参数、
   claude / codex 的 `session/new` `_meta`、opencode 的配置环境变量，dsh 没有入口，放在每个会话第一条消息前面（压缩后再补一次）。
-  六种都实测过：新会话、恢复会话后都生效（`tools/explore/system-prompt-probe.mjs`、`tools/live/rules-live-test.mjs`）。
+  六种都实测过：新会话、恢复会话后都生效（`npm run preflight -- probe`、`tools/live/rules-live-test.mjs`）。
+- **MCP 服务器**：每个实例可带一组（`core/pool/mcp.mjs`），agentd 不知道它们是什么，只在每次 `session/new` 和 `session/resume` 的 `mcpServers`
+  里交给 CLI（只在 `session/new` 里给不够：实测 resume 不带就不加载）。pi 没有这个参数，走环境变量 `AGENTD_MCP_SERVERS` 和 `server/pi-mcp-bridge.ts`。
+  配置里的 `env` / `headers` 不进状态输出，调度器不能创建实例或改它们。六种都实测过（`npm run preflight -- probe`、`tools/live/mcp-live-test.mjs`）。
 
 ---
 
