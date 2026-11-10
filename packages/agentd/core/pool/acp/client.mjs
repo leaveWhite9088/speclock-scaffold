@@ -628,3 +628,7 @@ export class AcpClient {
     this.transport.stop();
   }
 }
+    // Forget the process now. Its `close` arrives later, and if the executor was started again in between it is treated
+    // as a replaced process and skips this, which left the old session id to be sent to the new process ("unknown session").
+    this.initPromise = null;
+    this.sessions.forgetProcess();
