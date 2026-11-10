@@ -1,10 +1,10 @@
 {
   "agents": {
     "mcode": {
-      "cwd": "D:/Project2/code-261013-speclock2/sandbox/testpath/mcodetestpath"
+      "cwd": "E:/Project/Code-261013-speclock2/testpath/mcodetestpath"
     },
     "dsh": {
-      "cwd": "D:/Project2/code-261013-speclock2/sandbox/testpath/dshtestpath"
+      "cwd": "E:/Project/Code-261013-speclock2/testpath/dshtestpath"
     }
   },
   "roles": {
