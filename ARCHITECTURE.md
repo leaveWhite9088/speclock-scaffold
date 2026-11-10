@@ -17,7 +17,7 @@
 │ agentd（单例常驻，detached）                               │
 │                                                          │
 │   core/agent-pool.mjs                                    │
-│     AcpClient × 3                                         │
+│     AcpClient × 每个项目里的每个执行者                       │
 │       · 活跃会话指针   · live: Set                        │
 │       · 串行队列       · job 注册表 + 指标                 │
 │     · 标签 / 模型（session-labels.json）                   │
@@ -40,7 +40,7 @@
 **三项扩展（协议版本 2）**
 
 - **多实例**：池里的单位是「实例」而不是「CLI 类型」。实例 id → 一个 AcpClient 进程 → 一个固定目录。
-  内置实例 id 等于类型名；自建实例存 `data/state/instances.json`。
+  每个实例都属于一个项目（`core/projects.mjs` 创建、记在 `data/state/projects.json`）；daemon 启动时池子是空的，没有项目就没有实例，也没有调度器。
 - **对话记录**：`core/transcripts.mjs` 把经手的每一轮追加到 `data/conversations/transcripts/<实例>/<sessionId>.jsonl`，
   `seq` 做游标。这是「补 harness 缺的」：ACP 不提供读历史的统一方式。
 - **调度器就是 pi**：`core/dispatcher/dispatcher.mjs` 持有一个 `pi --mode rpc`（加载 agent-router 扩展），
@@ -50,7 +50,7 @@
 ```
 看板/客户端 ──► agentd ──► dispatcher (pi rpc + 扩展) ──agent_run──► agentd ──► 实例 × N
                   │
-                  └──► transcripts/  instances.json  dispatcher-sessions/
+                  └──► transcripts/  projects.json  dispatcher-sessions/
 ```
 
 **仓库是 monorepo，三层各一个包：**
@@ -98,7 +98,7 @@ SSE 把 `subscribe('*')` 收到的事件原样转发。业务规则只在 agentd
 | | `core/pool/acp/health.mjs` | 进程被强停的记录与"不稳定"的判断 |
 | | `core/pool/metrics.mjs` | 运行指标与推断的健康信号 |
 | | `core/pool/compaction.mjs` | 上下文占用与自动压缩 |
-| | `core/pool/instances.mjs` | 内置与自建实例 |
+| | `core/pool/instances.mjs` | 项目里的实例：把驱动、目录、规则和 MCP 配置组成一个进程；实例的清单在 `core/projects.mjs` |
 | | `core/projects.mjs` | 项目、执行者配置（不往项目里写任何文件） |
 | | `core/rules.mjs` | 调度器和执行者的规则文本（来源 `contexts/`） |
 | | `core/templates.mjs` | 执行者模板：`contexts/templates/*.md`（文件头 + 系统提示词）的增删改查；执行者规则 = 通用规则 + 模板提示词，每次启动重读 |
@@ -130,7 +130,7 @@ SSE 把 `subscribe('*')` 收到的事件原样转发。业务规则只在 agentd
 
 | 文件夹 | 放什么 | 能不能删 |
 |---|---|---|
-| `state/` | 系统记住的：`projects.json`、`instances.json`、`tasks.json`、`session-labels.json`、`journal.jsonl`、`receipts.jsonl` | 要备份，删了就丢数据 |
+| `state/` | 系统记住的：`projects.json`、`tasks.json`、`session-labels.json`、`journal.jsonl`、`receipts.jsonl` | 要备份，删了就丢数据 |
 | `conversations/` | 对话本身：`transcripts/`、`dispatcher-sessions/`、`pi-sessions/` | 要备份 |
 | `outputs/` | agentd 写给人和 CLI 的文档：`handoffs/`、`results/`（长回复全文）、`rules/`（交给各 CLI 的规则文件，每次启动重写） | `rules/` 可删；其余按需 |
 | `runtime/` | 守护进程日志 `agentd.log`、每次运行的日志 `runs/` | 可以删；超过 14 天的运行日志启动时自动清 |
@@ -474,7 +474,6 @@ pi 没有 ACP，官方集成方式是 `pi --mode rpc`。适配器负责翻译：
 | 会话 id | harness 生成 | 记录 + 映射 |
 | 对话内容（经 agentd 的） | 我们（`data/conversations/transcripts/`） | 追加记录 |
 | 调度器对话历史 | pi（`data/conversations/dispatcher-sessions/`） | 不复制，按需读取 |
-| 自建实例清单 | 我们（`data/state/instances.json`） | 持久化 + 启动时恢复 |
 | 项目清单（根目录、实例、角色） | 我们（`data/state/projects.json`） | 持久化 + 启动时恢复；项目调度器会话在 `data/conversations/dispatcher-sessions/<项目>/` |
 | pi 的 LLM 清单 | pi（`models.json`） | 显式命令才写，写前备份 |
 | 活跃会话指针 | 我们（连接内） | 持有 |

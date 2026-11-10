@@ -1,19 +1,19 @@
 # SpecLock Scaffold
 
-SpecLock 的调度脚手架：在一台机器上调度多个 CLI agent，从 pi 里用自然语言调用。
+SpecLock 的调度脚手架：在一台机器上调度多个 CLI agent。**一切都依托项目**：先有项目，项目里才有执行者和调度器；没有项目，什么都不工作。
 规格本身（版本、审核单、权限）由独立的 [SpecLock Core](https://github.com/leaveWhite9088/speclock) 负责，本仓库不含 Core 代码。
 
 ```
-pi  ──扩展──►  agentd（常驻单例）  ──ACP──►  mcode / dsh / opencode / claude / codex / pi
+看板 ──► 项目的调度器（pi + 扩展） ──►  agentd（常驻单例）  ──ACP──►  项目里的执行者：mcode / dsh / opencode / claude / codex / pi
 ```
 
 | agent | 是什么 | 怎么接入 | 版本（实测） | 启动目录 |
 | --- | --- | --- | --- | --- |
-| `mcode` | MiniMax Code | 原生 ACP | `@minimax-ai/code` 0.7.6 | 由 `agentd.config.json` 决定 |
-| `dsh` | DeepSeek Harness | 原生 ACP | `@deepseek-ai/dsh` 0.1.5-rc.2 | 由 `agentd.config.json` 决定 |
-| `opencode` | OpenCode | 原生 ACP（`opencode acp`） | `opencode-ai` 1.19.1 | 由 `agentd.config.json` 决定 |
-| `claude` | Claude Code | 官方适配器 | `@agentclientprotocol/claude-agent-acp` 0.94.0 + `@anthropic-ai/claude-code` 2.1.295 | 由 `agentd.config.json` 决定 |
-| `codex` | Codex | 官方适配器 | `@agentclientprotocol/codex-acp` 2.2.2（依赖 `@openai/codex` 0.160.1；本机另装的 codex-cli 为 0.163.0） | 由 `agentd.config.json` 决定 |
+| `mcode` | MiniMax Code | 原生 ACP | `@minimax-ai/code` 0.7.6 | 项目里的一个子目录 |
+| `dsh` | DeepSeek Harness | 原生 ACP | `@deepseek-ai/dsh` 0.1.5-rc.2 | 项目里的一个子目录 |
+| `opencode` | OpenCode | 原生 ACP（`opencode acp`） | `opencode-ai` 1.19.1 | 项目里的一个子目录 |
+| `claude` | Claude Code | 官方适配器 | `@agentclientprotocol/claude-agent-acp` 0.94.0 + `@anthropic-ai/claude-code` 2.1.295 | 项目里的一个子目录 |
+| `codex` | Codex | 官方适配器 | `@agentclientprotocol/codex-acp` 2.2.2（依赖 `@openai/codex` 0.160.1；本机另装的 codex-cli 为 0.163.0） | 项目里的一个子目录 |
 | `pi` | 另一个 pi 实例 | 自带适配器 `server/pi-acp-adapter.mjs`（走 pi 的 RPC） | `@earendil-works/pi-coding-agent` 1.3.0 | 基准目录 |
 
 版本是 2026-10-23 在本机（Windows 11、Node v24.19.0）实测时安装的，升级后行为可能不同。
@@ -86,51 +86,29 @@ backend 只监听 `127.0.0.1`，并拒绝非本机的 Host / 跨站 Origin：它
 
 ## 安装
 
-把扩展挂到 pi 上，二选一：
+不需要把扩展装进 pi：agentd 启动一个项目的调度器时，会用 `pi -e` 自己加载 agent-router 扩展，只在那个调度器进程里生效。
+没有 `AGENTD_PROJECT`（也就是不是 agentd 为某个项目启动的 pi）时，这个扩展什么都不注册。
 
-```powershell
-# 项目级（需要项目信任）
-#   <project>/.pi/extensions/agent-router.ts 内容：
-#   export { default } from "../../speclock2/packages/agentd/extension/agent-router.ts";
-
-# 用户级（所有项目生效）
-copy speclock2\extension\agent-router.ts $env:USERPROFILE\.pi\agent\extensions\
-```
-
-启动 pi 即可。daemon 由客户端按需拉起，不需要手动起服务。
-
-前置条件：`node` 在 PATH 上；mcode / dsh / pi 三个 CLI 已安装并能独立运行。
+前置条件：`node` 在 PATH 上；要用的 CLI 已安装。`npm run preflight` 会告诉你本机装了哪些、版本对不对（见下面「驱动与预检」）。
+daemon 由客户端按需拉起，不需要手动起服务。
 
 ---
 
 ## 怎么用
 
-直接用自然语言，不需要提工具名：
+1. 打开看板（`npm run backend`、`npm run web`），**先建项目**：一个根目录。
+2. 在项目里**建执行者**：选 CLI 类型、项目内的一个子目录、用途。可以用「模板」预填。
+3. 对项目的调度器说话，由它决定派给哪个执行者；也可以直接进某个执行者的对话。
+
+调度器那一侧用自然语言就行，不需要提工具名，例如：
 
 ```
-让 mcode 看一下这个文件有没有问题
-用 dsh 解释一下这段代码
-分别问一下 mcode 和 dsh：1 加 1 等于几，然后比较耗时
-开个新会话，然后问 mcode 这个项目用了什么框架
-切回刚才那个会话，继续问 dsh
-把 mcode 的模型换成 M3，再问一遍
+让 mcode-web 看一下这个文件有没有问题
+分别问一下 backend 和 data：1 加 1 等于几，然后比较耗时
+开个新会话，然后问 backend 这个项目用了什么框架
 ```
 
-pi 会自己决定调哪个工具、哪个 agent。你也可以显式说：
-
-```
-用 agent_run 问 dsh：……（agent=dsh）
-```
-
-### 斜杠命令
-
-```
-/agents        选 agent → 选会话 → 切换
-/agent-model   选模型
-/agent-usage   看上次运行的指标
-```
-
-> 交互式 UI，只在真 TUI 里可用，`pi -p` 下没有。
+调度器会自己决定调哪个工具、哪个执行者。
 
 ---
 
@@ -146,10 +124,10 @@ pi 会自己决定调哪个工具、哪个 agent。你也可以显式说：
 | `agent_models` | 列模型 / 推理强度 / 权限选项 | `agent`、`sessionId` |
 | `agent_set_model` | 为会话设模型 | `value`、`configId` |
 | `agent_status` | 存活、健康、会话、模型、spawns、pid、cwd | `agent` |
-| `agent_instances` | 列出所有实例（内置 + 自建）及可创建的类型 | — |
-| `agent_instance_create` | 为同一个 CLI 再建一个实例，绑定自己的目录 | `id`、`type`、`cwd` |
+| `agent_instances` | 列出本项目的执行者及可创建的类型 | — |
+| `agent_instance_create` | 给本项目加一个执行者，绑定项目内的一个目录 | `id`、`type`、`cwd`（相对项目根目录） |
 
-`agent` 参数现在是**实例 id**：内置实例的 id 就是类型名（`mcode`、`dsh`、`pi`），自建实例用自己的 id。
+这些工具只存在于项目的调度器里；`agent` 参数是执行者在本项目里的名字（daemon 端把它限定在本项目内）。
 
 几个约定：
 
@@ -179,36 +157,13 @@ log:         data/runtime/runs/pi-xxx.log
 
 ## 配置
 
-### 每个 agent 的启动目录
+### 没有项目就不工作
 
-`agentd.config.json`：
+所有执行者和调度器都属于某个项目，daemon 启动时池子里是空的，也不会自己创建任何目录：
 
-```json
-{
-  "agents": {
-    "mcode": { "cwd": "D:/work/project-a" },
-    "dsh":   { "cwd": "D:/work/project-b" }
-  }
-}
-```
-
-优先级：请求里的 `cwd` > `AGENTD_CWD_MCODE` / `AGENTD_CWD_DSH` / `AGENTD_CWD_PI` > 配置文件 > 基准目录。
-
-目录不存在会自动创建。改配置后需要重启 daemon（`npm run daemon:stop`，下次调用自动拉起）。
-
-调度器 pi（见下）的启动目录用 `"dispatcher": { "cwd": "..." }`，也可用 `AGENTD_CWD_DISPATCHER`。
-
-### 多实例：同一个 CLI 跑多份
-
-一个 CLI 类型可以有多个实例，每个实例是独立进程、固定在自己的目录里，会话列表互不混。
-实例记录在 `data/state/instances.json`，重启 daemon 后自动恢复。
-
-```
-agentd 操作：instances | instance.create {id,type,cwd} | instance.remove {id}
-```
-
-- id 以字母开头，只含 `a-z 0-9 - _`，最长 32；不能和已有实例重名
-- 内置实例不能删除；内置实例的会话列表不包含自建实例目录下的会话
+- 没有「内置」或「全局」的执行者；没有项目时，`run`、`status`、`dispatcher.*` 这些操作都会被拒绝，并说明需要先建项目。
+- 执行者的工作目录就是「项目根目录 + 它的子目录」（创建时若子目录不存在，会在项目根目录内建出来）。
+- `agentd.config.json` 里没有每个 CLI 的启动目录一项了（`limits`、`defaultModels`、`roles` 仍在：`roles` 是没写用途的执行者按类型默认的用途）。
 
 ### 对话记录
 
@@ -252,7 +207,7 @@ agentd 操作：transcript {agent, sessionId?, afterSeq?, limit?, tail?}
 配置存在 `data/state/projects.json`，重启 daemon 后恢复。
 
 - **切项目只是切视图**：其它项目的进程继续跑，不卸载。
-- **没有「全局」视图**：看板里一切都挂在项目下；空闲回收对所有实例生效（含项目外的内置实例）。
+- **没有「全局」视图**：看板里一切都挂在项目下；空闲回收对所有执行者生效。
 - **懒启动**：创建实例只写配置，第一次用才拉起进程；空闲超过 `limits.idleMinutes`（默认 15）自动回收，下次用到再起。
 - **启动重试**：执行者进程启动时退出（如 mcode 偶发起不来），最多重试 3 次（间隔递增）；同一种 CLI 的启动串行化（并发启动 mcode 会互相打架）；最终失败的错误带上进程 stderr 末尾几行，界面上显示「启动失败：…」，下次使用会重新尝试。
 - **进程总数上限** `limits.maxProcesses`（默认 12，或 `AGENTD_MAX_PROCESSES`），超了拒绝拉起。
@@ -279,12 +234,8 @@ agentd 操作：projects | project.create {id,name?,root,instances?} | project.a
 
 | 变量 | 默认 | 作用 |
 | --- | --- | --- |
-| `AGENTD_CWD_DISPATCHER` | 基准目录 | 调度器 pi 的工作目录 |
 | `PI_CLI` / `PI_NODE_BIN` | 预检清单，没有就在 node 旁边找 | 调度器启动 pi 用的入口 / node |
 | `DISPATCHER_SESSION_DIR` | `./data/conversations/dispatcher-sessions` | 调度器会话文件目录 |
-| `AGENTD_BASE_CWD` | 仓库根目录 | 没配置时的默认工作区 |
-| `AGENTD_CWD_<AGENT>` | — | 覆盖某个 agent 的目录 |
-| `AGENTD_DEFAULT_AGENT` | `mcode` | 不指定 agent 时的默认值 |
 | `AGENTD_PIPE` | `\\.\pipe\pi-agentd` | 命名管道地址 |
 | `AGENTD_PORT` | — | 改用 TCP `127.0.0.1:<port>` |
 | `AGENTD_IDLE_MIN` | `30` | 空闲多少分钟自动退出 |
@@ -403,7 +354,7 @@ npm run daemon:stop   # 停掉
 
 | 文件夹 | 内容 | 能不能删 |
 | --- | --- | --- |
-| `state/` | `projects.json`、`instances.json`、`tasks.json`、`session-labels.json`（标签 + 模型选择）、`journal.jsonl`、`receipts.jsonl`（每次运行的回执） | 要备份，删了就丢数据 |
+| `state/` | `projects.json`、`tasks.json`、`session-labels.json`（标签 + 模型选择）、`journal.jsonl`、`receipts.jsonl`（每次运行的回执） | 要备份，删了就丢数据 |
 | `conversations/` | `transcripts/`（按实例、会话分文件的对话记录）、`dispatcher-sessions/`、`pi-sessions/` | 要备份 |
 | `outputs/` | `handoffs/`、`results/`（长回复全文）、`rules/`（交给各 CLI 的规则文件，每次启动重写） | `rules/` 可删 |
 | `runtime/` | `agentd.log`（daemon 日志）、`runs/<jobId>.log`（单次运行的流式正文，超过 14 天自动清） | 可以删 |
