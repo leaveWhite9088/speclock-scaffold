@@ -4,7 +4,7 @@
  *   2. it can be handed over to a fresh conversation: the document is its own reply, the new conversation is told
  *      what the document said, the old conversation is still there
  *
- * Usage: node tools/dispatcher-live-test.mjs
+ * Usage: node tools/live/dispatcher-live-test.mjs
  */
 
 import { mkdtempSync } from 'node:fs';

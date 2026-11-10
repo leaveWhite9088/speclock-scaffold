@@ -5,7 +5,7 @@
  * CLI reads them, the executor really writes a file in its own folder, the context figure shows up, the session
  * survives a daemon restart, and a second turn remembers the first.
  *
- * Usage: node tools/executors-live-test.mjs [type ...]      (default: opencode claude codex)
+ * Usage: node tools/live/executors-live-test.mjs [type ...]      (default: opencode claude codex)
  */
 
 import { existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';

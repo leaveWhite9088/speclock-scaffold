@@ -13,6 +13,8 @@
 import { execFileSync } from 'node:child_process';
 import { Scheduler, check } from '../lib/scheduler.mjs';
 
+const CLIENT_URL = new URL('../../client/agentd-client.mjs', import.meta.url).href;
+
 const AG = process.argv[2] || 'dsh';
 console.log(`\n=== model isolation + persistence: ${AG} ===\n`);
 
@@ -72,11 +74,11 @@ function stopDaemon() {
   while (Date.now() < deadline) {
     try {
       execFileSync(
-        'D:/Environment/nodejs/node.exe',
+        process.execPath,
         [
           '--input-type=module',
           '-e',
-          "import('file:///D:/Project2/code-261013-speclock2/speclock2/packages/agentd/client/agentd-client.mjs').then(async m=>{const r=await m.isRunning();process.exit(r?0:1)});",
+          `import(${JSON.stringify(CLIENT_URL)}).then(async m=>{const r=await m.isRunning();process.exit(r?0:1)});`,
         ],
         { stdio: 'ignore', timeout: 4000 },
       );

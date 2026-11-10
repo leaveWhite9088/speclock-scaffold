@@ -56,7 +56,10 @@
     "test:data-layout": "node tools/unit/data-layout-test.mjs",
     "test:mcp": "node tools/unit/mcp-test.mjs",
     "test:mcp-live": "node tools/live/mcp-live-test.mjs",
-    "test:install": "node tools/unit/install-test.mjs"
+    "test:install": "node tools/unit/install-test.mjs",
+    "test:executors-live": "node tools/live/executors-live-test.mjs",
+    "test:dispatcher-live": "node tools/live/dispatcher-live-test.mjs",
+    "test:stop-guard": "node tools/live/stop-guard-test.mjs"
   },
   "dependencies": {
     "@speclock-scaffold/drivers": "*"

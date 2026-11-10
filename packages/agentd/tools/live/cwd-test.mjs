@@ -8,7 +8,9 @@
  * Usage: node tools/cwd-test.mjs
  */
 
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Scheduler, check } from '../lib/scheduler.mjs';
 
 console.log('\n=== per-agent working directory ===\n');
@@ -39,7 +41,7 @@ check('at least one agent has a configured cwd', configured > 0, `${configured}`
 
 // An explicit cwd must still override the configured default for that session.
 const target = agents.map((a) => a.name).find((n) => n === 'dsh') ?? agents[0].name;
-const override = 'D:/Project2/code-261013-speclock2/sandbox/testpath';
+const override = mkdtempSync(join(tmpdir(), 'agentd-cwd-')).split('\\').join('/');
 await s.c.call('new', { agent: target, cwd: override }).catch(() => null);
 const st = await s.status(target);
 const sessions = await s.sessions(target);
