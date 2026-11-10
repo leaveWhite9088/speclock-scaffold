@@ -10,15 +10,16 @@
 
 import { Scheduler, check } from '../lib/scheduler.mjs';
 
-const AG = process.argv[2] || 'dsh';
-console.log(`\n=== shared daemon: ${AG} ===\n`);
+const TYPE = process.argv[2] || 'dsh';
+console.log(`\n=== shared daemon: ${TYPE} ===\n`);
 
 const A = await Scheduler.open();
 const B = await Scheduler.open();
+const proj = await A.tempProject({ type: TYPE });
+const AG = proj.key;
 
 const hello = await A.hello();
 console.log(`  daemon pid ${hello.pid}, started ${hello.startedAt}`);
-console.log(`  base cwd ${hello.baseCwd}`);
 
 const ra = await A.run(AG, 'Reply with exactly: A-SIDE');
 const rb = await B.run(AG, 'Reply with exactly: B-SIDE');
@@ -50,6 +51,7 @@ await new Promise((r) => setTimeout(r, 800));
 const C = await Scheduler.open();
 const hello2 = await C.hello();
 check('daemon survives clients disconnecting', hello2.pid === hello.pid, `pid ${hello2.pid}`);
+await proj.dispose(C);
 C.close();
 
 console.log(

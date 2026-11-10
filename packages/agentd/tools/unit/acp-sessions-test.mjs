@@ -53,7 +53,7 @@ const request = async (method, params) => {
   }
 };
 const noted = [];
-const agent = { name: 'sess-test', type: 'pi', custom: false, spec: { defaultCwd: 'C:/work/a', model: 'fast' }, child: {}, busy: false, onSession: (id) => noted.push(id) };
+const agent = { name: 'sess-test', type: 'pi', spec: { defaultCwd: 'C:/work/a', model: 'fast' }, child: {}, busy: false, onSession: (id) => noted.push(id) };
 const make = (overrides = {}) =>
   new Sessions({ agent: { ...agent, ...overrides }, request, init: async () => {}, enqueue: (fn) => fn(), rulesMeta: () => ({ _meta: { rules: 1 } }) });
 const names = () => calls.map((c) => c.method).join();
@@ -141,16 +141,15 @@ s = make({ spec: { defaultCwd: 'C:/work/a' } });
 await s.ensureReady();
 const mine = s.sessionId;
 remoteSessions = [
-  { sessionId: 'R1', cwd: 'C:/elsewhere', title: 'old talk', updatedAt: '2026-01-02T00:00:00Z' },
-  { sessionId: 'R2', cwd: 'C:/elsewhere', title: 'hidden talk', updatedAt: '2026-01-01T00:00:00Z' },
+  { sessionId: 'R1', cwd: 'C:/work/a', title: 'old talk', updatedAt: '2026-01-02T00:00:00Z' },
+  { sessionId: 'R2', cwd: 'C:/work/a', title: 'hidden talk', updatedAt: '2026-01-01T00:00:00Z' },
+  { sessionId: 'R3', cwd: 'C:/elsewhere', title: "another executor's talk", updatedAt: '2026-01-03T00:00:00Z' },
 ];
 s.remove('R2');
 const listed = (await s.list()).sessions;
-check('the CLI\'s sessions, the live one and the active one are all listed, newest first', listed.some((r) => r.sessionId === 'R1' && r.source === 'agent') && listed.some((r) => r.sessionId === mine && r.active), listed.map((r) => r.sessionId).join());
+check("the sessions in its own directory, the live one and the active one are listed", listed.some((r) => r.sessionId === 'R1' && r.source === 'agent') && listed.some((r) => r.sessionId === mine && r.active), listed.map((r) => r.sessionId).join());
 check('a hidden one is not', !listed.some((r) => r.sessionId === 'R2'));
-const createdAgent = make({ custom: true, spec: { defaultCwd: 'C:/work/a' } });
-const forCreated = (await createdAgent.list()).sessions;
-check('a created instance only lists its own directory', !forCreated.some((r) => r.sessionId === 'R1'), forCreated.map((r) => r.sessionId).join());
+check("another directory's sessions are not its own (two executors of one CLI do not mix)", !listed.some((r) => r.sessionId === 'R3'), listed.map((r) => r.sessionId).join());
 check('naming one', s.rename('R1', 'Talk').label === 'Talk' && (await s.list()).sessions.find((r) => r.sessionId === 'R1').label === 'Talk');
 check('an empty name removes it', s.rename('R1', '').label === null);
 check('with no id it names the active one', s.rename(null, 'Mine').sessionId === mine);

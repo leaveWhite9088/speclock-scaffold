@@ -10,7 +10,7 @@
  *   6. an instance runs in its own directory under the project root
  *   7. project.stop / project.remove refuse while a job runs, and succeed with force
  *   8. projects survive a daemon restart
- *   9. the plain (global) instance list is not polluted by project instances
+ *   9. the unscoped instance list holds only project executors (nothing exists outside a project)
  *
  * Usage: node tools/projects-test.mjs [type]
  */
@@ -93,10 +93,10 @@ try {
   check('scoped list shows only its own project', names.includes('srv') && !names.some((n) => String(n).includes('~')), names.join(','));
   await fails(call('status', { project: A, short: true, agent: `${B}~srv` }), /~|unknown|not found/i, 'scoped call cannot name another project');
 
-  // 9. global list
+  // 9. the unscoped list: every executor belongs to a project (there are none outside one)
   const glob = await call('instances');
-  const gp = (glob.instances ?? []).filter((i) => String(i.id).includes('~'));
-  check('global list tags project instances with their project', gp.length >= 2 && gp.every((i) => i.project), `${gp.length} tagged`);
+  const gp = glob.instances ?? [];
+  check('every executor in the list belongs to a project, and both projects\' are there', gp.length >= 2 && gp.every((i) => i.project && String(i.id).includes('~')), `${gp.length} listed`);
 
   // 6. runs in its own directory
   const r = await s.c.call('run', { agent: `${A}~srv`, prompt: 'Reply with exactly: PROJ' });

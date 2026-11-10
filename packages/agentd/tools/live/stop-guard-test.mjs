@@ -9,15 +9,17 @@
 process.env.AGENTD_STOP_WAIT_MS = '3000';
 import { Scheduler, stopDaemon, check } from '../lib/scheduler.mjs';
 const s = await Scheduler.open();
-// a slow task on the global dsh agent
-const job = s.c.call('run', { agent: 'dsh', prompt: 'Run the PowerShell command Start-Sleep -Seconds 15 with your shell tool, then reply DONE', timeoutMs: 120000 }, { timeoutMs: 180000 });
+const proj = await s.tempProject({ type: 'dsh' });
+// a slow task on the project's executor
+const job = s.c.call('run', { agent: proj.key, prompt: 'Run the PowerShell command Start-Sleep -Seconds 15 with your shell tool, then reply DONE', timeoutMs: 120000 }, { timeoutMs: 180000 });
 await new Promise((r) => setTimeout(r, 4000));
 let refused = null;
 try { await stopDaemon(); } catch (e) { refused = e.message; }
-check('a busy daemon is not killed', Boolean(refused) && /still working on dsh/.test(refused), refused);
+check('a busy daemon is not killed', Boolean(refused) && refused.includes(`still working on ${proj.key}`), refused);
 const r = await job;
 check('and the task it was running finishes', /DONE/i.test(r.text), JSON.stringify(r.text.slice(0, 30)));
 await new Promise((r) => setTimeout(r, 1500));
+await proj.dispose(s);
 await stopDaemon(); // idle now: allowed
 check('an idle daemon is stopped', true);
 s.close();

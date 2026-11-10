@@ -7,10 +7,12 @@
 
 import { Scheduler, check } from '../lib/scheduler.mjs';
 
-const AG = process.argv[2] || 'dsh';
-console.log(`\n=== session switching: ${AG} ===\n`);
+const TYPE = process.argv[2] || 'dsh';
+console.log(`\n=== session switching: ${TYPE} ===\n`);
 
 const s = await Scheduler.open();
+const proj = await s.tempProject({ type: TYPE });
+const AG = proj.key;
 
 const A = (await s.create(AG)).sessionId;
 await s.run(AG, 'Remember the codeword KIWI. Reply OK.');
@@ -35,5 +37,6 @@ const labelled = sessions.filter((x) => x.sessionId === A || x.sessionId === B);
 check('labels persisted', labelled.length === 2 && labelled.every((x) => x.label));
 check('active session marked', sessions.some((x) => x.active && x.sessionId === B));
 
+await proj.dispose();
 s.close();
 console.log(process.exitCode ? '\n=> ✗ SWITCHING BROKEN' : '\n=> ✓ SESSION SWITCHING WORKS');

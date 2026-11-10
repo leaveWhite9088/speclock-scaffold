@@ -35,6 +35,7 @@ console.log('\n=== daemon shutdown ===\n');
 
 let s = await Scheduler.open();
 const pid1 = (await s.hello()).pid;
+const proj = await s.tempProject({ type: 'dsh' });
 
 // 1
 const denied = await s.c.call('daemon.shutdown', { caller: 'dispatcher', project: 'whatever' }).then(() => 'allowed', (e) => e.message);
@@ -42,7 +43,7 @@ check('the dispatcher cannot ask for it', /the dispatcher cannot do "daemon.shut
 check('and the daemon is still there', alive(pid1));
 
 // 2: busy
-const job = s.c.call('run', { agent: 'dsh', prompt: 'Run the PowerShell command Start-Sleep -Seconds 12 with your shell tool, then reply DONE', timeoutMs: 120000 }, { timeoutMs: 180000 });
+const job = s.c.call('run', { agent: proj.key, prompt: 'Run the PowerShell command Start-Sleep -Seconds 12 with your shell tool, then reply DONE', timeoutMs: 120000 }, { timeoutMs: 180000 });
 await sleep(4000);
 const refused = await s.c.call('daemon.shutdown').then(() => 'stopped', (e) => e.message);
 check('while an executor works the daemon refuses', /still working on/.test(refused), refused);

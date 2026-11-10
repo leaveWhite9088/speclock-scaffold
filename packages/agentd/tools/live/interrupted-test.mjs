@@ -20,6 +20,7 @@ const dir = mkdtempSync(join(tmpdir(), 'agentd-journal-'));
 process.env.AGENTD_JOURNAL_FILE = join(dir, 'journal.jsonl');
 process.env.AGENTD_RECEIPTS_FILE = join(dir, 'receipts.jsonl');
 process.env.AGENTD_TRANSCRIPTS_DIR = join(dir, 'transcripts');
+process.env.AGENTD_PROJECTS_FILE = join(dir, 'projects.json');
 const { check, Scheduler, stopDaemon } = await import('../lib/scheduler.mjs');
 const J = await import('../../core/journal.mjs');
 
@@ -44,29 +45,34 @@ check('new work for the executor clears the notice', J.interruptedOf('a') === nu
 writeFileSync(
   process.env.AGENTD_JOURNAL_FILE,
   [
-    { kind: 'start', jobId: 'lost-1', agent: 'dsh', project: null, prompt: 'rebuild the login module' },
-    { kind: 'start', jobId: 'done-1', agent: 'dsh', project: null, prompt: 'finished before' },
+    { kind: 'start', jobId: 'lost-1', agent: 'ip~e', project: 'ip', prompt: 'rebuild the login module' },
+    { kind: 'start', jobId: 'done-1', agent: 'ip~e', project: 'ip', prompt: 'finished before' },
     { kind: 'end', jobId: 'done-1' },
   ]
     .map((r) => JSON.stringify({ ts: new Date().toISOString(), ...r }))
     .join('\n') + '\n',
 );
 // the executor's conversation, where the lost task's prompt was written before the daemon died
-mkdirSync(join(dir, 'transcripts', 'dsh'), { recursive: true });
+mkdirSync(join(dir, 'transcripts', 'ip~e'), { recursive: true });
 writeFileSync(
-  join(dir, 'transcripts', 'dsh', 'S1.jsonl'),
+  join(dir, 'transcripts', 'ip~e', 'S1.jsonl'),
   JSON.stringify({ ts: new Date().toISOString(), role: 'user', jobId: 'lost-1', text: 'rebuild the login module' }) + '\n',
+);
+// the project the executor lives in: executors only exist inside one
+writeFileSync(
+  process.env.AGENTD_PROJECTS_FILE,
+  JSON.stringify({ projects: [{ id: 'ip', name: 'ip', root: dir, createdAt: new Date().toISOString(), instances: [{ id: 'e', type: 'dsh', dir: '.', role: null }] }] }),
 );
 await stopDaemon();
 let s = await Scheduler.open();
 const receipts = async () => (await s.receipts(50)).receipts.filter((r) => r.jobId === 'lost-1' || r.jobId === 'done-1');
 let rs = await receipts();
-check('the daemon records the lost task as an interrupted receipt', rs.length === 1 && rs[0].status === 'interrupted' && rs[0].agent === 'dsh', JSON.stringify(rs.map((r) => [r.jobId, r.status])));
+check('the daemon records the lost task as an interrupted receipt', rs.length === 1 && rs[0].status === 'interrupted' && rs[0].agent === 'ip~e', JSON.stringify(rs.map((r) => [r.jobId, r.status])));
 check('the finished task is not recorded again', !rs.some((r) => r.jobId === 'done-1'));
-const row = async () => (await s.c.call('instances')).instances.find((i) => i.id === 'dsh');
+const row = async () => (await s.c.call('instances')).instances.find((i) => i.id === 'ip~e');
 check('the executor shows the notice', (await row())?.interrupted?.jobId === 'lost-1', JSON.stringify((await row())?.interrupted));
 
-const convo = async () => (await s.c.call('transcript', { agent: 'dsh', sessionId: 'S1' })).entries;
+const convo = async () => (await s.c.call('transcript', { agent: 'ip~e', sessionId: 'S1' })).entries;
 const err = (await convo()).filter((e) => e.role === 'error');
 check('the executor conversation says the task was interrupted', err.length === 1 && err[0].interrupted === true && err[0].jobId === 'lost-1' && /中断/.test(err[0].error), JSON.stringify(err.map((e) => e.error?.slice(0, 20))));
 

@@ -21,6 +21,7 @@ const dir = mkdtempSync(join(tmpdir(), 'agentd-tasks-'));
 process.env.AGENTD_TASKS_FILE = join(dir, 'tasks.json');
 process.env.AGENTD_JOURNAL_FILE = join(dir, 'journal.jsonl');
 process.env.AGENTD_RECEIPTS_FILE = join(dir, 'receipts.jsonl');
+process.env.AGENTD_PROJECTS_FILE = join(dir, 'projects.json');
 const { check, Scheduler, stopDaemon } = await import('../lib/scheduler.mjs');
 const T = await import('../../core/tasks.mjs');
 
@@ -92,12 +93,17 @@ const now = Date.now();
 writeFileSync(
   process.env.AGENTD_TASKS_FILE,
   JSON.stringify({
-    tA: { id: 'tA', agent: 'dsh', hash: T.hashOf(P1), closed: false, createdAt: now, attempts: [{ jobId: 'a1', agent: 'dsh', outcome: 'failed', at: now }, { jobId: 'a2', agent: 'dsh', outcome: null, at: now }] },
-    tB: { id: 'tB', agent: 'dsh', hash: T.hashOf(P2), closed: false, createdAt: now, attempts: ['b1', 'b2', 'b3'].map((jobId) => ({ jobId, agent: 'dsh', outcome: 'timeout', at: now })) },
+    tA: { id: 'tA', agent: 'tk~e', hash: T.hashOf(P1), closed: false, createdAt: now, attempts: [{ jobId: 'a1', agent: 'tk~e', outcome: 'failed', at: now }, { jobId: 'a2', agent: 'tk~e', outcome: null, at: now }] },
+    tB: { id: 'tB', agent: 'tk~e', hash: T.hashOf(P2), closed: false, createdAt: now, attempts: ['b1', 'b2', 'b3'].map((jobId) => ({ jobId, agent: 'tk~e', outcome: 'timeout', at: now })) },
   }),
 );
-writeFileSync(process.env.AGENTD_JOURNAL_FILE, JSON.stringify({ ts: new Date().toISOString(), kind: 'start', jobId: 'a2', agent: 'dsh', project: null, prompt: P1, taskId: 'tA', attempt: 2, retryOf: 'a1' }) + '\n');
+writeFileSync(process.env.AGENTD_JOURNAL_FILE, JSON.stringify({ ts: new Date().toISOString(), kind: 'start', jobId: 'a2', agent: 'tk~e', project: 'tk', prompt: P1, taskId: 'tA', attempt: 2, retryOf: 'a1' }) + '\n');
 writeFileSync(process.env.AGENTD_RECEIPTS_FILE, '');
+// the executor lives in a project: executors only exist inside one
+writeFileSync(
+  process.env.AGENTD_PROJECTS_FILE,
+  JSON.stringify({ projects: [{ id: 'tk', name: 'tk', root: dir, createdAt: new Date().toISOString(), instances: [{ id: 'e', type: 'dsh', dir: '.', role: null }] }] }),
+);
 
 await stopDaemon();
 const s = await Scheduler.open();
@@ -106,15 +112,15 @@ const lost = (await receipts()).find((r) => r.jobId === 'a2');
 check('the cut-off attempt is an interrupted receipt of its task', lost?.status === 'interrupted' && lost.taskId === 'tA' && lost.attempt === 2, JSON.stringify(lost));
 
 const before = (await receipts()).length;
-await s.c.call('run', { agent: 'dsh', prompt: P2, caller: 'dispatcher' }).then(
+await s.c.call('run', { agent: 'tk~e', prompt: P2, caller: 'dispatcher' }).then(
   () => check('a task that failed three times is refused for the dispatcher', false),
   (e) => check('a task that failed three times is refused for the dispatcher', /not sent again/.test(e.message), e.message),
 );
 check('and nothing was started for it', (await receipts()).length === before);
-const person2 = await s.c.call('run', { agent: 'dsh', prompt: P2 }, { timeoutMs: 240_000 });
+const person2 = await s.c.call('run', { agent: 'tk~e', prompt: P2 }, { timeoutMs: 240_000 });
 check('a person sending the same thing again is not refused: a new task', person2.attempt === 1 && person2.taskId !== 'tB' && /NOPE/.test(person2.text), JSON.stringify([person2.taskId, person2.attempt]));
 
-const r = await s.c.call('run', { agent: 'dsh', prompt: P1, caller: 'dispatcher' }, { timeoutMs: 240_000 });
+const r = await s.c.call('run', { agent: 'tk~e', prompt: P1, caller: 'dispatcher' }, { timeoutMs: 240_000 });
 check('the resend is attempt 3 of the same task', r.taskId === 'tA' && r.attempt === 3 && r.retryOf === 'a2', JSON.stringify([r.taskId, r.attempt, r.retryOf]));
 check('and the executor answers', /OK/.test(r.text), JSON.stringify(r.text?.slice(0, 40)));
 const rec = (await receipts()).find((x) => x.jobId === r.jobId);

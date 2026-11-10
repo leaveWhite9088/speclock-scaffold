@@ -1,7 +1,7 @@
 /**
  * Backend API regression. Starts the server on a spare port and talks to it
- * over HTTP, the way the dashboard does. One `dsh` run is made for the
- * run -> SSE -> transcript path; the dispatcher is only queried, not prompted.
+ * over HTTP, the way the dashboard does. Everything belongs to a project, so it makes one with an executor. One `dsh` run is
+ * made for the run -> SSE -> transcript path; the dispatcher is only queried, not prompted.
  *
  * Usage: node test/api-test.mjs [agent]
  */
@@ -50,7 +50,7 @@ try {
 
   // read routes
   const agents = await api('GET', '/api/agents');
-  check('GET /api/agents lists the built-in instances', agents.status === 200 && agents.body.agents.some((a) => a.name === AG));
+  check('GET /api/agents answers (executors only exist inside projects)', agents.status === 200 && Array.isArray(agents.body.agents));
   const health = await api('GET', '/api/health');
   check('GET /api/health answers', health.status === 200);
   const unknown = await api('GET', '/api/nope');
@@ -67,13 +67,18 @@ try {
   const badOrigin = await api('POST', '/api/dispatcher/abort', {}, { origin: 'https://evil.example.com' });
   check('cross-site POST is refused', badOrigin.status === 403);
 
-  // instances
-  const id = `b${Date.now().toString(36)}`;
-  const cwd = mkdtempSync(join(tmpdir(), 'backend-inst-'));
-  const made = await api('POST', '/api/instances', { id, type: AG, cwd });
-  check('POST /api/instances creates an instance', made.status === 200 && made.body.id === id);
-  const dup = await api('POST', '/api/instances', { id, type: AG, cwd });
-  check('duplicate instance is a 4xx with a message', dup.status === 400 && /already exists/.test(dup.body.error));
+  // a project with one executor: nothing works outside one
+  const pid = `p${Date.now().toString(36)}`;
+  const proot = mkdtempSync(join(tmpdir(), 'backend-proj-'));
+  const pc = await api('POST', '/api/projects', { id: pid, root: proot });
+  check('POST /api/projects creates a project', pc.status === 200);
+  const pi = await api('POST', `/api/projects/${pid}/instances`, { id: 'one', type: AG, dir: '.', role: 'tester' });
+  check('POST project instance works', pi.status === 200);
+  const dup = await api('POST', `/api/projects/${pid}/instances`, { id: 'one', type: AG, dir: '.' });
+  check('duplicate executor is a 4xx with a message', dup.status === 400 && /already exists/.test(dup.body.error));
+  const gone = await api('POST', '/api/instances', { id: 'x', type: AG, cwd: proot });
+  check('there is no way to create an executor outside a project', gone.status === 404);
+  const id = `${pid}~one`;
 
   // SSE + run + transcript
   const events = [];
@@ -115,27 +120,21 @@ try {
 
   const sid = done?.data?.result?.sessionId;
   const tr = await api('GET', `/api/agents/${id}/sessions/${sid}/transcript`);
-  check('transcript has user and assistant entries', tr.status === 200 && tr.body.entries.map((e) => e.role).join() === 'user,assistant');
+check('transcript has the user and assistant entries (a model may add its reasoning as a thought)', tr.status === 200 && tr.body.entries.filter((e) => e.role !== 'thought').map((e) => e.role).join() === 'user,assistant', tr.body.entries?.map((e) => e.role).join());
   const after = await api('GET', `/api/agents/${id}/sessions/${sid}/transcript?afterSeq=${tr.body.entries[0].seq}`);
-  check('afterSeq passes through', after.body.entries.length === 1 && after.body.entries[0].role === 'assistant');
+check('afterSeq passes through', after.body.entries.length >= 1 && after.body.entries.every((e) => e.seq > tr.body.entries[0].seq) && after.body.entries.some((e) => e.role === 'assistant'));
   const ss = await api('GET', `/api/agents/${id}/sessions`);
   check('sessions route lists the session', ss.body.sessions.some((s) => s.sessionId === sid));
 
   // dispatcher (no LLM call)
   const dm = await api('GET', '/api/dispatcher/models');
-  check('dispatcher models are listed', dm.status === 200 && dm.body.models.length > 0);
+  check('a dispatcher without a project is refused', dm.status >= 400 && /project is required/.test(dm.body.error), JSON.stringify(dm.body).slice(0, 80));
   const llms = await api('GET', '/api/dispatcher/llms');
   check('dispatcher llms route answers without literal keys', llms.status === 200 && !/"apiKey":"(?!\$|\(literal)/.test(JSON.stringify(llms.body)));
   const badLlm = await api('POST', '/api/dispatcher/llms', { provider: 'x', baseUrl: 'https://x.test', apiKey: '!rm -rf', models: [{ id: 'm' }] });
   check('apiKey starting with ! is refused', badLlm.status === 400 && /shell command/.test(badLlm.body.error));
 
   // projects
-  const pid = `p${Date.now().toString(36)}`;
-  const proot = mkdtempSync(join(tmpdir(), 'backend-proj-'));
-  const pc = await api('POST', '/api/projects', { id: pid, root: proot });
-  check('POST /api/projects creates a project', pc.status === 200);
-  const pi = await api('POST', `/api/projects/${pid}/instances`, { id: 'one', type: AG, dir: '.', role: 'tester' });
-  check('POST project instance works', pi.status === 200);
   const esc = await api('POST', `/api/projects/${pid}/instances`, { id: 'two', type: AG, dir: '..' });
   check('dir escaping the root is a 4xx', esc.status === 400 && /outside/.test(esc.body.error));
   const st = await api('POST', `/api/agents/${pid}~one/start`);
@@ -152,9 +151,6 @@ try {
   const pdel = await api('DELETE', `/api/projects/${pid}`);
   check('DELETE /api/projects/:id removes it', pdel.status === 200);
 
-  // cleanup
-  const rm =await api('DELETE', `/api/instances/${id}`);
-  check('DELETE /api/instances/:id removes it', rm.status === 200 && rm.body.removed === true);
   ac.abort();
 } finally {
   server.kill();

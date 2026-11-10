@@ -5,11 +5,41 @@
  * extension does the same thing with rendering attached.
  */
 
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { connect, ENDPOINT_FILE } from '../../client/agentd-client.mjs';
 
 export class Scheduler {
   constructor(client) {
     this.c = client;
+  }
+
+  /**
+   * A throwaway project with one executor, for the tests: executors only exist inside a project, so a test that needs
+   * one makes this first. `key` is what the operations take as `agent`. `dispose()` removes the project again
+   * (pass the scheduler to use when this one has been closed since).
+   */
+  async tempProject({ type = 'dsh', id = 'e', role = 'test executor' } = {}) {
+    const project = `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+    const root = mkdtempSync(join(tmpdir(), `agentd-${project}-`));
+    await this.c.call('project.create', { id: project, name: project, root });
+    const added = await this.c.call('project.addInstance', { project, id, type, dir: '.', role });
+    const self = this;
+    return {
+      project,
+      id,
+      key: added.key,
+      root,
+      async dispose(via = self) {
+        await via.c.call('project.remove', { project, force: true }).catch(() => {});
+        try {
+          rmSync(root, { recursive: true, force: true });
+        } catch {
+          /* left in the temp folder */
+        }
+      },
+    };
   }
 
   static async open({ spawnOnDemand = true } = {}) {

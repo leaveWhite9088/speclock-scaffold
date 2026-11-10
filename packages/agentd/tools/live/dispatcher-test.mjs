@@ -21,7 +21,9 @@ const WITH_PROMPT = process.argv.includes('--prompt');
 console.log(`\n=== dispatcher${WITH_PROMPT ? ' (with prompt)' : ''} ===\n`);
 
 const s = await Scheduler.open();
-const call = (op, args) => s.c.call(op, args, { timeoutMs: 180_000 });
+// a dispatcher belongs to a project; the executor is named dsh so the prompt below can ask for it by name
+const proj = await s.tempProject({ type: 'dsh', id: 'dsh' });
+const call = (op, args = {}) => s.c.call(op, { project: proj.project, ...args }, { timeoutMs: 180_000 });
 
 const m = await call('dispatcher.models');
 check('dispatcher starts and lists models', Array.isArray(m.models) && m.models.length > 0, `${m.models.length} model(s)`);
@@ -82,5 +84,6 @@ if (WITH_PROMPT) {
   check('session file is on disk and listed after a prompt', list2.sessions.some((x) => norm(x.file) === norm(st2.sessionFile)));
 }
 
+await proj.dispose();
 s.close();
 console.log(process.exitCode ? '\n=> ✗ DISPATCHER BROKEN' : '\n=> ✓ DISPATCHER OK');

@@ -15,11 +15,13 @@ import { Scheduler, check } from '../lib/scheduler.mjs';
 
 const CLIENT_URL = new URL('../../client/agentd-client.mjs', import.meta.url).href;
 
-const AG = process.argv[2] || 'dsh';
-console.log(`\n=== model isolation + persistence: ${AG} ===\n`);
+const TYPE = process.argv[2] || 'dsh';
+console.log(`\n=== model isolation + persistence: ${TYPE} ===\n`);
 
 // --- per-session isolation ------------------------------------------------
 const s = await Scheduler.open();
+const proj = await s.tempProject({ type: TYPE });
+const AG = proj.key;
 
 const models = await s.models(AG);
 const modelOpt = models.configOptions.find((o) => o.id === 'model');
@@ -59,6 +61,7 @@ check('model restored after restart', resumed === mA, String(resumed).slice(0, 4
 
 const st = await s2.status(AG);
 check('fresh agent process', st.alive === true);
+await proj.dispose(s2);
 s2.close();
 
 console.log(

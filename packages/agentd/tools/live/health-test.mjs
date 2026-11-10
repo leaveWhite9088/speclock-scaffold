@@ -14,10 +14,12 @@
 import { execFileSync } from 'node:child_process';
 import { Scheduler, check } from '../lib/scheduler.mjs';
 
-const AG = process.argv[2] || 'dsh';
-console.log(`\n=== health signals: ${AG} ===\n`);
+const TYPE = process.argv[2] || 'dsh';
+console.log(`\n=== health signals: ${TYPE} ===\n`);
 
 const s = await Scheduler.open();
+const proj = await s.tempProject({ type: TYPE });
+const AG = proj.key;
 
 // --- 1. normal run --------------------------------------------------------
 const ok = await s.run(AG, 'Reply with exactly: OK');
@@ -57,7 +59,7 @@ if (cancelled.timeout) {
 const { receipts } = await s.receipts(10);
 console.log(`  receipts on disk: ${receipts.length}`);
 for (const r of receipts.slice(-3)) {
-  console.log(`    ${r.ts.slice(11, 19)}  ${r.agent.padEnd(6)} ${r.status.padEnd(9)} ${r.durationMs}ms  ${r.health}`);
+  console.log(`    ${r.ts.slice(11, 19)}  ${r.agent.padEnd(12)} ${r.status.padEnd(9)} ${r.durationMs}ms  ${r.health}`);
 }
 check('receipts are persisted', receipts.length > 0);
 check('receipts carry health', receipts.every((r) => typeof r.health === 'string'));
@@ -136,5 +138,6 @@ const post = await s.status(AG);
 console.log(`  after recovery: alive=${post.alive} spawns=${post.spawns}`);
 check('spawn counter increased', post.spawns > before.spawns);
 
+await proj.dispose();
 s.close();
 console.log(process.exitCode ? '\n=> ✗ HEALTH SIGNALS INCOMPLETE' : '\n=> ✓ HEALTH SIGNALS OK');

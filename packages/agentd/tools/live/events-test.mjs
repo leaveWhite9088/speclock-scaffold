@@ -14,10 +14,12 @@
 import { execFileSync } from 'node:child_process';
 import { Scheduler, check } from '../lib/scheduler.mjs';
 
-const AG = process.argv[2] || 'dsh';
-console.log(`\n=== event stream: ${AG} ===\n`);
+const TYPE = process.argv[2] || 'dsh';
+console.log(`\n=== event stream: ${TYPE} ===\n`);
 
 const s = await Scheduler.open();
+const proj = await s.tempProject({ type: TYPE });
+const AG = proj.key;
 const client = s.c;
 
 // Subscribe to every event, the way the future web bridge will.
@@ -81,6 +83,7 @@ check('stale id is detected as an epoch mismatch', stale.reset === true);
 const fresh = await s2.c.call('events.since', { limit: 10 });
 check('history is still readable after restart', Array.isArray(fresh.events));
 
+await proj.dispose(s2);
 s2.close();
 console.log(process.exitCode ? '\n=> ✗ EVENT STREAM INCOMPLETE' : '\n=> ✓ EVENT STREAM OK');
 

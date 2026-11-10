@@ -17,10 +17,12 @@
 
 import { Scheduler, check, stopDaemon } from '../lib/scheduler.mjs';
 
-const AG = process.argv[2] || 'dsh';
-console.log(`\n=== transcript: ${AG} ===\n`);
+const TYPE = process.argv[2] || 'dsh';
+console.log(`\n=== transcript: ${TYPE} ===\n`);
 
 let s = await Scheduler.open();
+const proj = await s.tempProject({ type: TYPE });
+const AG = proj.key;
 await s.c.call('new', { agent: AG });
 
 const r1 = await s.run(AG, 'Reply with exactly: ALPHA');
@@ -66,5 +68,6 @@ s = await Scheduler.open();
 const again = await s.c.call('transcript', { agent: AG, sessionId: r1.sessionId });
 check('record survives a daemon restart', again.total === total, `${again.total} entries`);
 
+await proj.dispose(s);
 s.close();
 console.log(process.exitCode ? '\n=> ✗ TRANSCRIPT BROKEN' : '\n=> ✓ TRANSCRIPT OK');

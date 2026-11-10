@@ -9,10 +9,12 @@
 
 import { Scheduler, check } from '../lib/scheduler.mjs';
 
-const AG = process.argv[2] || 'pi';
-console.log(`\n=== streaming + metrics: ${AG} ===\n`);
+const TYPE = process.argv[2] || 'pi';
+console.log(`\n=== streaming + metrics: ${TYPE} ===\n`);
 
 const s = await Scheduler.open();
+const proj = await s.tempProject({ type: TYPE });
+const AG = proj.key;
 const events = [];
 
 const started = await s.c.call('run', {
@@ -60,10 +62,11 @@ check('metrics have a model', Boolean(m.model));
 check('duration measured', m.durationMs > 0);
 check('first-chunk latency measured', m.timeToFirstTokenMs != null);
 
-if (AG === 'pi') {
+if (TYPE === 'pi') {
   check('token counts available', Boolean(m.tokens), JSON.stringify(m.tokens ?? null));
   check('tokens per second available', m.tokensPerSecond != null);
 }
 
+await proj.dispose();
 s.close();
 console.log(process.exitCode ? '\n=> ✗ STREAMING/METRICS INCOMPLETE' : '\n=> ✓ STREAMING + METRICS OK');
