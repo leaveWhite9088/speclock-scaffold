@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { api, enc, pq } from '@/lib/api';
-import type { DispatcherModels, DispatcherSession, Llm, ModelCatalog, Project, ProjectsResponse, Provider, Session, Template } from '@/lib/types';
+import type { DispatcherModels, DispatcherSession, Llm, ModelCatalog, Project, ProjectsResponse, Provider, ProviderCli, Session, Template } from '@/lib/types';
 import { DISPATCHER, useUi } from '@/store';
 
 /** Server state lives in TanStack Query; the SSE stream invalidates `projects` when something changes. */
@@ -66,5 +66,5 @@ export const useProbeSessions = (project: string, type: string, dir: string, ena
 
 export const useLlms = () => useQuery({ queryKey: ['llms'], queryFn: async () => (await api<{ providers: Llm[] }>('GET', '/api/dispatcher/llms')).providers });
 
-export const useProviders = (enabled = true) => useQuery({ queryKey: ['providers'], queryFn: async () => (await api<{ providers: Provider[] }>('GET', '/api/providers')).providers, enabled });
+export const useProviders = (enabled = true) => useQuery({ queryKey: ['providers'], queryFn: () => api<{ providers: Provider[]; clis: ProviderCli[] }>('GET', '/api/providers'), enabled });
 export const useTemplates = (enabled = true) => useQuery({ queryKey: ['templates'], queryFn: async () => (await api<{ templates: Template[] }>('GET', '/api/templates')).templates, enabled });

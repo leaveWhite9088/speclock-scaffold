@@ -22,7 +22,6 @@ export function DraftActions({ dirty, valid, submitText, onUndo }: { dirty: bool
           撤销修改
         </Button>
       ) : null}
-      {dirty ? <span className="basis-full text-[12.5px] text-muted">有未提交的修改，已存为草稿</span> : null}
     </div>
   );
 }

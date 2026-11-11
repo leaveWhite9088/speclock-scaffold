@@ -2,9 +2,11 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm';
+import { Empty } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
+import { SectionHead } from './parts';
 
 export interface SessionRowData {
   key: string;
@@ -36,9 +38,9 @@ export function SessionList({ rows, error, emptyText, onUse, onRename, onDelete 
     }
   };
 
-  if (error) return <div className="px-2 py-1 text-[12.5px] text-muted">{error}</div>;
-  if (!rows) return <div className="px-2 py-1 text-[12.5px] text-muted">读取中…</div>;
-  if (!rows.length) return <div className="px-2 py-1 text-[12.5px] text-muted">{emptyText}</div>;
+  if (error) return <Empty>{error}</Empty>;
+  if (!rows) return <Empty>读取中…</Empty>;
+  if (!rows.length) return <Empty>{emptyText}</Empty>;
 
   return (
     <div className="-mx-2 grid max-h-80 overflow-y-auto">
@@ -98,5 +100,32 @@ export function SessionList({ rows, error, emptyText, onUse, onRename, onDelete 
         ),
       )}
     </div>
+  );
+}
+
+/** The "会话" block of a settings page: its title, a button for a new one, and the list. */
+export function SessionsSection({ onNew, ...list }: Props & { onNew: () => Promise<void> }) {
+  return (
+    <section>
+      <SectionHead
+        title="会话"
+        action={
+          <Button
+            variant="link"
+            onClick={async () => {
+              try {
+                await onNew();
+                toast('已新建会话');
+              } catch (e) {
+                toast((e as Error).message);
+              }
+            }}
+          >
+            ＋ 新建
+          </Button>
+        }
+      />
+      <SessionList {...list} />
+    </section>
   );
 }

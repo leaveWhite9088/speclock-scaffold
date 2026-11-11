@@ -13,7 +13,17 @@ export interface ProviderSupport {
   supported: boolean;
   protocol?: 'anthropic' | 'openai';
   scope?: 'process' | 'global';
+  /** Ticked in the provider's settings: it may be used with this CLI (and is tested with it). */
+  enabled?: boolean;
   reason?: string | null;
+}
+
+/** A CLI that can take a provider at all. */
+export interface ProviderCli {
+  type: string;
+  label: string;
+  protocol: 'anthropic' | 'openai';
+  scope: 'process' | 'global';
 }
 
 /** Another endpoint and key for the CLIs, kept once per device. The key itself never comes back, only its last four characters. */
@@ -23,6 +33,8 @@ export interface Provider {
   keyHint: string;
   endpoints: { anthropic?: string; openai?: string };
   models: string[];
+  /** The CLIs it may be used with. */
+  types: string[];
   support: ProviderSupport[];
   usedBy: string[];
 }

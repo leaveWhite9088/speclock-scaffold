@@ -1,7 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { Settings } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ContextRing } from '@/components/ui/context-ring';
+import { IconButton } from '@/components/ui/icon-button';
 import { Tag } from '@/components/ui/tag';
 import { toast } from '@/components/ui/toast';
 import { useCatalog, useDispatcherModels, useSelectedMember } from '@/hooks/queries';
@@ -77,9 +79,9 @@ export function ChatHeader() {
             重试启动
           </Button>
         ) : null}
-        <Button aria-pressed={drawer} onClick={() => setDrawer(!drawer)}>
-          设置
-        </Button>
+        <IconButton label="设置" size="icon" aria-pressed={drawer} className={drawer ? 'bg-hover text-ink' : undefined} onClick={() => setDrawer(!drawer)}>
+          <Settings className="size-4" />
+        </IconButton>
       </div>
     </header>
   );

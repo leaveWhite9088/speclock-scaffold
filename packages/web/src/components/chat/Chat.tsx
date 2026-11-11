@@ -36,15 +36,10 @@ function blocks(items: Item[]): Block[] {
 }
 
 function Empty({ hasProject, isDispatcher, hasMembers }: { hasProject: boolean; isDispatcher: boolean; hasMembers: boolean }) {
-  const [title, body] = !hasProject
-    ? ['先建一个项目', '项目是调度器和执行者的归属：一个根目录、一个调度器、若干执行者。点左上角的 ＋ 开始。']
-    : isDispatcher
-      ? ['和调度器说你要做什么', hasMembers ? '它会看每个执行者的用途，把活派下去，再把结果汇总给你。' : '这个项目还没有执行者。先在左下角新建一个，调度器才有人可派。']
-      : ['还没有对话', '在下面直接给这个执行者发消息。它的模型和会话在右上的设置里改。'];
+  const title = !hasProject ? '先建一个项目' : isDispatcher ? (hasMembers ? '和调度器说你要做什么' : '先新建一个执行者') : '还没有对话';
   return (
-    <div className="mx-auto mt-[14vh] max-w-[740px] px-6 text-muted">
-      <h2 className="m-0 mb-2 text-[19px] font-semibold tracking-tight text-ink">{title}</h2>
-      <div className="max-w-[46ch]">{body}</div>
+    <div className="mx-auto mt-[14vh] max-w-[740px] px-6">
+      <h2 className="m-0 text-[19px] font-semibold tracking-tight text-ink">{title}</h2>
     </div>
   );
 }

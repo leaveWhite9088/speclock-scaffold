@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogActions, DialogContent } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/toast';
 import { api, enc } from '@/lib/api';
 import { onLive } from '@/lib/events';
@@ -84,19 +85,14 @@ export function HandoffBar() {
         {open && (
           <DialogContent
             title={`交接 ${open.agent === '@dispatcher' ? '调度器' : open.agent}`}
-            description="下面是旧会话写的交接文档，可以直接修改。确认后会开一个新会话并让它先读这份文档；旧会话保留。"
+           
             className="w-[min(720px,94vw)]"
           >
-            <textarea
-              className="field mt-2 h-[380px] w-full resize-none p-3 font-mono text-[12.5px] leading-relaxed"
-              data-filled="true"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-            />
-            <div className="mt-3 flex justify-end gap-2">
+            <Textarea mono className="h-[380px]" value={text} onChange={(e) => setText(e.target.value)} />
+            <DialogActions>
               <Button disabled={busy} onClick={() => void act(open, 'cancel')}>放弃</Button>
               <Button variant="primary" disabled={busy || !text.trim()} onClick={() => void act(open, 'apply')}>确认并开新会话</Button>
-            </div>
+            </DialogActions>
           </DialogContent>
         )}
       </Dialog>

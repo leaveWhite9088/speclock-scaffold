@@ -3,21 +3,21 @@
 /* Design tokens. Every colour on the page is one of these; components use the Tailwind names
    below (bg-side, text-muted, border-line, ...) and never a raw colour. */
 :root {
-  --bg: #ffffff;
-  --side: #f7f8f9;
+  --bg: #faf9f5;
+  --side: #f0eee6;
   --raised: #ffffff;
-  --ink: #171a20;
-  --ink-2: #3a3f4a;
-  --muted: #7a818d;
-  --line: #eceef1;
-  --line-2: #dfe2e7;
-  --hover: #eff1f4;
-  --accent: #2f56e0;
-  --danger: #c0372b;
+  --ink: #1f1e1d;
+  --ink-2: #3d3d3a;
+  --muted: #7a776e;
+  --line: #e6e3d8;
+  --line-2: #d6d3c6;
+  --hover: #e9e6dc;
+  --accent: #c15f3c;
+  --danger: #b3382c;
   --warn: #b7791f;
-  --ok: #1f9255;
-  --bubble: #f1f3f6;
-  --code: #f4f5f7;
+  --ok: #3f8f5b;
+  --bubble: #f0eee6;
+  --code: #f0eee6;
   --mcode: #6d56e0;
   --dsh: #2a74e8;
   --pi: #1f9255;
@@ -29,21 +29,21 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #131519;
-    --side: #181b20;
-    --raised: #1d2026;
-    --ink: #eceef2;
-    --ink-2: #c5cad3;
-    --muted: #8a919d;
-    --line: #23272e;
-    --line-2: #2f343c;
-    --hover: #22262d;
-    --accent: #7b94ff;
+    --bg: #262624;
+    --side: #1f1e1d;
+    --raised: #30302e;
+    --ink: #f3f1ea;
+    --ink-2: #c9c6bb;
+    --muted: #9b988e;
+    --line: #3a3936;
+    --line-2: #4a4944;
+    --hover: #353431;
+    --accent: #d97757;
     --danger: #f28b82;
     --warn: #e0a84f;
-    --ok: #62d394;
-    --bubble: #20242b;
-    --code: #1b1e24;
+    --ok: #6cc08b;
+    --bubble: #30302e;
+    --code: #30302e;
     --mcode: #a99bff;
     --dsh: #78adff;
     --pi: #62d394;
@@ -117,9 +117,10 @@
    border and a soft shadow. Every button, field, menu, dialog and drawer is built from these; components add layout only. */
 @layer components {
   .ctl { @apply inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md leading-none whitespace-nowrap transition-colors hover:bg-hover disabled:pointer-events-none disabled:opacity-45; }
-  .field { @apply rounded-md bg-hover text-[13.5px] transition-colors placeholder:text-muted focus-visible:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30; }
-  .field[data-filled='true'] { @apply bg-raised shadow-[inset_0_0_0_1px_var(--line-2)]; }
+  .field { @apply rounded-md border border-line-2 bg-raised text-[13.5px] transition-colors placeholder:text-muted focus-visible:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/25; }
   .surface { @apply rounded-lg border border-line bg-raised shadow-pop; }
+  /* A bordered block on the page: a list entry, a provider, a template. */
+  .card { @apply rounded-md border border-line bg-raised; }
   .menu-item { @apply flex w-full flex-col items-start rounded-sm px-2.5 py-1.5 text-left hover:bg-hover aria-selected:bg-hover aria-selected:font-semibold; }
 }
 

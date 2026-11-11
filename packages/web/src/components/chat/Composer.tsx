@@ -46,12 +46,11 @@ export function Composer({ placeholder, busy, onSend }: Props) {
 
   return (
     <form
-      data-filled={text.trim() !== ''}
       onSubmit={(e) => {
         e.preventDefault();
         void submit();
       }}
-      className="mx-auto mb-5 flex w-[calc(100%-48px)] max-w-[740px] items-end gap-1.5 field rounded-lg py-1 pr-1 pl-3 focus-within:bg-raised focus-within:ring-2 focus-within:ring-accent/30"
+      className="mx-auto mb-5 flex w-[calc(100%-48px)] max-w-[740px] items-end gap-1.5 field rounded-xl py-1 pr-1 pl-3 shadow-sm focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25"
     >
       <textarea
         ref={box}

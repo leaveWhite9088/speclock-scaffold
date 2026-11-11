@@ -1,6 +1,9 @@
+import { Plus } from 'lucide-react';
 import { useEffect } from 'react';
 import { ContextRing } from '@/components/ui/context-ring';
+import { Empty } from '@/components/ui/empty';
 import { Dot, type DotState } from '@/components/ui/dot';
+import { IconButton } from '@/components/ui/icon-button';
 import { Tag } from '@/components/ui/tag';
 import { useCatalog, useDispatcherModels, useProject } from '@/hooks/queries';
 import { memberLlm, modelLabel } from '@/lib/format';
@@ -44,7 +47,7 @@ function ExecutorRow({ m }: { m: Member }) {
   return <Row id={m.key} name={m.id} role={m.role} type={m.type} llm={memberLlm(m, catalog)} status={m.busy ? 'busy' : m.alive ? 'on' : 'idle'} context={m.context} />;
 }
 
-export function MemberList() {
+export function MemberList({ onNew }: { onNew: () => void }) {
   const project = useProject();
   const select = useUi((s) => s.select);
   const sel = useUi((s) => s.sel);
@@ -56,7 +59,7 @@ export function MemberList() {
   }, [project, sel, select]);
 
   if (!project) {
-    return <div className="p-3 text-[12.5px] text-muted">还没有项目。点右上的 ＋ 新建一个，项目是调度器和执行者的归属。</div>;
+    return <Empty>还没有项目</Empty>;
   }
   const d = project.dispatcher;
   const dName = models?.models.find((x) => x.value === models.current);
@@ -71,7 +74,12 @@ export function MemberList() {
         status={d?.busy ? 'busy' : d?.alive ? 'on' : 'idle'}
         context={d?.context}
       />
-      {project.instances.length ? <div className="mx-2.5 my-1.5 h-px bg-line" /> : null}
+      <div className="mt-2 flex items-center justify-between border-t border-line px-2.5 pt-2 text-[12px] text-muted">
+        <span>执行者</span>
+        <IconButton label="新建执行者" onClick={onNew}>
+          <Plus />
+        </IconButton>
+      </div>
       {project.instances.map((m) => (
         <ExecutorRow key={m.key} m={m} />
       ))}

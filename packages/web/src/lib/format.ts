@@ -44,6 +44,14 @@ export function took(ms: number): string {
   return `${m} 分 ${Math.round(s - m * 60)} 秒`;
 }
 
+/** An id made from a name: lowercase letters, digits and "-"; `taken` ids get a number so it stays unique. */
+export const slug = (name: string, taken: string[] = [], fallback = 'item') => {
+  const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 28) || fallback;
+  let id = base;
+  for (let n = 2; taken.includes(id); n += 1) id = `${base}-${n}`;
+  return id;
+};
+
 export const oneLine = (t: string, n: number) => {
   const x = t.split(/\s+/).join(' ').trim();
   return x.length > n ? `${x.slice(0, n)}…` : x;

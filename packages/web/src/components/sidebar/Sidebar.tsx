@@ -1,10 +1,11 @@
+import { Settings } from 'lucide-react';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { Dot } from '@/components/ui/dot';
-import { useProject, useProjectsQuery } from '@/hooks/queries';
+import { useProjectsQuery } from '@/hooks/queries';
 import { useUi } from '@/store';
 import { NewMemberDialog } from '../member/NewMemberDialog';
-import { ProvidersDialog } from '../member/ProvidersDialog';
+import { SettingsDialog } from '../settings/SettingsDialog';
 import { MemberList } from './MemberList';
 import { ProjectBar } from './ProjectBar';
 
@@ -12,7 +13,6 @@ function StatusBar() {
   const conn = useUi((s) => s.conn);
   const { data } = useProjectsQuery();
   const l = data?.limits;
-  const full = l ? `进程 ${l.alive}/${l.maxProcesses}，空闲 ${l.idleMinutes} 分钟回收` : '';
   return (
     <div className="flex min-w-0 items-center gap-1.5 text-[11.5px] whitespace-nowrap text-muted">
       <Dot state={conn === 'on' ? 'on' : conn === 'off' ? 'off' : 'idle'} />
@@ -20,9 +20,7 @@ function StatusBar() {
       {l ? (
         <>
           <span className="size-0.5 shrink-0 rounded-full bg-muted" aria-hidden />
-          <span className="min-w-0 truncate" title={full}>
-            进程 {l.alive}/{l.maxProcesses} · 空闲 {l.idleMinutes} 分钟回收
-          </span>
+          <span className="shrink-0">进程 {l.alive}/{l.maxProcesses}</span>
         </>
       ) : null}
     </div>
@@ -30,24 +28,20 @@ function StatusBar() {
 }
 
 export function Sidebar() {
-  const project = useProject();
   const [creating, setCreating] = useState(false);
-  const [providers, setProviders] = useState(false);
+  const [settings, setSettings] = useState(false);
   return (
     <aside className="flex min-h-0 flex-col bg-side max-[620px]:max-h-[34vh]">
       <ProjectBar />
-      <MemberList />
-      <div className="grid gap-2 px-3 pt-2 pb-3 max-[620px]:hidden">
-        <Button variant="outline" className="w-full" disabled={!project} onClick={() => setCreating(true)}>
-          新建执行者
-        </Button>
-        <Button variant="link" className="justify-self-start" onClick={() => setProviders(true)}>
-          供应商（Key 与地址）
-        </Button>
+      <MemberList onNew={() => setCreating(true)} />
+      <div className="mt-auto flex min-w-0 items-center gap-1.5 border-t border-line px-3 py-2">
+        <IconButton label="设置" className="shrink-0" onClick={() => setSettings(true)}>
+          <Settings />
+        </IconButton>
         <StatusBar />
       </div>
       <NewMemberDialog open={creating} onOpenChange={setCreating} />
-      <ProvidersDialog open={providers} onOpenChange={setProviders} />
+      <SettingsDialog open={settings} onOpenChange={setSettings} />
     </aside>
   );
 }

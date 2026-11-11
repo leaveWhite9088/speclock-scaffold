@@ -13,8 +13,8 @@ import { api, enc } from '@/lib/api';
 import { modelLabel, modelName, relDir, when } from '@/lib/format';
 import type { Member, Session } from '@/lib/types';
 import { DISPATCHER, useUi } from '@/store';
-import { SessionList } from './SessionList';
-import { DraftActions, SectionHead } from './parts';
+import { SessionsSection } from './SessionList';
+import { DraftActions } from './parts';
 
 const activeSession = (m: Member, sessions: Session[]) => sessions.find((s) => s.active)?.sessionId ?? m.preferSession ?? sessions[0]?.sessionId ?? null;
 
@@ -26,7 +26,7 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
   const { data: catalog } = useCatalog(m.type);
   const { data: sessions, error: sessionsError } = useExecutorSessions(m.key);
   const { data: templates = [] } = useTemplates();
-  const { data: providers = [] } = useProviders();
+  const providers = useProviders().data?.providers ?? [];
 
   let current = m.model ?? m.preferModel ?? '';
   if (current === catalog?.default) current = '';
@@ -36,7 +36,7 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
   const v = draft.values;
 
   // Providers this executor's CLI can start with (a CLI that keeps providers in its own configuration cannot)
-  const usable = providers.filter((p) => p.support.some((s) => s.type === m.type && s.supported && s.scope === 'process'));
+  const usable = providers.filter((p) => p.support.some((s) => s.type === m.type && s.supported && s.enabled && s.scope === 'process'));
   const options = [{ value: '', label: catalog?.default ? `默认（${modelName(catalog, catalog.default)}）` : '默认' }, ...(catalog?.models ?? []).map((x) => ({ value: x.value, label: modelLabel(x.value, x.name) }))];
   // The saved choice must show even when the model list could not be read.
   if (current && !options.some((o) => o.value === current)) options.push({ value: current, label: modelName(catalog, current) ?? current });
@@ -90,17 +90,17 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
     <>
       <form onSubmit={submit} className="grid gap-2">
         <Field label="名称">
-          <Input required filled={v.name.trim() !== saved.name.trim()} value={v.name} onChange={(e) => draft.set({ name: e.target.value })} />
+          <Input required value={v.name} onChange={(e) => draft.set({ name: e.target.value })} />
         </Field>
         <Field label="用途">
-          <Input placeholder="调度器据此挑人，例如 后端服务" filled={v.role.trim() !== saved.role.trim()} value={v.role} onChange={(e) => draft.set({ role: e.target.value })} />
+          <Input placeholder="调度器据此挑人，例如 后端服务" value={v.role} onChange={(e) => draft.set({ role: e.target.value })} />
         </Field>
         <Field
           label="模板"
-          hint={m.template && !templates.some((t) => t.id === m.template) ? `模板「${m.template}」已被删除，它现在只用通用规则` : v.template !== saved.template ? '新提示词在这个执行者下次启动时生效' : '系统提示词来自模板，改模板即可，不用逐个改'}
+         
         >
           <Select
-            filled={v.template !== saved.template}
+           
             value={v.template}
             onChange={(x) => draft.set({ template: x })}
             options={[{ value: '', label: '不使用模板' }, ...templates.map((t) => ({ value: t.id, label: t.name })), ...(v.template && !templates.some((t) => t.id === v.template) ? [{ value: v.template, label: `${v.template}（已删除）` }] : [])]}
@@ -112,11 +112,11 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
           </div>
         </Field>
         <Field label="模型">
-          <Select filled={v.model !== saved.model} value={v.model} onChange={(x) => draft.set({ model: x })} options={options} />
+          <Select value={v.model} onChange={(x) => draft.set({ model: x })} options={options} />
         </Field>
-        <Field label="供应商" hint={v.provider !== saved.provider ? '改动会让这个执行者的进程重启，下次使用时用新的供应商' : usable.length ? '用「供应商」里保存的 Key 和地址，不用这个 CLI 自己的登录' : '没有可用的供应商：到侧栏的「供应商」里添加并测试'}>
+        <Field label="供应商">
           <Select
-            filled={v.provider !== saved.provider}
+           
             value={v.provider}
             onChange={(x) => draft.set({ provider: x, providerModel: providers.find((p) => p.id === x)?.models[0] ?? '' })}
             options={[{ value: '', label: '不使用（用这个 CLI 自己的登录）' }, ...usable.map((p) => ({ value: p.id, label: p.name })), ...(v.provider && !usable.some((p) => p.id === v.provider) ? [{ value: v.provider, label: `${v.provider}（不可用）` }] : [])]}
@@ -124,39 +124,23 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
         </Field>
         {v.provider ? (
           <Field label="供应商的模型">
-            <Select filled={v.providerModel !== saved.providerModel} value={v.providerModel} onChange={(x) => draft.set({ providerModel: x })} options={(providers.find((p) => p.id === v.provider)?.models ?? [v.providerModel]).map((x) => ({ value: x, label: x }))} />
+            <Select value={v.providerModel} onChange={(x) => draft.set({ providerModel: x })} options={(providers.find((p) => p.id === v.provider)?.models ?? [v.providerModel]).map((x) => ({ value: x, label: x }))} />
           </Field>
         ) : null}
-        <Field label="压缩" hint={m.canCompact === false ? '这个 CLI 没有压缩命令，设置不会生效' : `超过多少 K tokens 自动压缩，留空为不压缩${m.compactions ? `（这个会话已压缩 ${m.compactions} 次）` : ''}`}>
-          <Input type="number" min={10} step={1} disabled={m.canCompact === false} placeholder="例如 256" filled={v.compactK.trim() !== saved.compactK} value={v.compactK} onChange={(e) => draft.set({ compactK: e.target.value })} />
+        <Field label="压缩">
+          <Input type="number" min={10} step={1} disabled={m.canCompact === false} placeholder="例如 256" value={v.compactK} onChange={(e) => draft.set({ compactK: e.target.value })} />
         </Field>
         <DraftActions dirty={draft.dirty} valid={Boolean(v.name.trim())} submitText="提交修改" onUndo={draft.undo} />
       </form>
 
-      <section>
-        <SectionHead
-          title="会话"
-          action={
-            <Button
-              variant="link"
-              onClick={async () => {
-                try {
-                  await api('POST', `${base}/sessions`, {});
-                  toast('已新建会话');
-                  await refreshAll();
-                } catch (e) {
-                  toast((e as Error).message);
-                }
-              }}
-            >
-              ＋ 新建
-            </Button>
-          }
-        />
-        <SessionList
+      <SessionsSection
+          onNew={async () => {
+            await api('POST', `${base}/sessions`, {});
+            await refreshAll();
+          }}
           rows={sessions?.map((s) => ({ key: s.sessionId, title: s.label || s.title || s.sessionId.slice(0, 8), sub: when(s.updatedAt), current: s.sessionId === active }))}
           error={sessionsError?.message}
-          emptyText="还没有会话，第一次发消息时会自动创建。"
+          emptyText="还没有会话"
           onUse={async (id) => {
             await api('POST', `${base}/use`, { sessionId: id });
             await refreshAll();
@@ -170,7 +154,6 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
             await refreshAll();
           }}
         />
-      </section>
 
       <div className="border-t border-line pt-3.5">
         <Button variant="linkDanger" onClick={() => void remove()}>

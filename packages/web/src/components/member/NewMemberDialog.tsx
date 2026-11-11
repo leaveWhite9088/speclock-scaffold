@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogActions, DialogContent } from '@/components/ui/dialog';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -10,7 +10,6 @@ import { useCatalog, useDirs, useInstanceTypes, useProbeSessions, useProject, us
 import { api, enc } from '@/lib/api';
 import { modelLabel, modelName, relDir, when } from '@/lib/format';
 import { useUi } from '@/store';
-import { TemplatesDialog } from './TemplatesDialog';
 
 const EMPTY = { id: '', type: '', dir: '', role: '', model: '', sessionId: 'new', template: '' };
 
@@ -19,7 +18,6 @@ export function NewMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
   const project = useProject();
   const select = useUi((s) => s.select);
   const [form, setForm] = useState(EMPTY);
-  const [managing, setManaging] = useState(false);
   const set = (patch: Partial<typeof form>) => setForm((f) => ({ ...f, ...patch }));
 
   const { data: types = [] } = useInstanceTypes();
@@ -67,21 +65,16 @@ export function NewMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="新建执行者" description="执行者是固定在项目某个目录里的 CLI 进程。创建时只写配置，第一次用到才会启动。">
-        <form onSubmit={submit} className="grid gap-2">
-          <Field label="模板" hint={tpl ? '系统提示词来自这个模板，改提示词请点右边的「管理模板」' : templates.length ? undefined : '还没有模板，点右边的「管理模板」建一个'}>
-            <div className="flex min-w-0 items-center gap-2">
-              <Select className="min-w-0 flex-1" filled={Boolean(form.template)} value={form.template} onChange={pick} options={[{ value: '', label: '不使用模板' }, ...templates.map((t) => ({ value: t.id, label: t.name }))]} />
-              <Button variant="link" className="shrink-0" onClick={() => setManaging(true)}>
-                管理模板
-              </Button>
-            </div>
+      <DialogContent title="新建执行者">
+        <form onSubmit={submit} className="grid gap-2.5">
+          <Field label="模板">
+            <Select value={form.template} onChange={pick} options={[{ value: '', label: '不使用模板' }, ...templates.map((t) => ({ value: t.id, label: t.name }))]} />
           </Field>
           <Field label="名称">
-            <Input required autoFocus placeholder="例如 dsh-backend" value={form.id} onChange={(e) => set({ id: e.target.value })} />
+            <Input required autoFocus value={form.id} onChange={(e) => set({ id: e.target.value })} />
           </Field>
           <Field label="CLI">
-            <Select filled={Boolean(form.type)} value={type} onChange={(v) => set({ type: v, model: '', sessionId: 'new' })} options={types.map((t) => ({ value: t, label: t }))} />
+            <Select value={type} onChange={(v) => set({ type: v, model: '', sessionId: 'new' })} options={types.map((t) => ({ value: t, label: t }))} />
           </Field>
           <Field label="目录">
             <Input
@@ -103,7 +96,7 @@ export function NewMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
           </Field>
           <Field label="模型">
             <Select
-              filled={form.model !== ''}
+             
               value={form.model}
               onChange={(v) => set({ model: v })}
               placeholder={modelsLoading ? '读取中…' : undefined}
@@ -115,25 +108,24 @@ export function NewMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
           </Field>
           <Field label="会话">
             <Select
-              filled={form.sessionId !== 'new'}
+             
               value={form.sessionId}
               onChange={(v) => set({ sessionId: v })}
-              placeholder={sessionsLoading ? '读取中，需要启动一次 CLI，约 10 秒…' : undefined}
+              placeholder={sessionsLoading ? '读取中…' : undefined}
               options={[
                 { value: 'new', label: '新建会话' },
                 ...(isError ? [] : (sessions ?? []).map((s) => ({ value: s.sessionId, label: `${s.title || s.sessionId.slice(0, 8)}，${when(s.updatedAt)}` }))),
               ]}
             />
           </Field>
-          <div className="mt-1.5 flex justify-end gap-2">
+          <DialogActions>
             <Button onClick={() => onOpenChange(false)}>取消</Button>
             <Button type="submit" variant="primary" disabled={!project}>
               创建执行者
             </Button>
-          </div>
+          </DialogActions>
         </form>
       </DialogContent>
-      <TemplatesDialog open={managing} onOpenChange={setManaging} />
     </Dialog>
   );
 }

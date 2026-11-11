@@ -14,7 +14,7 @@ export function useForceable() {
       } catch (err) {
         const message = (err as Error).message;
         if (!/running/.test(message)) throw err;
-        const ok = await confirm({ title: label, description: `还有任务在运行：${message}\n\n继续会中断它们。确定吗？`, confirmText: '继续', danger: true });
+        const ok = await confirm({ title: label, description: `还有任务在运行：${message}`, confirmText: '继续', danger: true });
         if (!ok) return false;
         await run(true);
       }
