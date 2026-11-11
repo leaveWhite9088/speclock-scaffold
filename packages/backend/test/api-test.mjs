@@ -3,7 +3,8 @@
  * over HTTP, the way the dashboard does. Everything belongs to a project, so it makes one with an executor. One `dsh` run is
  * made for the run -> SSE -> transcript path; the dispatcher is only queried, not prompted.
  *
- * Usage: node test/api-test.mjs [agent]
+ * Usage: npm test            (on a private daemon: nothing is left in the real data folder)
+ *        npm run test:raw     (against the shared daemon; leaves the project it makes in its data)
  */
 
 import http from 'node:http';

@@ -157,6 +157,7 @@ const routes = [
   ['POST', '/api/providers/:id/test', ({ params, body }) => call('provider.test', { id: params.id, model: body?.model, types: body?.types })],
   ['GET', '/api/dispatcher/llms', () => call('dispatcher.customModels')],
   ['POST', '/api/dispatcher/llms', ({ body }) => call('dispatcher.addModel', body)],
+  ['POST', '/api/dispatcher/llms/:provider/test', ({ params }) => call('dispatcher.testModel', { provider: params.provider })],
   [
     'DELETE',
     '/api/dispatcher/llms/:provider',

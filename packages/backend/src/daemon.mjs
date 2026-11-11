@@ -6,7 +6,7 @@
  * connection and fans the live events out to its own listeners (the SSE clients).
  */
 
-import { connect } from '@speclock-scaffold/agentd/client/agentd-client.mjs';
+import { connect } from '@speclock-scaffold/agentd/client';
 
 const LIVE_EVENTS = ['progress', 'job.done', 'job.started', 'job.running', 'agent.exit', 'agent.forced-stop', 'agent.recovered', 'job.interrupted', 'dispatcher.event', 'handoff.changed', 'agent.compacted'];
 

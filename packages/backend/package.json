@@ -4,9 +4,11 @@
   "private": true,
   "type": "module",
   "description": "HTTP + SSE gateway in front of agentd. No logic of its own.",
+  "main": "src/server.mjs",
   "scripts": {
     "start": "node src/server.mjs",
-    "test": "node test/api-test.mjs"
+    "test": "node ../agentd/scripts/run-isolated.mjs test:backend",
+    "test:raw": "node test/api-test.mjs"
   },
   "dependencies": {
     "@speclock-scaffold/agentd": "*"
