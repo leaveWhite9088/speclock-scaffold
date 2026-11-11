@@ -17,7 +17,7 @@ import { registerRoster } from "./router/roster.ts";
 import { runTool } from "./router/tools/run.ts";
 import { proposeHandoffTool } from "./router/tools/handoff.ts";
 import { createInstanceTool, instancesTool } from "./router/tools/instances.ts";
-import { modelsTool, sessionsTool, setModelTool, statusTool } from "./router/tools/sessions.ts";
+import { modelsTool, newSessionTool, renameSessionTool, sessionsTool, setModelTool, statusTool, useSessionTool } from "./router/tools/sessions.ts";
 
 export default function agentRouter(pi: ExtensionAPI) {
 	// Everything belongs to a project: unless agentd started this pi as a project's dispatcher (it sets AGENTD_PROJECT),
@@ -34,6 +34,9 @@ export default function agentRouter(pi: ExtensionAPI) {
 
 	pi.registerTool(runTool);
 	pi.registerTool(sessionsTool);
+	pi.registerTool(newSessionTool);
+	pi.registerTool(useSessionTool);
+	pi.registerTool(renameSessionTool);
 	pi.registerTool(modelsTool);
 	pi.registerTool(proposeHandoffTool);
 	pi.registerTool(setModelTool);

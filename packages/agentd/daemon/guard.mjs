@@ -14,16 +14,17 @@ export const AGENT_ARG_OPS = new Set([
 ]);
 
 /**
- * What a project's dispatcher may not do. Sessions belong to people: only a person switches, starts, renames or
- * deletes one, and an executor's directory is fixed when it is created. The one way a dispatcher changes a
- * session is the confirmed handoff, which runs inside agentd and never goes through these ops.
+ * What a project's dispatcher may not do. It may start, name and switch the conversations of its executors (`new`,
+ * `rename`, `use`: one conversation per block of work), but deleting one, resetting one through `run` and changing
+ * an executor's directory stay with a person. Replacing a conversation because its context drifted is the confirmed
+ * handoff, which runs inside agentd and never goes through these ops.
  */
-export const DISPATCHER_DENIED = new Set(['use', 'new', 'rename', 'deleteSession', 'agent.recover', 'project.updateDispatcher', 'project.updateInstance', 'project.addInstance', 'project.create', 'template.save', 'template.remove', 'daemon.shutdown', 'handoff.generate', 'handoff.apply', 'handoff.cancel']);
+export const DISPATCHER_DENIED = new Set(['deleteSession', 'agent.recover', 'project.updateDispatcher', 'project.updateInstance', 'project.addInstance', 'project.create', 'template.save', 'template.remove', 'daemon.shutdown', 'handoff.generate', 'handoff.apply', 'handoff.cancel']);
 function checkCaller(op, args) {
   if (args?.caller !== 'dispatcher') return;
   const sessionArgs = op === 'run' && (args.reset || args.sessionId || args.cwd);
   if (DISPATCHER_DENIED.has(op) || sessionArgs) {
-    throw new Error(`the dispatcher cannot do "${op}": switching, creating, renaming or deleting sessions and changing an executor's directory are done by a person. Send the task with agent_run, or ask the user.`);
+    throw new Error(`the dispatcher cannot do "${op}": deleting or resetting sessions and changing an executor's directory are done by a person. Send the task with agent_run, or ask the user.`);
   }
 }
 

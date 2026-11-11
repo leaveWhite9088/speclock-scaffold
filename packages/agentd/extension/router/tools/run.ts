@@ -14,7 +14,7 @@ export const runTool = defineTool({
 	description:
 		"Send a prompt to a resident coding agent (mcode, dsh, pi, opencode, claude or codex) and get its answer. " +
 		"Call agent_instances first: each instance has a role that says what it is for. " +
-		"The agent process stays alive between calls; follow-ups reuse the same conversation. Sessions and directories are managed by the user, not by you. " +
+		"The agent process stays alive between calls; follow-ups reuse the conversation the agent is in now: switch or open the right one first with agent_session_use / agent_session_new. The directory of an executor is fixed by the user. " +
 		"Progress streams into the transcript while it runs. A long reply comes back as its start and end, with the path of a file holding the full text.",
 	parameters: Type.Object({
 		prompt: Type.String({ description: "Task or question for the agent." }),

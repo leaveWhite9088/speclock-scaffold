@@ -64,6 +64,8 @@ export function listInstances() {
     canCompact: canCompact(a.type),
     compactions: saved(a.name, a.sessionId ?? a.preferSession)?.compactions ?? 0,
     sessionId: a.sessionId,
+    /** The name given to the conversation it is in now (a block, when the dispatcher opened it for one). */
+    sessionLabel: a.sessionId ? (saved(a.name, a.sessionId)?.label ?? null) : null,
     model: a.currentModel(),
   }));
 }

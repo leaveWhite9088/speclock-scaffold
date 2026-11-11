@@ -487,8 +487,9 @@ pi 没有 ACP，官方集成方式是 `pi --mode rpc`。适配器负责翻译：
 ## 会话与权限规则
 
 - **执行者的目录创建后只读**：要换目录就新建执行者（`projects.updateInstance` 拒绝改目录）。
-- **调度器只能派任务**：切换、新建、重命名、删除会话，重置会话、改目录，都只有人能做。`daemon/guard.mjs`
-  对带 `caller: "dispatcher"` 的请求拒绝这些操作，调度器的扩展里也没有对应工具。
+- **调度器可以新建、命名、切换执行者的会话**（一个会话对应一个模块 block，见 `contexts/project.md`；工具
+  `agent_session_new / agent_session_use / agent_session_rename`），但**删除会话、重置会话、改目录**只有人能做。
+  `daemon/guard.mjs` 对带 `caller: "dispatcher"` 的请求拒绝这些操作，扩展里也没有对应工具。
 - **压缩**：每个执行者可设阈值（`compactAt`），由 agentd 在一个回合结束、执行者空闲时检查，超过就让 CLI 自己压缩
   （`/compact`；mcode、pi 支持，dsh 没有）。同一个会话内进行，不换会话。
 - **交接**：换新会话，和压缩是两回事，上下文占比本身不触发。调度器只能 `propose_handoff`；系统也会在客观信号

@@ -8,7 +8,7 @@
     "daemon": "node daemon/agentd.mjs",
     "daemon:stop": "powershell -NoProfile -Command \"Get-CimInstance Win32_Process -Filter \\\"Name='node.exe'\\\" | Where-Object { $_.CommandLine -like '*agentd.mjs*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }\"",
     "daemon:log": "powershell -NoProfile -Command \"Get-Content -Wait -Tail 40 data/runtime/agentd.log\"",
-    "test": "npm run test:daemon && npm run test:events && npm run test:switch && npm run test:models && npm run test:health && npm run test:stream && npm run test:models-json && npm run test:transcript && npm run test:dispatcher && npm run test:projects && npm run test:start && npm run test:idle && npm run test:forced && npm run test:interrupted && npm run test:reply && npm run test:tasks && npm run test:handoff-prompts && npm run test:queue && npm run test:prompt-queue && npm run test:run-tracker && npm run test:ops && npm run test:layers && npm run test:router && npm run test:shutdown && npm run test:dispatcher-sessions && npm run test:turn-queue && npm run test:dispatcher-context && npm run test:transport && npm run test:acp-small && npm run test:acp-runs && npm run test:acp-sessions && npm run test:dispatcher-queue && npm run test:pi-rpc && npm run test:compaction && npm run test:dispatcher-compact && npm run test:pieces && npm run test:rules && npm run test:templates && npm run test:data-layout && npm run test:mcp && npm run test:install",
+    "test": "npm run test:daemon && npm run test:events && npm run test:switch && npm run test:models && npm run test:health && npm run test:stream && npm run test:models-json && npm run test:transcript && npm run test:dispatcher && npm run test:projects && npm run test:start && npm run test:idle && npm run test:forced && npm run test:interrupted && npm run test:reply && npm run test:tasks && npm run test:handoff-prompts && npm run test:queue && npm run test:prompt-queue && npm run test:run-tracker && npm run test:ops && npm run test:block-sessions && npm run test:layers && npm run test:router && npm run test:shutdown && npm run test:dispatcher-sessions && npm run test:turn-queue && npm run test:dispatcher-context && npm run test:transport && npm run test:acp-small && npm run test:acp-runs && npm run test:acp-sessions && npm run test:dispatcher-queue && npm run test:pi-rpc && npm run test:compaction && npm run test:dispatcher-compact && npm run test:pieces && npm run test:rules && npm run test:templates && npm run test:data-layout && npm run test:mcp && npm run test:install",
     "test:daemon": "node tools/live/daemon-share-test.mjs dsh",
     "test:switch": "node tools/live/session-switch-test.mjs dsh",
     "test:models": "node tools/live/model-persist-test.mjs dsh",
@@ -55,6 +55,7 @@
     "test:mcp": "node tools/unit/mcp-test.mjs",
     "test:mcp-live": "node tools/live/mcp-live-test.mjs",
     "test:install": "node tools/unit/install-test.mjs",
+    "test:block-sessions": "node tools/live/block-sessions-test.mjs",
     "test:executors-live": "node tools/live/executors-live-test.mjs",
     "test:dispatcher-live": "node tools/live/dispatcher-live-test.mjs",
     "test:stop-guard": "node tools/live/stop-guard-test.mjs"

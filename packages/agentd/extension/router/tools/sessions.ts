@@ -120,3 +120,86 @@ export const statusTool = defineTool({
 		return { content: [{ type: "text", text }], details: { agents: rows } };
 	},
 });
+
+/** The session of `agent` that `ref` names: a session id, or the label it was given. A label must match exactly one. */
+async function findSession(c: any, agent: string, ref: string) {
+	const { sessions } = await c.call("sessions", { agent });
+	const want = ref.trim().toLowerCase();
+	const byId = sessions.find((s: any) => s.sessionId === ref.trim());
+	if (byId) return byId;
+	const hits = sessions.filter((s: any) => (s.label ?? "").trim().toLowerCase() === want);
+	if (hits.length === 1) return hits[0];
+	if (hits.length > 1) throw new Error(`${hits.length} conversations of ${agent} are named "${ref}"; use the session id from agent_sessions`);
+	throw new Error(`${agent} has no conversation named "${ref}"; agent_sessions lists them`);
+}
+
+export const newSessionTool = defineTool({
+	name: "agent_session_new",
+	label: "Agent session new",
+	description:
+		"Start a new, empty conversation for one executor and give it a name. It becomes the one the executor is in, so the next agent_run goes to it. " +
+		"One conversation is for one block of work: name it after the block. Open it once per block, then keep sending that block's work to it. " +
+		"If a conversation for the block already exists (agent_sessions), switch to it with agent_session_use instead of opening a second one.",
+	parameters: Type.Object({
+		agent: Type.String({ description: "The executor, as named in the roster." }),
+		label: Type.String({ description: "The name of the conversation: the block it is for." }),
+	}),
+	async execute(_id, params) {
+		const label = params.label.trim();
+		if (!label) throw new Error("label is required: name the conversation after its block");
+		const c = await daemon();
+		const { sessions } = await c.call("sessions", { agent: params.agent });
+		if (sessions.some((s: any) => (s.label ?? "").trim().toLowerCase() === label.toLowerCase())) {
+			throw new Error(`${params.agent} already has a conversation named "${label}"; switch to it with agent_session_use`);
+		}
+		const r = await c.call("new", { agent: params.agent });
+		await c.call("rename", { agent: params.agent, sessionId: r.sessionId, label });
+		return {
+			content: [{ type: "text", text: `${params.agent}: new conversation "${label}" (${r.sessionId}); it is the active one now` }],
+			details: { agent: params.agent, sessionId: r.sessionId, label },
+		};
+	},
+});
+
+export const useSessionTool = defineTool({
+	name: "agent_session_use",
+	label: "Agent session use",
+	description:
+		"Switch one executor to an existing conversation, by its name (the block) or session id, so the next agent_run continues that one. " +
+		"The executor keeps everything it said and did there.",
+	parameters: Type.Object({
+		agent: Type.String({ description: "The executor, as named in the roster." }),
+		session: Type.String({ description: "The conversation's name, or its session id from agent_sessions." }),
+	}),
+	async execute(_id, params) {
+		const c = await daemon();
+		const s = await findSession(c, params.agent, params.session);
+		await c.call("use", { agent: params.agent, sessionId: s.sessionId });
+		return {
+			content: [{ type: "text", text: `${params.agent}: now in "${s.label || s.title || s.sessionId}" (${s.sessionId})` }],
+			details: { agent: params.agent, sessionId: s.sessionId, label: s.label ?? null },
+		};
+	},
+});
+
+export const renameSessionTool = defineTool({
+	name: "agent_session_rename",
+	label: "Agent session rename",
+	description: "Rename a conversation of one executor (the one it is in now, unless you name another). Keep the name equal to the block it is for.",
+	parameters: Type.Object({
+		agent: Type.String({ description: "The executor, as named in the roster." }),
+		label: Type.String({ description: "The new name." }),
+		session: Type.Optional(Type.String({ description: "The conversation to rename, by name or session id. Default: the active one." })),
+	}),
+	async execute(_id, params) {
+		const label = params.label.trim();
+		if (!label) throw new Error("label is required");
+		const c = await daemon();
+		const sessionId = params.session ? (await findSession(c, params.agent, params.session)).sessionId : undefined;
+		const r = await c.call("rename", { agent: params.agent, sessionId, label });
+		return {
+			content: [{ type: "text", text: `${params.agent}: ${r.sessionId} is now named "${r.label}"` }],
+			details: r,
+		};
+	},
+});

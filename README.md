@@ -118,6 +118,9 @@ daemon 由客户端按需拉起，不需要手动起服务。
 | --- | --- | --- |
 | `agent_run` | 发 prompt 给某个 agent | `agent`、`prompt`、`sessionId`、`model`、`reset`、`timeout` |
 | `agent_sessions` | 列会话（标签 / 标题 / cwd / 时间），`*` 标活跃 | `agent`、`limit` |
+| `agent_session_new` | 给一个执行者开新会话并命名（一个会话对应一个模块 block），随即成为活跃会话 | `agent`、`label` |
+| `agent_session_use` | 切到已有会话，按名字（模块名）或会话 id | `agent`、`session` |
+| `agent_session_rename` | 给会话改名（默认当前活跃的那个） | `agent`、`label`、`session` |
 | `agent_use` | 切到已有会话 | `sessionId`、`agent` |
 | `agent_new` | 开新会话 | `agent`、`cwd` |
 | `agent_rename` | 给会话设本地标签 | `label`、`sessionId` |
