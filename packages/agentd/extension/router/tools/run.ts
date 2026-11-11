@@ -2,7 +2,7 @@
 
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-coding-agent";
-import { fitReply } from "../../../core/reply.mjs";
+import { fitReply } from "../../../core/records/reply.mjs";
 import { daemon } from "../daemon.ts";
 import { attentionLines, fullMetrics, metricsLine, parseDuration } from "../format.ts";
 import { agentParam } from "../params.ts";

@@ -3,11 +3,11 @@
  */
 
 import { join } from 'node:path';
-import { MAX_PROCESSES, aliveCount, pool } from '../../core/agent-pool.mjs';
-import { CONVERSATIONS_DIR } from '../../core/data-dir.mjs';
-import { savedContext } from '../../core/dispatcher.mjs';
-import * as projects from '../../core/projects.mjs';
-import { listTemplates, removeTemplate, saveTemplate } from '../../core/templates.mjs';
+import { MAX_PROCESSES, aliveCount, pool } from '../../core/pool/index.mjs';
+import { projectPath } from '../../core/base/index.mjs';
+import { savedContext } from '../../core/dispatcher/index.mjs';
+import * as projects from '../../core/projects/index.mjs';
+import { listTemplates, removeTemplate, saveTemplate } from '../../core/prompts/index.mjs';
 import { dispatchers, wireAgent } from '../dispatchers.mjs';
 import { withInterrupted } from '../startup.mjs';
 
@@ -32,7 +32,7 @@ export function projectOps(ctx) {
       projects: projects.listProjects().map((p) => ({
         ...p,
         instances: withInterrupted(p.instances, (i) => i.key),
-        dispatcher: { alive: Boolean(dispatchers.get(p.id)?.child), busy: Boolean(dispatchers.get(p.id)?.busy), compactAt: projects.dispatcherCompactAt(p.id), compactions: dispatchers.get(p.id)?.compactions() ?? 0, queued: (dispatchers.get(p.id)?.queue ?? []).map((m) => m.slice(0, 300)), context: (dispatchers.get(p.id)?.child ? dispatchers.get(p.id)?.context : null) ?? savedContext(join(CONVERSATIONS_DIR, 'dispatcher-sessions', p.id)) },
+        dispatcher: { alive: Boolean(dispatchers.get(p.id)?.child), busy: Boolean(dispatchers.get(p.id)?.busy), compactAt: projects.dispatcherCompactAt(p.id), compactions: dispatchers.get(p.id)?.compactions() ?? 0, queued: (dispatchers.get(p.id)?.queue ?? []).map((m) => m.slice(0, 300)), context: (dispatchers.get(p.id)?.child ? dispatchers.get(p.id)?.context : null) ?? savedContext(projectPath(p.id, 'dispatcher-sessions')) },
       })),
       limits: { maxProcesses: MAX_PROCESSES, alive: aliveCount(), idleMinutes: ctx.idleInstanceMs / 60_000 },
     }),

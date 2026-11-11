@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "restart-daemon": "node packages/agentd/tools/ops/restart-daemon.mjs",
+    "restart-daemon": "npm run restart-daemon -w @speclock-scaffold/agentd",
     "test": "npm test -w @speclock-scaffold/drivers && npm test -w @speclock-scaffold/preflight && npm test -w @speclock-scaffold/agentd && npm test -w @speclock-scaffold/backend",
     "daemon": "npm run daemon -w @speclock-scaffold/agentd",
     "daemon:stop": "npm run daemon:stop -w @speclock-scaffold/agentd",

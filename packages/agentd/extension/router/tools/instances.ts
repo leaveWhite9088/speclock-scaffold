@@ -31,7 +31,7 @@ export const createInstanceTool = defineTool({
 		"Add an executor to this project: an instance of a CLI type, pinned to a directory inside the project. " +
 		"Use it when the work needs one that does not exist yet.",
 	parameters: Type.Object({
-		id: Type.String({ description: "New instance id: a-z, 0-9, - or _, starts with a letter." }),
+		id: Type.String({ description: "New instance name: letters, digits, - or _, starts with a letter." }),
 		type: Type.String({ description: "mcode, dsh, pi, opencode, claude or codex." }),
 		cwd: Type.String({
 			description: "Directory the executor works in, relative to the project root.",

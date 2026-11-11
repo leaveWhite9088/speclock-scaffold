@@ -82,7 +82,7 @@ const manifest = buildManifest({ node: 'N:\\node.exe', detected: noGlobal, now: 
 check('the manifest leaves out what was not found', Object.keys(manifest.packages).length === 0 && manifest.schema === 1 && manifest.node === 'N:/node.exe');
 const manifest2 = buildManifest({ node: 'N:/node.exe', detected: d });
 check('the manifest holds dir, version and source of what was found', manifest2.packages['@minimax-ai/code'].dir.endsWith('/scaffold/node_modules/@minimax-ai/code') && manifest2.packages['@minimax-ai/code'].source === 'scaffold' && !manifest2.packages['@minimax-ai/code'].dir.includes('\\'));
-const file = join(base, 'state', 'clis.json');
+const file = join(base, 'global', 'clis.json');
 writeManifest(file, manifest2);
 check('the manifest is written as JSON (folders created)', JSON.parse(readFileSync(file, 'utf8')).packages['@minimax-ai/code'].version === want('@minimax-ai/code'));
 
@@ -105,7 +105,7 @@ check('on Windows a path with a space stays one argument', windowsCommandLine({ 
 check('a quote in an argument cannot end the quoting', windowsCommandLine({ cmd: 'npm', args: ['x"y z'] }) === 'npm "x\\"y z"' || windowsCommandLine({ cmd: 'npm', args: ['x"y z'] }).startsWith('npm "x'));
 
 // the behaviour record: per CLI, per version
-const pf = join(base, 'state', 'clis-probes.json');
+const pf = join(base, 'global', 'clis-probes.json');
 const fakeProbe = async ({ driver }) => ({
   type: driver.type,
   at: '2026-11-10T00:00:00.000Z',

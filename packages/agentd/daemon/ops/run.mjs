@@ -3,9 +3,9 @@
  * writes the journal, announces the start and the end, and files the receipt.
  */
 
-import { getAgent } from '../../core/agent-pool.mjs';
-import { clearInterrupted, journalEnd, journalStart } from '../../core/journal.mjs';
-import { endRun, planRun, recordRun } from '../../core/tasks.mjs';
+import { getAgent } from '../../core/pool/index.mjs';
+import { clearInterrupted, journalEnd, journalStart } from '../../core/records/index.mjs';
+import { endRun, planRun, recordRun } from '../../core/records/index.mjs';
 import { noteRunOutcome } from '../dispatchers.mjs';
 import { allocEvent, publish, subscribe } from '../events.mjs';
 import { appendReceipt } from '../receipts.mjs';

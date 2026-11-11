@@ -3,11 +3,11 @@
  * Preflight: what is installed, is it what the drivers were verified on, and (only if asked) install it.
  *
  *   preflight [check]            report; changes nothing                                  (default)
- *   preflight write              report, then write the manifest the daemon reads (data/state/clis.json)
+ *   preflight write              report, then write the manifest the daemon reads (data/global/clis.json)
  *   preflight probe              run the behaviour probes (rules, MCP, resume) against what is installed. Uses real models:
  *                                a few short prompts per CLI, one to two minutes, all CLIs at once. Never run by anything else.
  *   preflight install [--yes]    without --yes: show what would be installed; with it: install the verified versions
- *                                of what is missing into the scaffold's own folder (data/tools), then write the manifest
+ *                                of what is missing into the scaffold's own folder (data/global/tools), then write the manifest
  *
  *   --pin          install also the packages found at another version (the scaffold's copy then takes precedence)
  *   --type a,b     only for these CLIs
@@ -18,11 +18,20 @@
 
 import { existsSync } from 'node:fs';
 import { drivers, wantedPackages } from '@speclock-scaffold/drivers';
-import { defaultRoots, detectPackages, manifestPath, ownPrefix } from '../src/detect.mjs';
-import { installPlan, runInstall } from '../src/install.mjs';
-import { buildManifest, writeManifest } from '../src/manifest.mjs';
-import { readProbes, runProbes } from '../src/probe.mjs';
-import { formatReport, summarize } from '../src/report.mjs';
+import {
+  buildManifest,
+  defaultRoots,
+  detectPackages,
+  formatReport,
+  installPlan,
+  manifestPath,
+  ownPrefix,
+  readProbes,
+  runInstall,
+  runProbes,
+  summarize,
+  writeManifest,
+} from '../src/index.mjs';
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(`--${n}`);
@@ -101,7 +110,7 @@ if (flag('json')) {
 } else {
   console.log((command === 'check' ? '' : '\n') + formatReport({ node, roots, rows }));
   if (rows.some((r) => r.status === 'missing') && command === 'check') {
-    console.log('\nmissing CLIs can be installed at their verified versions: preflight install --yes   (only into data/tools, not globally)');
+    console.log('\nmissing CLIs can be installed at their verified versions: preflight install --yes   (only into data/global/tools, not globally)');
   }
 }
 
@@ -113,6 +122,6 @@ function readHelp() {
     '  check    report only (default)',
     '  write    report, and write the manifest the daemon reads',
     '  probe    run the behaviour probes (real models; opt-in)',
-    '  install  show what would be installed; with --yes install the verified versions of what is missing into data/tools',
+    '  install  show what would be installed; with --yes install the verified versions of what is missing into data/global/tools',
   ].join('\n');
 }

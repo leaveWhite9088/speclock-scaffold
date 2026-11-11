@@ -1,6 +1,6 @@
 /**
  * Running the drivers' behaviour probes and keeping what they found, per CLI and per version, in
- * `data/state/clis-probes.json`. That file is for the report only: the daemon never reads it, and nothing here runs
+ * `data/global/clis-probes.json`. That file is for the report only: the daemon never reads it, and nothing here runs
  * unless someone asked (`preflight probe`).
  */
 
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { probeDriver } from '@speclock-scaffold/drivers';
 import { dataDir } from './detect.mjs';
 
-export const probesPath = () => process.env.AGENTD_PROBES_FILE || join(dataDir(), 'state', 'clis-probes.json');
+export const probesPath = () => process.env.AGENTD_PROBES_FILE || join(dataDir(), 'global', 'clis-probes.json');
 
 /** packages/agentd: the pi adapter lives there, and the pi driver starts it. */
 export const agentdRoot = () => process.env.AGENTD_ROOT || join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'agentd');

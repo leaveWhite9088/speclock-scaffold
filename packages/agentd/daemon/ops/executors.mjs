@@ -3,8 +3,9 @@
  * cancel, recover, tail) and what it has said (the transcript).
  */
 
-import { AGENTS, getAgent, listInstances, pool, readTranscript } from '../../core/agent-pool.mjs';
-import * as projects from '../../core/projects.mjs';
+import { AGENTS, getAgent, listInstances, pool } from '../../core/pool/index.mjs';
+import { readTranscript } from '../../core/records/index.mjs';
+import * as projects from '../../core/projects/index.mjs';
 import { wireAgent } from '../dispatchers.mjs';
 import { allocEvent, publish } from '../events.mjs';
 import { viewRows } from '../guard.mjs';

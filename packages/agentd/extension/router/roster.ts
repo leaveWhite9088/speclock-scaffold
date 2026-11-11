@@ -5,7 +5,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { rosterPrompt } from "../../core/rules.mjs";
+import { rosterPrompt } from "../../core/prompts/index.mjs";
 import { PROJECT, daemon } from "./daemon.ts";
 
 /** One line per executor: who it is, what state it is in, what it is for, and a warning when it cannot be trusted with work. */

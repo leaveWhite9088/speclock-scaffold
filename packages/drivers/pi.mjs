@@ -1,10 +1,10 @@
 /**
- * A separate pi instance. pi has no ACP of its own; the scaffold ships an adapter (agentd's server/pi-acp-adapter.mjs)
+ * A separate pi instance. pi has no ACP of its own; the scaffold ships an adapter (agentd's pi-adapter/acp-adapter.mjs)
  * that turns ACP into pi's RPC mode, and this driver starts that adapter.
  *
  *   rules   --append-system-prompt <file>, added by the adapter to pi's command line (env AGENTD_APPEND_SYSTEM_PROMPT_FILE)
  *   mcp     not in the session requests: servers go in AGENTD_MCP_SERVERS (pi's own mcp.json shape) and the adapter loads
- *           them through pi's built-in MCP client and a small extension (agentd's server/pi-mcp-bridge.ts)
+ *           them through pi's built-in MCP client and a small extension (agentd's pi-adapter/mcp-bridge.ts)
  *   compact /compact, which the adapter turns into pi's own compact command
  *
  * Besides the adapter there is pi itself (@earendil-works/pi-coding-agent): the adapter and the project dispatcher both
@@ -44,7 +44,7 @@ export default {
     const dir = packageDir(install, PKG, missing);
     return {
       cmd: install.node,
-      args: [join(ctx.agentdRoot, 'server', 'pi-acp-adapter.mjs')],
+      args: [join(ctx.agentdRoot, 'pi-adapter', 'acp-adapter.mjs')],
       env: { PI_CLI: `${dir}/dist/bundle/cli.js`, PI_NODE_BIN: install.node },
       missing,
     };
@@ -58,8 +58,8 @@ export default {
   },
 
   /** Fixed for the instance. The adapter keeps its session map in this folder, so every instance needs its own. */
-  instanceEnv({ id, conversationsDir }) {
-    return { PI_SESSION_DIR: join(conversationsDir, 'pi-sessions', id) };
+  instanceEnv({ sessionsDir }) {
+    return { PI_SESSION_DIR: sessionsDir };
   },
 
   /** At every process start. The adapter's directory is fixed when it starts, and it takes the MCP servers from here. */

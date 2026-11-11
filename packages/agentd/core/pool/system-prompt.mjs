@@ -12,11 +12,10 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { OUTPUTS_DIR } from '../data-dir.mjs';
+import { instanceIdOf, projectPath } from '../base/index.mjs';
 import { getDriver } from '@speclock-scaffold/drivers';
 import { log } from './config.mjs';
 
-const RULES_DIR = join(OUTPUTS_DIR, 'rules');
 const safe = (s) => String(s).replace(/[^A-Za-z0-9._~-]/g, '_');
 
 /** @returns {{ args: string[], env: Record<string,string>, meta: object | null, prefix: boolean, file: string | null }} */
@@ -24,9 +23,11 @@ export function injectionFor(type, text, name) {
   const none = { args: [], env: {}, meta: null, prefix: false, file: null };
   if (!text?.trim()) return none;
 
-  let file = join(RULES_DIR, `${safe(name)}.md`);
+  // projects/<project>/rules/<executor>.md, written again at every start
+  const dir = projectPath(name, 'rules');
+  let file = join(dir, `${safe(instanceIdOf(name))}.md`);
   try {
-    mkdirSync(RULES_DIR, { recursive: true });
+    mkdirSync(dir, { recursive: true });
     writeFileSync(file, text, 'utf8');
   } catch (err) {
     log(`[${name}] could not write the rules file:`, err.message);

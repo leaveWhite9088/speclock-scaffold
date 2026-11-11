@@ -5,7 +5,7 @@
  * how often it had to be killed (health).
  */
 
-import { appendEntry } from '../../transcripts.mjs';
+import { appendEntry } from '../../records/index.mjs';
 import { COMPACT_PROMPT, maybeCompact } from '../compaction.mjs';
 import { CANCEL_GRACE_MS, CONFIG, MAX_RUN_MS, log } from '../config.mjs';
 import { mcpServersOf } from '../mcp.mjs';

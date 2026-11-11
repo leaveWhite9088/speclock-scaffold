@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "description": "Finds the CLIs on this machine, checks them against the versions the drivers were verified on, and can install those versions into the scaffold's own folder. Run before the daemon; the daemon only reads what it writes.",
+  "main": "src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs"
+  },
   "bin": {
     "speclock-preflight": "bin/preflight.mjs"
   },

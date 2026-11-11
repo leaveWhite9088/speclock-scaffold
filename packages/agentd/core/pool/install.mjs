@@ -1,7 +1,7 @@
 /**
  * What is installed on this machine, as the drivers ask for it: `{ node, dir(package), version(package) }`.
  *
- * Where things are is the preflight's business (packages/preflight): it writes `data/state/clis.json`, and this file
+ * Where things are is the preflight's business (packages/preflight): it writes `data/global/clis.json`, and this file
  * only reads it. Without that file the packages are looked for next to node, which is where `npm i -g` puts them on
  * Windows. Worked out again on every call, so a manifest written while the daemon runs applies to the next start.
  *
@@ -13,10 +13,10 @@
 
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { STATE_DIR } from '../data-dir.mjs';
+import { GLOBAL_DIR } from '../base/index.mjs';
 import { getDriver } from '@speclock-scaffold/drivers';
 
-export const CLIS_FILE = process.env.AGENTD_CLIS_FILE || join(STATE_DIR, 'clis.json');
+export const CLIS_FILE = process.env.AGENTD_CLIS_FILE || join(GLOBAL_DIR, 'clis.json');
 
 let cached = { mtime: -1, data: null };
 

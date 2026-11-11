@@ -14,15 +14,15 @@
  * `messages` method reads it from pi.
  */
 
-import { PiRpc } from '../pi-rpc.mjs';
-import { dispatcherRules } from '../rules.mjs';
-import { nodeBin, piPaths } from '../pool/install.mjs';
-import { injectionFor } from '../pool/system-prompt.mjs';
+import { PiRpc } from '../pi/index.mjs';
+import { dispatcherRules } from '../prompts/index.mjs';
+import { nodeBin, piPaths } from '../pool/index.mjs';
+import { injectionFor } from '../pool/index.mjs';
 import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { agentDir, usableProviders } from '../pi-models.mjs';
+import { agentDir, usablePiProviders } from '../pi/index.mjs';
 import { fileURLToPath } from 'node:url';
-import { CONVERSATIONS_DIR } from '../data-dir.mjs';
+import { projectPath } from '../base/index.mjs';
 import { ContextTracker } from './context.mjs';
 import { SessionStore } from './sessions.mjs';
 import { TurnQueue } from './turn-queue.mjs';
@@ -37,7 +37,7 @@ const piCli = () => {
   return p.cli;
 };
 const EXTENSION = process.env.DISPATCHER_EXTENSION || join(ROOT, 'extension', 'agent-router.ts');
-const SESSION_DIR = process.env.DISPATCHER_SESSION_DIR || join(CONVERSATIONS_DIR, 'dispatcher-sessions');
+const SESSION_DIR = process.env.DISPATCHER_SESSION_DIR || null;
 
 const log = (...a) => process.stderr.write(`[dispatcher] ${a.join(' ')}\n`);
 
@@ -54,7 +54,7 @@ export class Dispatcher {
    * With `project` set, the extension runs scoped: every tool call it makes carries
    * that project, and agentd refuses anything outside it.
    */
-  constructor({ cwd, project = null, sessionDir = SESSION_DIR, onEvent, compactAt = null }) {
+  constructor({ cwd, project = null, sessionDir = SESSION_DIR ?? projectPath(project ?? '_', 'dispatcher-sessions'), onEvent, compactAt = null }) {
     this.cwd = cwd;
     this.project = project;
     this.sessionDir = sessionDir;
@@ -217,7 +217,7 @@ export class Dispatcher {
   }
 
   /**
-   * The dispatcher seen as something a handoff can move to a fresh conversation (core/handoff.mjs asks for exactly
+   * The dispatcher seen as something a handoff can move to a fresh conversation (core/projects/handoff.mjs asks for exactly
    * this much): it can be busy, take a prompt and return its reply, start a new conversation and name it.
    */
   asHandoffTarget() {
@@ -322,7 +322,7 @@ export class Dispatcher {
     }
     const cur = st?.model ? `${st.model.provider}/${st.model.id}` : null;
     // pi lists every model it knows. Only the ones with credentials can answer.
-    const usable = usableProviders();
+    const usable = usablePiProviders();
     const all = list?.models ?? [];
     const shown = all.filter((m) => usable.has(m.provider) || `${m.provider}/${m.id}` === cur);
     return {

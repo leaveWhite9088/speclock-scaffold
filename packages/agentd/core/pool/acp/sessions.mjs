@@ -117,7 +117,7 @@ export class Sessions {
       const meta = entry(this.agent.name, this.sessionId);
       meta.config = { ...(meta.config ?? {}), model: want };
       if (!meta.cwd) meta.cwd = this.cwd;
-      saveStore();
+      saveStore(this.agent.name);
       log(`[${this.agent.name}] applied instance model ${want}`);
     } catch (err) {
       log(`[${this.agent.name}] could not apply instance model ${want}: ${err.message}`);
@@ -130,7 +130,7 @@ export class Sessions {
     const cfg = sid ? saved(this.agent.name, sid)?.config : null;
     if (cfg?.model) {
       delete cfg.model;
-      saveStore();
+      saveStore(this.agent.name);
     }
     if (!this.agent.child || !this.sessionId) return;
     if (this.agent.busy) this.modelDirty = true;
@@ -228,7 +228,7 @@ export class Sessions {
       const meta = entry(this.agent.name, this.sessionId);
       meta.config = { ...(meta.config ?? {}), [configId]: value };
       if (!meta.cwd) meta.cwd = this.cwd;
-      saveStore();
+      saveStore(this.agent.name);
 
       return { sessionId: this.sessionId, configOptions: this.configOptions };
     });
@@ -345,7 +345,7 @@ export class Sessions {
     e.hidden = true;
     delete e.label;
     this.live.delete(sessionId);
-    saveStore();
+    saveStore(this.agent.name);
     return { sessionId, deleted: true };
   }
 
@@ -356,7 +356,7 @@ export class Sessions {
     if (label === null || label === '') delete e.label;
     else e.label = label;
     if (!e.cwd) e.cwd = this.cwd;
-    saveStore();
+    saveStore(this.agent.name);
     return { sessionId: id, label: e.label ?? null };
   }
 }

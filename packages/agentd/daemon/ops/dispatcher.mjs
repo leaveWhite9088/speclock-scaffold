@@ -3,7 +3,8 @@
  * use, and on handoffs (the dispatcher may only propose one; a person generates, reviews and applies it).
  */
 
-import { addProvider, agentDir, listProviders, removeProvider } from '../../core/pi-models.mjs';
+import { addPiProvider, agentDir, listPiProviders, removePiProvider } from '../../core/pi/index.mjs';
+import { testLlm } from '../../core/dispatcher/index.mjs';
 import { anyDispatcherBusy, getDispatcher, handoffs, restartRunningDispatchers } from '../dispatchers.mjs';
 
 /** @param {{ protocol: number, startedAt: string, idleInstanceMs: number }} ctx */
@@ -48,7 +49,7 @@ export function dispatcherOps(ctx) {
 
     'dispatcher.restart': ({ project } = {}) => getDispatcher(project).restart(),
 
-    'dispatcher.customModels': () => ({ agentDir: agentDir(), ...listProviders() }),
+    'dispatcher.customModels': () => ({ agentDir: agentDir(), ...listPiProviders() }),
 
     /**
      * Add an LLM: write it to models.json, then restart every dispatcher that is
@@ -57,13 +58,16 @@ export function dispatcherOps(ctx) {
 
     'dispatcher.addModel': async (spec) => {
       if (anyDispatcherBusy()) throw new Error('a dispatcher is working on a prompt; abort it first');
-      const written = addProvider(spec);
+      const written = addPiProvider(spec);
       return { ...written, dispatchers: await restartRunningDispatchers() };
     },
 
+    /** One request to the model's own address with its key and first model: is the address right, is the key accepted. */
+    'dispatcher.testModel': ({ provider }) => testLlm(provider),
+
     'dispatcher.removeModel': async ({ provider, modelIds }) => {
       if (anyDispatcherBusy()) throw new Error('a dispatcher is working on a prompt; abort it first');
-      const removed = removeProvider(provider, modelIds);
+      const removed = removePiProvider(provider, modelIds);
       return { ...removed, dispatchers: await restartRunningDispatchers() };
     },
   };

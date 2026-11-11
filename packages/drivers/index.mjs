@@ -12,7 +12,7 @@
  *   envFn?()                   environment worked out at every start
  *   provider?                  { protocol: 'anthropic'|'openai', scope: 'process'|'global', apply({ provider, endpoint, model, dir, env }) }
  *                              how to start it with another endpoint and key (see probes/provider.mjs)
- *   instanceEnv?({ id, conversationsDir }), spawnEnv?({ cwd, mcpServers }), paths?(install), diskSessions?(cwd)
+ *   instanceEnv?({ id, sessionsDir }), spawnEnv?({ cwd, mcpServers }), paths?(install), diskSessions?(cwd)
  *
  * `install` is what the scaffold found on this machine: { node, dir(packageName), version(packageName) }. A driver
  * knows nothing about where things are installed, only what it needs; the preflight finds, checks and installs.

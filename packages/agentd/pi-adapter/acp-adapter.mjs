@@ -1,0 +1,545 @@
+#!/usr/bin/env node
+/**
+ * ACP adapter for pi.
+ *
+ * pi has no native ACP support: it exposes an "RPC mode" (JSONL commands and
+ * events on stdio) instead. This adapter presents a pi process as an ACP agent so
+ * agentd can drive it exactly like `mcode` and `dsh`.
+ *
+ *   agentd  ──ACP──▶  this adapter  ──RPC──▶  pi --mode rpc
+ *
+ * Method mapping
+ *   initialize                  -> handshake, capabilities
+ *   session/new                 -> new_session + get_state
+ *   session/list                -> local registry (+ sidecar file)
+ *   session/resume              -> switch_session {sessionPath}
+ *   session/prompt              -> prompt, then wait for agent_settled
+ *   session/set_config_option   -> set_model / set_thinking_level
+ *   session/close               -> forget the session
+ *
+ * pi streams `message_update` / `assistantMessageEvent.text_delta`; the adapter
+ * forwards those as ACP `session/update` notifications with
+ * `sessionUpdate: "agent_message_chunk"`.
+ *
+ * Spawned with `--no-mcp --no-extensions` on purpose:
+ *   - `--no-mcp` prevents recursion (a nested pi would load the same .pi/mcp.json
+ *     and could call back into the server that spawned it)
+ *   - `--no-extensions` keeps the process from emitting extension UI requests
+ *     that this adapter does not render
+ * The one exception: when agentd hands this executor MCP servers (AGENTD_MCP_SERVERS), `--no-mcp` is dropped and only
+ * the built-in MCP client plus mcp-bridge.ts are loaded, so the executor sees those servers and nothing else.
+ */
+
+import { PiRpc } from '../core/pi/index.mjs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// agentd sets PI_CLI and PI_NODE_BIN when it starts the adapter (from the pi driver). Run by hand, it looks next to node.
+const NODE_BIN = process.env.PI_NODE_BIN || process.execPath;
+const PI_CLI =
+  process.env.PI_CLI ||
+  join(dirname(NODE_BIN), 'node_modules', '@earendil-works', 'pi-coding-agent', 'dist', 'bundle', 'cli.js');
+
+const SESSION_DIR =
+  process.env.PI_SESSION_DIR ||
+  join(process.env.AGENTD_DATA_DIR || join(dirname(dirname(fileURLToPath(import.meta.url))), 'data'), 'global', 'pi-sessions');
+
+const MAP_FILE = join(SESSION_DIR, 'acp-session-map.json');
+const MCP_BRIDGE = join(dirname(fileURLToPath(import.meta.url)), 'mcp-bridge.ts');
+const DEFAULT_CWD = process.env.AGENTD_BASE_CWD || dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
+
+const log = (...a) => process.stderr.write(`[pi-acp] ${a.join(' ')}\n`);
+
+// ---------------------------------------------------------------------------
+// sessionId <-> pi session file
+// ---------------------------------------------------------------------------
+
+let map = {};
+function loadMap() {
+  try {
+    if (existsSync(MAP_FILE)) map = JSON.parse(readFileSync(MAP_FILE, 'utf8')) ?? {};
+  } catch {
+    map = {};
+  }
+}
+function saveMap() {
+  try {
+    mkdirSync(SESSION_DIR, { recursive: true });
+    writeFileSync(MAP_FILE, JSON.stringify(map, null, 2));
+  } catch (err) {
+    log('map save failed:', err.message);
+  }
+}
+loadMap();
+
+/**
+ * Stable session id = session file name without `.jsonl`.
+ *
+ * pi's `get_state.sessionId` is scoped to the running process (every id this
+ * process produced shared the prefix `01a152f5-`), so it changes when a session
+ * is resumed by another process. The file name is stable, so we anchor on it.
+ */
+const idOf = (file) => {
+  const base = basename(file).replace(/\.jsonl$/, '');
+  // pi names files `<timestamp>_<uuid>.jsonl`; the uuid part is the readable id.
+  const i = base.lastIndexOf('_');
+  return i >= 0 ? base.slice(i + 1) : base;
+};
+
+/** Find a session file by id when the sidecar lacks the entry. */
+function findSessionFile(sessionId) {
+  try {
+    const walk = (dir) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) {
+          const hit = walk(p);
+          if (hit) return hit;
+        } else if (e.name.includes(sessionId)) {
+          return p;
+        }
+      }
+      return null;
+    };
+    return walk(SESSION_DIR);
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// pi RPC client
+// ---------------------------------------------------------------------------
+
+/**
+ * The pi process behind this adapter: the shared client (core/pi/rpc.mjs) plus what only an ACP adapter needs, which
+ * pi session the ACP session ids point at and who wants the text and tool events of the prompt that is running.
+ */
+class AdapterPi extends PiRpc {
+  constructor() {
+    super({ label: 'pi', log });
+    this.textListeners = [];
+    /** Receive pi's tool and reasoning events, so a long task is not silent. */
+    this.eventListeners = [];
+    this.cwd = DEFAULT_CWD;
+    this.sessionId = null;
+    this.sessionFile = null;
+    this.activeAcpId = null;
+    this.addListener((rec) => this._fanOut(rec));
+  }
+
+  ensureStarted(cwd) {
+    if (this.running) {
+      if (cwd && cwd !== this.cwd) {
+        throw new Error(
+          `pi adapter is pinned to cwd ${this.cwd}; asked for ${cwd}. ` +
+            'Restart agentd with a different AGENTD_BASE_CWD to change it.',
+        );
+      }
+      return;
+    }
+    this.cwd = cwd || DEFAULT_CWD;
+
+    // MCP stays off unless agentd gave this executor servers. Then only those load: --no-extensions drops everything
+    // discovered, and the two -e bring back the built-in MCP client and the bridge that registers agentd's servers.
+    const withMcp = Boolean(process.env.AGENTD_MCP_SERVERS);
+    const args = withMcp
+      ? [PI_CLI, '--mode', 'rpc', '--no-extensions', '-e', 'builtin:mcp', '-e', MCP_BRIDGE, '--session-dir', SESSION_DIR]
+      : [PI_CLI, '--mode', 'rpc', '--no-mcp', '--no-extensions', '--session-dir', SESSION_DIR];
+    // Rules from agentd, given as extra system instructions instead of a file in the project.
+    if (process.env.AGENTD_APPEND_SYSTEM_PROMPT_FILE) args.push('--append-system-prompt', process.env.AGENTD_APPEND_SYSTEM_PROMPT_FILE);
+    log(`spawning pi rpc (cwd=${this.cwd})`);
+    this.start({ cmd: NODE_BIN, args, cwd: this.cwd, env: process.env });
+  }
+
+  _fanOut(rec) {
+    if (
+      this.eventListeners.length &&
+      (rec.type === 'tool_execution_start' ||
+        rec.type === 'tool_execution_update' ||
+        rec.type === 'tool_execution_end' ||
+        (rec.type === 'message_update' && rec.assistantMessageEvent?.type === 'thinking_delta'))
+    ) {
+      for (const fn of this.eventListeners) fn(rec);
+    }
+    if (rec.type === 'message_update') {
+      const ev = rec.assistantMessageEvent;
+      if (ev?.type === 'text_delta' && ev.delta) {
+        for (const fn of this.textListeners) fn(ev.delta);
+      }
+    }
+  }
+
+  /** The prompt that runs through here can take long: a generous default. */
+  command(type, params = {}, timeoutMs = 300_000) {
+    return super.command(type, params, timeoutMs);
+  }
+}
+
+const rpc = new AdapterPi();
+
+// ---------------------------------------------------------------------------
+// ACP config options (model, thinking)
+// ---------------------------------------------------------------------------
+
+const THINKING_FALLBACK = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+
+async function buildConfigOptions() {
+  const [modelsData, state] = await Promise.all([
+    rpc.command('get_available_models', {}, 60_000).catch(() => ({ models: [] })),
+    rpc.state().catch(() => ({})),
+  ]);
+
+  const models = modelsData?.models ?? [];
+  const cur = state?.model;
+  const curValue = cur ? `${cur.provider}/${cur.id}` : null;
+
+  const options = [];
+  for (const [id, name] of [
+    ['model', 'Model'],
+    ['thinking', 'Thinking level'],
+  ]) {
+    if (id === 'model') {
+      options.push({
+        id: 'model',
+        name,
+        category: 'model',
+        type: 'select',
+        currentValue: curValue,
+        options: models.map((m) => ({
+          value: `${m.provider}/${m.id}`,
+          name: m.name ?? m.id,
+          description: `${m.provider}${m.reasoning ? ' · reasoning' : ''}`,
+        })),
+      });
+    } else {
+      let levels = THINKING_FALLBACK;
+      try {
+        const d = await rpc.command('get_available_thinking_levels', {}, 30_000);
+        if (Array.isArray(d?.levels) && d.levels.length) levels = d.levels;
+      } catch {
+        /* keep fallback */
+      }
+      options.push({
+        id: 'thinking',
+        name,
+        category: 'thought_level',
+        type: 'select',
+        currentValue: state?.thinkingLevel ?? null,
+        options: levels.map((l) => ({ value: l, name: l })),
+      });
+    }
+  }
+  return options;
+}
+
+// ---------------------------------------------------------------------------
+// ACP server side
+// ---------------------------------------------------------------------------
+
+const send = (obj) => process.stdout.write(JSON.stringify(obj) + '\n');
+const reply = (id, result) => send({ jsonrpc: '2.0', id, result });
+const replyError = (id, code, message) => send({ jsonrpc: '2.0', id, error: { code, message } });
+const notify = (method, params) => send({ jsonrpc: '2.0', method, params });
+
+function emitChunk(sessionId, text) {
+  notify('session/update', {
+    sessionId,
+    update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } },
+  });
+}
+
+const TOOL_KIND = { read: 'read', edit: 'edit', write: 'edit', bash: 'execute', grep: 'search', find: 'search', ls: 'search' };
+let toolSeq = 0;
+let currentTool = null;
+let lastToolPing = 0;
+
+/**
+ * What pi is doing, as ACP updates. Without these a pi executor says nothing until its final answer: the front
+ * end shows no tool calls, and the silence timer cannot tell a long build from a hang.
+ */
+function emitActivity(sessionId, rec) {
+  const update = (u) => notify('session/update', { sessionId, update: u });
+  if (rec.type === 'message_update') {
+    const text = rec.assistantMessageEvent?.delta;
+    if (text) update({ sessionUpdate: 'agent_thought_chunk', content: { type: 'text', text } });
+    return;
+  }
+  if (rec.type === 'tool_execution_start') {
+    currentTool = rec.toolCallId ?? rec.id ?? `pi-${++toolSeq}`;
+    const a = rec.args ?? {};
+    const hint = String(a.command ?? a.path ?? a.file_path ?? a.pattern ?? '').split(String.fromCharCode(10))[0].slice(0, 70);
+    update({
+      sessionUpdate: 'tool_call',
+      toolCallId: currentTool,
+      title: hint ? `${rec.toolName}: ${hint}` : String(rec.toolName ?? 'tool'),
+      kind: TOOL_KIND[rec.toolName] ?? 'other',
+      status: 'in_progress',
+      rawInput: rec.args ?? null,
+    });
+    return;
+  }
+  const toolCallId = rec.toolCallId ?? rec.id ?? currentTool;
+  if (rec.type === 'tool_execution_update') {
+    // Partial output of a running tool: a sign of life, at most once a second.
+    if (Date.now() - lastToolPing < 1000) return;
+    lastToolPing = Date.now();
+    update({ sessionUpdate: 'tool_call_update', toolCallId, status: 'in_progress' });
+  } else if (rec.type === 'tool_execution_end') {
+    const out = (Array.isArray(rec.result?.content) ? rec.result.content : []).map((c) => c?.text ?? '').filter(Boolean).join(String.fromCharCode(10));
+    update({
+      sessionUpdate: 'tool_call_update',
+      toolCallId,
+      status: rec.isError ? 'failed' : 'completed',
+      ...(out ? { content: [{ type: 'content', content: { type: 'text', text: out } }] } : {}),
+    });
+  }
+}
+
+async function ensureSession(sessionId) {
+  rpc.ensureStarted();
+
+  // Already the active session in this process.
+  if (rpc.activeAcpId === sessionId && rpc.sessionFile) return;
+
+  const path = map[sessionId] ?? findSessionFile(sessionId);
+  if (!path) throw new Error(`unknown session ${sessionId}`);
+
+  const r = await rpc.command('switch_session', { sessionPath: path });
+  if (r?.cancelled) throw new Error('pi canceled the session switch');
+
+  const st = await rpc.state();
+  rpc.sessionId = st?.sessionId ?? null;
+  rpc.sessionFile = path;
+  rpc.activeAcpId = sessionId;
+  map[sessionId] = path;
+  saveMap();
+}
+
+/** Sessions whose running prompt was asked to stop, so it ends as `cancelled` and not as a normal end. */
+const cancelling = new Set();
+
+async function handle(method, params, id) {
+  switch (method) {
+    case 'initialize':
+      reply(id, {
+        protocolVersion: 1,
+        agentInfo: { name: 'pi', title: 'pi (RPC adapter)', version: '0.1.0' },
+        agentCapabilities: {
+          sessionCapabilities: { list: {}, resume: {}, close: {} },
+          promptCapabilities: { image: false, audio: false, embeddedContext: false },
+        },
+      });
+      return;
+
+    case 'session/new': {
+      rpc.ensureStarted(params?.cwd);
+      await rpc.command('new_session', {}, 60_000);
+      const st = await rpc.state();
+      rpc.sessionId = st?.sessionId ?? null;
+      rpc.sessionFile = st?.sessionFile ?? null;
+      const acpId = st?.sessionFile ? idOf(st.sessionFile) : st.sessionId;
+      rpc.activeAcpId = acpId;
+      map[acpId] = st?.sessionFile ?? null;
+      saveMap();
+      log(`new session ${acpId}`);
+      reply(id, {
+        sessionId: acpId,
+        configOptions: await buildConfigOptions(),
+      });
+      return;
+    }
+
+    case 'session/list': {
+      // pi has no list command; serve our registry, filtered to files still present.
+      const sessions = Object.entries(map)
+        .filter(([, file]) => file && existsSync(file))
+        .map(([sessionId, file]) => ({ sessionId, cwd: rpc.cwd, _file: file }));
+      reply(id, { sessions });
+      return;
+    }
+
+    case 'session/resume': {
+      await ensureSession(params.sessionId);
+      reply(id, {
+        sessionId: params.sessionId,
+        configOptions: await buildConfigOptions(),
+      });
+      return;
+    }
+
+    case 'session/cancel': {
+      // A notification: no reply. pi stops the turn (and its running tool); the prompt then ends as cancelled.
+      cancelling.add(params?.sessionId);
+      await rpc.command('abort', {}, 30_000).catch((err) => log(`abort failed: ${err.message}`));
+      return;
+    }
+
+    case 'session/prompt': {
+      const sid = params.sessionId;
+      cancelling.delete(sid);
+      const text = (params.prompt ?? [])
+        .map((p) => p.text ?? '')
+        .join('')
+        .trim();
+      await ensureSession(sid);
+
+      const onText = (delta) => emitChunk(sid, delta);
+      rpc.textListeners.push(onText);
+
+      // "/compact" is pi's own compact command, not a message for the model.
+      if (text === '/compact') {
+        try {
+          await rpc.command('compact', {}, 600_000);
+          const stats = await rpc.command('get_session_stats', {}, 30_000).catch(() => null);
+          const ctx = stats?.contextUsage;
+          if (ctx) notify('session/update', { sessionId: sid, update: { sessionUpdate: 'usage_update', used: ctx.tokens ?? null, size: ctx.contextWindow ?? null } });
+          emitChunk(sid, '已压缩对话。');
+          reply(id, { stopReason: 'end_turn' });
+        } catch (err) {
+          replyError(id, -32000, `compact failed: ${err.message}`);
+        } finally {
+          const i = rpc.textListeners.indexOf(onText);
+          if (i >= 0) rpc.textListeners.splice(i, 1);
+        }
+        return;
+      }
+
+      const onEvent = (rec) => emitActivity(sid, rec);
+      rpc.eventListeners.push(onEvent);
+
+      try {
+        const settled = rpc.waitSettled();
+        settled.catch(() => {}); // if pi dies before the command is answered, the failure surfaces there, not as an unhandled rejection
+        const r = await rpc.command('prompt', { message: text });
+        if (r?.disposition !== 'handled') await settled;
+
+        // A brand-new session may not have a file until its first message.
+        if (!map[sid]) {
+          const st = await rpc.state();
+          if (st?.sessionFile) {
+            map[sid] = st.sessionFile;
+            rpc.sessionFile = st.sessionFile;
+            saveMap();
+          }
+        }
+
+        // ACP's usage_update only carries context size, but pi knows real token
+        // counts. Forward them so agentd can report tokens and tok/s.
+        try {
+          const stats = await rpc.command('get_session_stats', {}, 30_000);
+          const ctx = stats?.contextUsage;
+          notify('session/update', {
+            sessionId: sid,
+            update: {
+              sessionUpdate: 'usage_update',
+              used: ctx?.tokens ?? null,
+              size: ctx?.contextWindow ?? null,
+              tokens: stats?.tokens ?? null,
+              cost: stats?.cost != null ? { amount: stats.cost, currency: 'USD' } : null,
+            },
+          });
+        } catch (err) {
+          log(`stats unavailable: ${err.message}`);
+        }
+
+        reply(id, { stopReason: cancelling.delete(sid) ? 'cancelled' : 'end_turn' });
+      } finally {
+        const i = rpc.textListeners.indexOf(onText);
+        if (i >= 0) rpc.textListeners.splice(i, 1);
+        const j = rpc.eventListeners.indexOf(onEvent);
+        if (j >= 0) rpc.eventListeners.splice(j, 1);
+      }
+      return;
+    }
+
+    case 'session/set_config_option': {
+      await ensureSession(params.sessionId);
+      const { configId, value } = params;
+
+      if (configId === 'model') {
+        const slash = String(value).indexOf('/');
+        if (slash < 1) throw new Error(`model value must be "provider/model", got ${value}`);
+        const provider = String(value).slice(0, slash);
+        const modelId = String(value).slice(slash + 1);
+        await rpc.command('set_model', { provider, modelId }, 60_000);
+      } else if (configId === 'thinking') {
+        await rpc.command('set_thinking_level', { level: value }, 60_000);
+      } else {
+        throw new Error(`unsupported configId: ${configId}`);
+      }
+
+      reply(id, { configOptions: await buildConfigOptions() });
+      return;
+    }
+
+    case 'session/close': {
+      delete map[params.sessionId];
+      saveMap();
+      reply(id, {});
+      return;
+    }
+
+    default:
+      replyError(id, -32601, `Method not found: ${method}`);
+  }
+}
+
+let buf = '';
+let inflight = 0;
+let ended = false;
+
+function maybeExit() {
+  if (ended && inflight === 0) {
+    try {
+      rpc.stop();
+    } catch {
+      /* ignore */
+    }
+    process.exit(0);
+  }
+}
+
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (chunk) => {
+  buf += chunk;
+  let i;
+  while ((i = buf.indexOf('\n')) !== -1) {
+    const line = buf.slice(0, i).trim();
+    buf = buf.slice(i + 1);
+    if (!line) continue;
+    let msg;
+    try {
+      msg = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    inflight++;
+    handle(msg.method, msg.params, msg.id)
+      .catch((err) => {
+        log(`${msg.method} failed: ${err.message}`);
+        if (msg.id != null) replyError(msg.id, -32603, err.message);
+      })
+      .finally(() => {
+        inflight--;
+        maybeExit();
+      });
+  }
+});
+
+process.stdin.on('end', () => {
+  ended = true;
+  maybeExit();
+});
+
+for (const sig of ['SIGINT', 'SIGTERM']) {
+  process.on(sig, () => {
+    try {
+      rpc.stop();
+    } catch {}
+    process.exit(0);
+  });
+}
+
+log('ready');

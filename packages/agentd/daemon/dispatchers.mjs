@@ -5,11 +5,11 @@
  */
 
 import { join } from 'node:path';
-import { getAgent, pool } from '../core/agent-pool.mjs';
-import { CONVERSATIONS_DIR } from '../core/data-dir.mjs';
-import { Dispatcher } from '../core/dispatcher.mjs';
-import { createHandoffs } from '../core/handoff.mjs';
-import * as projects from '../core/projects.mjs';
+import { getAgent, pool } from '../core/pool/index.mjs';
+import { projectPath } from '../core/base/index.mjs';
+import { Dispatcher } from '../core/dispatcher/index.mjs';
+import { createHandoffs } from '../core/projects/index.mjs';
+import * as projects from '../core/projects/index.mjs';
 import { allocEvent, publish, publishEphemeral, publishLive } from './events.mjs';
 
 const log = (...a) => process.stderr.write(`[agentd] ${a.join(' ')}\n`);
@@ -49,7 +49,7 @@ export function getDispatcher(project) {
   d = new Dispatcher({
     cwd: projects.projectRoot(project),
     project,
-    sessionDir: join(CONVERSATIONS_DIR, 'dispatcher-sessions', project),
+    sessionDir: projectPath(project, 'dispatcher-sessions'),
     onEvent: (ev) => publishLive('dispatcher.event', { project, data: ev }),
     compactAt: projects.dispatcherCompactAt(project),
   });

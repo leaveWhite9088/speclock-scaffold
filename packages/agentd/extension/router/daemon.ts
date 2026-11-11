@@ -3,7 +3,7 @@
  * dispatcher, every call carries the project (see `scoped`).
  */
 
-import { connect } from "../../client/agentd-client.mjs";
+import { connect } from "../../client/index.mjs";
 
 export type Daemon = Awaited<ReturnType<typeof connect>>;
 

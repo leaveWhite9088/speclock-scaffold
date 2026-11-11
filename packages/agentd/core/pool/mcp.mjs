@@ -8,7 +8,7 @@
  *
  * A CLI starts the servers of a session only if it was handed them in that very request (`session/resume` included),
  * which the drivers' probes (packages/drivers/probes) check for mcode, dsh, opencode, claude and codex. pi has no such parameter: its
- * driver turns the servers into AGENTD_MCP_SERVERS and the adapter loads them through `server/pi-mcp-bridge.ts`.
+ * driver turns the servers into AGENTD_MCP_SERVERS and the adapter loads them through `pi-adapter/mcp-bridge.ts`.
  */
 
 const NAME_RE = /^[A-Za-z0-9_-]{1,32}$/;

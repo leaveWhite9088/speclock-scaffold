@@ -7,9 +7,9 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { compactIfNeeded } from '../pool/compaction.mjs';
-import { saved } from '../pool/store.mjs';
-import { PiRpc } from '../pi-rpc.mjs';
+import { compactIfNeeded } from '../pool/index.mjs';
+import { saved } from '../pool/index.mjs';
+import { PiRpc } from '../pi/index.mjs';
 
 /** The last context figure saved for a dispatcher session directory, or null. */
 export function savedContext(sessionDir) {

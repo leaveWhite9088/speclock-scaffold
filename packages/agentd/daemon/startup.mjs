@@ -4,9 +4,9 @@
  * daemon announces them once its socket is up.
  */
 
-import { interruptedOf, reconcileJournal } from '../core/journal.mjs';
-import { endRun } from '../core/tasks.mjs';
-import { appendEntry, findJobSession } from '../core/transcripts.mjs';
+import { interruptedOf, reconcileJournal } from '../core/records/index.mjs';
+import { endRun } from '../core/records/index.mjs';
+import { appendEntry, findJobSession } from '../core/records/index.mjs';
 import { appendReceipt } from './receipts.mjs';
 
 /** @returns {object[]} the interrupted jobs, as the journal knew them */

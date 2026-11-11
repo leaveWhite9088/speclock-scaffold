@@ -2,8 +2,7 @@
 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CONFIG } from '../app-config.mjs';
-import { DATA_DIR, RUNTIME_DIR, STATE_DIR } from '../data-dir.mjs';
+import { CONFIG } from '../base/index.mjs';
 import { driverTypes, getDriver } from '@speclock-scaffold/drivers';
 import { currentInstall, nodeBin } from './install.mjs';
 
@@ -11,14 +10,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 /** packages/agentd */
 const ROOT = join(HERE, '..', '..');
 
-export { DATA_DIR };
-
 export const NODE_BIN = nodeBin();
-
-export const LABELS_FILE = process.env.AGENTD_LABELS_FILE || join(STATE_DIR, 'session-labels.json');
-
-/** One log file per run, so output can be tailed externally while it streams. */
-export const RUNS_DIR = process.env.AGENTD_RUNS_DIR || join(RUNTIME_DIR, 'runs');
 
 /**
  * The CLIs, as the rest of the daemon sees them. Everything that is specific to one CLI lives in its driver
@@ -60,7 +52,7 @@ export const CANCEL_GRACE_MS = Number(process.env.AGENTD_CANCEL_GRACE_MS) || 15_
 
 export const log = (...a) => process.stderr.write(`[agent-pool] ${a.join(' ')}\n`);
 
-/** `agentd.config.json` (see core/app-config.mjs). */
+/** `agentd.config.json` (see core/base/app-config.mjs). */
 export { CONFIG };
 
 /**

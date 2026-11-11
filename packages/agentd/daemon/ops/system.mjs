@@ -3,7 +3,7 @@
  * who listens to a job.
  */
 
-import { AGENTS, getAgent, pool } from '../../core/agent-pool.mjs';
+import { AGENTS, getAgent, pool } from '../../core/pool/index.mjs';
 import { dispatchers } from '../dispatchers.mjs';
 import { EPOCH, RING_MAX, eventsSince, subscribe, unsubscribe } from '../events.mjs';
 import { readReceipts } from '../receipts.mjs';

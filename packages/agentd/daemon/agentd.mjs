@@ -28,12 +28,12 @@
  *   lifecycle.mjs    idle recycling, idle exit, shutdown
  */
 
-// First: it moves the files of an older data directory into place, before any module below reads them.
-import './data-layout.mjs';
+// First: it clears the old run logs, before anything below starts writing new ones.
+import './run-logs.mjs';
 import { join } from 'node:path';
-import { CONFIG, pool, seedContexts } from '../core/agent-pool.mjs';
-import { DATA_DIR } from '../core/data-dir.mjs';
-import * as projects from '../core/projects.mjs';
+import { CONFIG, pool, seedContexts } from '../core/pool/index.mjs';
+import { DATA_DIR } from '../core/base/index.mjs';
+import * as projects from '../core/projects/index.mjs';
 import { dispatchers } from './dispatchers.mjs';
 import { allocEvent, publish } from './events.mjs';
 import { scopeArgs } from './guard.mjs';

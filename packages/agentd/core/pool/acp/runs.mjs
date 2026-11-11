@@ -6,7 +6,7 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { RUNS_DIR } from '../config.mjs';
+import { projectPath } from '../../base/index.mjs';
 
 const KEEP_RUNS = 30;
 const KEEP_DURATIONS = 20;
@@ -67,10 +67,11 @@ export class RunLog {
       stopReason: null,
       error: null,
       spawnsAtStart: null, // set after the agent is ready
-      logFile: join(RUNS_DIR, `${jobId}.log`),
+      // One log file per run, so output can be tailed externally while it streams: projects/<project>/runs/
+      logFile: join(projectPath(this.name, 'runs'), `${jobId}.log`),
     };
     try {
-      mkdirSync(RUNS_DIR, { recursive: true });
+      mkdirSync(projectPath(this.name, 'runs'), { recursive: true });
       writeFileSync(run.logFile, '', 'utf8');
     } catch {
       run.logFile = null;

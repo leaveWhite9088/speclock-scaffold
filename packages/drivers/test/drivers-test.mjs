@@ -46,7 +46,7 @@ check('dsh: node bin.js --profile acp', L('dsh').args.join(' ') === 'P:/modules/
 check('opencode: its own executable, acp', /^P:\/modules\/opencode-ai\/bin\/opencode(\.exe)?$/.test(L('opencode').cmd) && L('opencode').args.join() === 'acp');
 check('claude: the adapter, with the installed Claude Code as the executable', L('claude').args[0] === 'P:/modules/@agentclientprotocol/claude-agent-acp/dist/index.js' && /claude-code\/bin\/claude(\.exe)?$/.test(L('claude').env.CLAUDE_CODE_EXECUTABLE));
 check('codex: the adapter', L('codex').args[0] === 'P:/modules/@agentclientprotocol/codex-acp/dist/index.js');
-check('pi: the scaffold adapter, told where pi is', /agentd[\\/]server[\\/]pi-acp-adapter\.mjs$/.test(L('pi').args[0]) && L('pi').env.PI_CLI === 'P:/modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js' && L('pi').env.PI_NODE_BIN === 'N:/node.exe');
+check('pi: the scaffold adapter, told where pi is', /agentd[\\/]pi-adapter[\\/]acp-adapter\.mjs$/.test(L('pi').args[0]) && L('pi').env.PI_CLI === 'P:/modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js' && L('pi').env.PI_NODE_BIN === 'N:/node.exe');
 check('pi: paths() gives its cli.js for the dispatcher', getDriver('pi').paths(full).cli.endsWith('pi-coding-agent/dist/bundle/cli.js'));
 
 // How each is handed the rules: as before.
@@ -68,7 +68,7 @@ check('mcp: pi takes servers from the environment, the others in the session req
 check('only dsh lists its sessions from disk', driverTypes.every((t) => Boolean(getDriver(t).capabilities.sessionsOnDisk) === (t === 'dsh') && (typeof getDriver(t).diskSessions === 'function') === (t === 'dsh')));
 
 // pi's own pieces
-check('pi: the session folder is per instance', getDriver('pi').instanceEnv({ id: 'p~x', conversationsDir: 'C:/c' }).PI_SESSION_DIR === 'C:/c/pi-sessions/p~x' || getDriver('pi').instanceEnv({ id: 'p~x', conversationsDir: 'C:/c' }).PI_SESSION_DIR.endsWith('pi-sessions\\p~x'));
+check('pi: the session folder is the one it is given, per instance', getDriver('pi').instanceEnv({ id: 'p~x', sessionsDir: 'C:/c/p/pi-sessions/x' }).PI_SESSION_DIR === 'C:/c/p/pi-sessions/x');
 const none = getDriver('pi').spawnEnv({ cwd: 'W:/w', mcpServers: [] });
 check('pi: no servers means an empty variable, so an inherited one cannot leak in', none.AGENTD_MCP_SERVERS === '' && none.AGENTD_BASE_CWD === 'W:/w');
 const stdio = { name: 's', command: 'speclock', args: ['mcp'], env: [{ name: 'K', value: 'v' }] };

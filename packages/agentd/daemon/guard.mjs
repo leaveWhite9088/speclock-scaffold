@@ -3,7 +3,7 @@
  * decides which ops they may use and resolves the names they give inside their own project.
  */
 
-import * as projects from '../core/projects.mjs';
+import * as projects from '../core/projects/index.mjs';
 
 /**
  * Requests from a project's dispatcher carry `project`. Everything it names is

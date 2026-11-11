@@ -1,12 +1,12 @@
 /**
  * Instances. One is a resident process of a CLI type, pinned to one directory. Every instance belongs to a project
- * (core/projects.mjs creates them, keeps the list and puts them in the pool); nothing exists outside a project, and
+ * (core/projects/manager.mjs creates them, keeps the list and puts them in the pool); nothing exists outside a project, and
  * nothing is created on its own when the daemon starts.
  */
 
-import { AcpClient } from './acp-client.mjs';
+import { AcpClient } from './acp/index.mjs';
 import { canCompact, contextOf } from './compaction.mjs';
-import { CONVERSATIONS_DIR } from '../data-dir.mjs';
+import { instanceIdOf, projectPath } from '../base/index.mjs';
 import { AGENTS } from './config.mjs';
 import { pool } from './registry.mjs';
 import { saved } from './store.mjs';
@@ -33,7 +33,7 @@ export function buildInstance({ id, type, cwd, project = null, shortId = id, rol
     label: `${base.label} (${shortId})`,
     defaultCwd: cwd,
     // What the driver needs fixed for this instance (pi: its own session folder). The rest of the environment is worked out at each start.
-    env: base.driver.instanceEnv?.({ id, conversationsDir: CONVERSATIONS_DIR }) ?? {},
+    env: base.driver.instanceEnv?.({ id, sessionsDir: projectPath(id, 'pi-sessions', instanceIdOf(id)) }) ?? {},
   };
   return new AcpClient(id, spec);
 }

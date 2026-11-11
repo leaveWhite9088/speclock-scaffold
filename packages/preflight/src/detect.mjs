@@ -15,11 +15,11 @@ export function dataDir() {
   return join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'agentd', 'data');
 }
 
-/** Where the manifest goes, and where the daemon reads it (data/state/clis.json). */
-export const manifestPath = () => process.env.AGENTD_CLIS_FILE || join(dataDir(), 'state', 'clis.json');
+/** Where the manifest goes, and where the daemon reads it (data/global/clis.json). */
+export const manifestPath = () => process.env.AGENTD_CLIS_FILE || join(dataDir(), 'global', 'clis.json');
 
 /** The scaffold's own install folder: `npm install --prefix` puts packages in <this>/node_modules. */
-export const ownPrefix = () => join(dataDir(), 'tools');
+export const ownPrefix = () => join(dataDir(), 'global', 'tools');
 
 /** npm's global folder for this node, or null. */
 export function globalRoot(node = process.execPath) {
