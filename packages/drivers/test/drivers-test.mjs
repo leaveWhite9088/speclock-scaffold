@@ -81,6 +81,23 @@ check('pi: piMcpServers is the same conversion', JSON.stringify(piMcpServers([st
 check('dsh: folder name for a Windows path', dshFolderName('D:\\a\\b') === '--D-a-b--', dshFolderName('D:\\a\\b'));
 check('dsh: non-ASCII becomes ~UTF16HEX', dshFolderName('D:\\a\\研究') === '--D-a-~7814~7A76--', dshFolderName('D:\\a\\研究'));
 
+// providers: another endpoint and key
+const P = { id: 'mm', apiKey: 'sk-test-0123456789', models: ['m1', 'm2'] };
+const applied = Object.fromEntries(driverTypes.map((t) => [t, getDriver(t).provider.apply({ provider: P, endpoint: 'https://e.example/x', model: 'm1', dir: 'C:/cfg', env: {} })]));
+check('providers: every CLI says which protocol it speaks and where the provider lives', driverTypes.every((t) => ['anthropic', 'openai'].includes(getDriver(t).provider.protocol) && ['process', 'global'].includes(getDriver(t).provider.scope)));
+check('providers: only mcode keeps them in its own configuration', driverTypes.every((t) => (getDriver(t).provider.scope === 'global') === (t === 'mcode')));
+check('providers: only claude and mcode speak the Anthropic protocol', driverTypes.every((t) => (getDriver(t).provider.protocol === 'anthropic') === (t === 'claude' || t === 'mcode')));
+check('providers: apply gives env, args and files, and the key is in the environment', driverTypes.every((t) => applied[t].env && Array.isArray(applied[t].args) && Array.isArray(applied[t].files) && Object.values(applied[t].env).some((v) => String(v).includes(P.apiKey))));
+check('providers: no file written for a CLI carries the key', driverTypes.every((t) => applied[t].files.every((f) => !f.content.includes(P.apiKey))));
+check('providers: claude points every model alias at the model', applied.claude.env.ANTHROPIC_BASE_URL === 'https://e.example/x' && applied.claude.env.ANTHROPIC_DEFAULT_OPUS_MODEL === 'm1');
+check('providers: codex names the provider and the Responses protocol', JSON.parse(applied.codex.env.CODEX_CONFIG).model_providers.mm.wire_api === 'responses' && applied.codex.env.MODEL_PROVIDER === 'mm');
+const ocBase = JSON.stringify({ instructions: ['rules.md'] });
+const oc = JSON.parse(getDriver('opencode').provider.apply({ provider: P, endpoint: 'https://e.example/x', model: 'm1', dir: 'C:/cfg', env: { OPENCODE_CONFIG_CONTENT: ocBase } }).env.OPENCODE_CONFIG_CONTENT);
+check('providers: opencode keeps the rules already in its configuration', oc.instructions[0] === 'rules.md' && oc.model === 'mm/m1' && oc.provider.mm.options.baseURL === 'https://e.example/x' && Object.keys(oc.provider.mm.models).join() === 'm1,m2');
+check('providers: dsh gets a patch file and selects the model through its option value', applied.dsh.args.join(' ') === '--patch C:/cfg/dsh-patch.yml' && applied.dsh.files[0].name === 'dsh-patch.yml' && applied.dsh.model === '["mm","m1"]');
+check('providers: pi gets a folder of its own, the key only by name', applied.pi.env.PI_CODING_AGENT_DIR === 'C:/cfg' && JSON.parse(applied.pi.files[0].content).providers.mm.apiKey === '$SCAFFOLD_PROVIDER_KEY');
+check('providers: mcode gives the commands to add and remove it, under its own prefix', applied.mcode.global.add.includes('speclock-mm') && applied.mcode.global.remove.includes('custom_provider:speclock-mm'));
+
 // the packages the preflight has to find
 const wanted = wantedPackages();
 check('each npm package is listed once, with the CLIs that use it', new Set(wanted.map((p) => p.name)).size === wanted.length && wanted.some((p) => p.name === '@anthropic-ai/claude-code' && p.types.join() === 'claude'));

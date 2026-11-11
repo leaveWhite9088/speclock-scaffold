@@ -72,6 +72,29 @@ export default {
     };
   },
 
+  /**
+   * Another endpoint and key: a private agent folder (`PI_CODING_AGENT_DIR`) with a `models.json` and the default model,
+   * the key referenced by variable name. A folder of its own means pi's own logins are not seen by this instance.
+   */
+  provider: {
+    protocol: 'openai',
+    scope: 'process',
+    apply({ provider, endpoint, model, dir }) {
+      const models = (provider.models?.length ? provider.models : [model]).filter(Boolean).map((id) => ({ id }));
+      const modelsJson = { providers: { [provider.id]: { baseUrl: endpoint, api: 'openai-completions', apiKey: '$SCAFFOLD_PROVIDER_KEY', models } } };
+      const settings = { defaultProvider: provider.id, ...(model ? { defaultModel: model } : {}) };
+      return {
+        env: { PI_CODING_AGENT_DIR: dir, SCAFFOLD_PROVIDER_KEY: provider.apiKey },
+        args: [],
+        files: [
+          { name: 'models.json', content: JSON.stringify(modelsJson, null, 2) },
+          { name: 'settings.json', content: JSON.stringify(settings, null, 2) },
+        ],
+        model: null,
+      };
+    },
+  },
+
   rules({ file }) {
     return file ? { ...NO_RULES, env: { AGENTD_APPEND_SYSTEM_PROMPT_FILE: file } } : RULES_IN_PROMPT;
   },

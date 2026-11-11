@@ -26,6 +26,23 @@ export default {
     return { cmd: install.node, args: [`${dir}/dist/index.js`], env: {}, missing };
   },
 
+  /**
+   * Another endpoint and key. The adapter merges `CODEX_CONFIG` into the session's Codex config and takes the provider
+   * from `MODEL_PROVIDER`; the key goes in an environment variable the provider names. This Codex speaks the Responses
+   * protocol only, so the endpoint must offer `/responses`.
+   */
+  provider: {
+    protocol: 'openai',
+    scope: 'process',
+    apply({ provider, endpoint, model }) {
+      const config = {
+        ...(model ? { model } : {}),
+        model_providers: { [provider.id]: { name: provider.id, base_url: endpoint, env_key: 'SCAFFOLD_PROVIDER_KEY', wire_api: 'responses' } },
+      };
+      return { env: { MODEL_PROVIDER: provider.id, SCAFFOLD_PROVIDER_KEY: provider.apiKey, CODEX_CONFIG: JSON.stringify(config) }, args: [], files: [], model: null };
+    },
+  },
+
   rules({ text }) {
     return { ...NO_RULES, meta: { jetbrains: { air: { customInstructions: text } } } };
   },

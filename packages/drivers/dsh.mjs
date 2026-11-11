@@ -27,6 +27,38 @@ export default {
     return { cmd: install.node, args: [`${dir}/lib/bin.js`, '--profile', 'acp'], env: {}, missing };
   },
 
+  /**
+   * Another endpoint and key: a patch file (`--patch`) that declares the route in the llm-pi-ai plugin, with the key
+   * read from an environment variable. The route is added to the model list; the default model stays dsh's, so the
+   * caller selects `model` (a config option value) after the session starts.
+   */
+  provider: {
+    protocol: 'openai',
+    scope: 'process',
+    apply({ provider, endpoint, model, dir }) {
+      const models = (provider.models?.length ? provider.models : [model]).filter(Boolean);
+      const yaml = [
+        '- id: llm-pi-ai',
+        '  config:',
+        '    providers:',
+        `      ${provider.id}:`,
+        `        displayName: ${provider.id}`,
+        '        apiKeyEnv: SCAFFOLD_PROVIDER_KEY',
+        '        api: openai-completions',
+        `        baseURL: ${JSON.stringify(endpoint)}`,
+        '        models:',
+        ...models.flatMap((m) => [`          - id: ${JSON.stringify(m)}`, `            name: ${JSON.stringify(m)}`, '            contextWindow: 200000']),
+        '',
+      ].join('\n');
+      return {
+        env: { SCAFFOLD_PROVIDER_KEY: provider.apiKey },
+        args: ['--patch', `${dir}/dsh-patch.yml`],
+        files: [{ name: 'dsh-patch.yml', content: yaml }],
+        model: model ? JSON.stringify([provider.id, model]) : null,
+      };
+    },
+  },
+
   rules() {
     return RULES_IN_PROMPT;
   },

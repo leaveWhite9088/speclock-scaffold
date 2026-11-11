@@ -25,6 +25,30 @@ export default {
     return { cmd: `${dir}/bin/${exe('opencode')}`, args: ['acp'], env: {}, missing };
   },
 
+  /**
+   * Another endpoint and key: a provider block in `OPENCODE_CONFIG_CONTENT`, merged into what the rules already put there.
+   * It goes through the OpenAI-compatible adapter that ships with OpenCode.
+   */
+  provider: {
+    protocol: 'openai',
+    scope: 'process',
+    apply({ provider, endpoint, model, env = {} }) {
+      let base = {};
+      try {
+        base = JSON.parse(env.OPENCODE_CONFIG_CONTENT || '{}');
+      } catch {
+        /* not JSON: replaced */
+      }
+      const models = Object.fromEntries((provider.models?.length ? provider.models : [model]).filter(Boolean).map((m) => [m, { name: m }]));
+      const config = {
+        ...base,
+        ...(model ? { model: `${provider.id}/${model}` } : {}),
+        provider: { ...(base.provider ?? {}), [provider.id]: { npm: '@ai-sdk/openai-compatible', name: provider.id, options: { baseURL: endpoint, apiKey: provider.apiKey }, models } },
+      };
+      return { env: { OPENCODE_CONFIG_CONTENT: JSON.stringify(config) }, args: [], files: [], model: null };
+    },
+  },
+
   /** `env` is the environment the daemon runs in, for a configuration the user already passes this way. */
   rules({ file, env = {} }) {
     if (!file) return RULES_IN_PROMPT;

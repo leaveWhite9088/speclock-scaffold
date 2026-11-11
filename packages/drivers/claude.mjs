@@ -56,6 +56,22 @@ export default {
   /** Added to the environment at every process start. */
   envFn: settingsEnv,
 
+  /**
+   * Another endpoint and key, through the environment of this process only. Claude Code speaks the Anthropic protocol.
+   * Its model names all point at `model`, whatever alias the CLI picks.
+   */
+  provider: {
+    protocol: 'anthropic',
+    scope: 'process',
+    apply({ provider, endpoint, model }) {
+      const env = { ANTHROPIC_BASE_URL: endpoint, ANTHROPIC_AUTH_TOKEN: provider.apiKey };
+      if (model) {
+        for (const k of ['ANTHROPIC_MODEL', 'ANTHROPIC_DEFAULT_HAIKU_MODEL', 'ANTHROPIC_DEFAULT_SONNET_MODEL', 'ANTHROPIC_DEFAULT_OPUS_MODEL']) env[k] = model;
+      }
+      return { env, args: [], files: [], model: null };
+    },
+  },
+
   rules({ text }) {
     return { ...NO_RULES, meta: { systemPrompt: { append: text } } };
   },

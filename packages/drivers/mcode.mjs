@@ -26,7 +26,32 @@ export default {
   launch(install) {
     const missing = [];
     const dir = packageDir(install, PKG, missing);
-    return { cmd: install.node, args: [`${dir}/cli.js`, 'acp'], env: {}, missing };
+    // `tool`: how to run the CLI's own commands (provider add / remove), which the provider test needs
+    return { cmd: install.node, args: [`${dir}/cli.js`, 'acp'], env: {}, tool: { cmd: install.node, args: [`${dir}/cli.js`] }, missing };
+  },
+
+  /**
+   * Another endpoint and key. MiniMax Code keeps providers in its own configuration, not in the environment, so this is
+   * `scope: 'global'`: `global.add` registers one (the key is read from `SCAFFOLD_PROVIDER_KEY`), `global.remove` takes it
+   * away again. The id is made unique (`speclock-…`) so nothing of the user's own is touched.
+   */
+  provider: {
+    protocol: 'anthropic',
+    scope: 'global',
+    apply({ provider, endpoint, model }) {
+      const name = `speclock-${provider.id}`;
+      return {
+        env: { SCAFFOLD_PROVIDER_KEY: provider.apiKey },
+        args: [],
+        files: [],
+        model: model ? `m:custom_provider%3A${name}:${model}:v:thinking` : null,
+        global: {
+          add: ['provider', 'add', '--name', name, '--base-url', endpoint, '--api-format', 'anthropic-messages', '--model', model, '--api-key-env', 'SCAFFOLD_PROVIDER_KEY'],
+          remove: ['provider', 'remove', `custom_provider:${name}`, '--yes'],
+          test: ['provider', 'test', `custom_provider:${name}`],
+        },
+      };
+    },
   },
 
   rules({ file }) {
