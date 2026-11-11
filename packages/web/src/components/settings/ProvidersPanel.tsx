@@ -11,6 +11,7 @@ import { IconButton } from '@/components/ui/icon-button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/toast';
+import { ModelPicker } from './ModelPicker';
 import { useProviders } from '@/hooks/queries';
 import { api, enc } from '@/lib/api';
 import { slug } from '@/lib/format';
@@ -126,9 +127,7 @@ export function ProvidersPanel() {
         <Field label="Anthropic" className={label}>
           <Input placeholder="https://…/anthropic" value={edit.d.anthropic} onChange={(e) => set({ anthropic: e.target.value })} />
         </Field>
-        <Field label="模型" className={label}>
-          <Input required placeholder="多个用逗号分隔" value={edit.d.models} onChange={(e) => set({ models: e.target.value })} />
-        </Field>
+        <ModelPicker id={edit.isNew ? undefined : edit.d.id} apiKey={edit.d.apiKey} openai={edit.d.openai} anthropic={edit.d.anthropic} value={edit.d.models} onChange={(models) => set({ models })} />
         <div className="grid grid-cols-[5.5em_minmax(0,1fr)] items-start gap-x-2 text-[12.5px] text-muted">
           <span className="pt-0.5">CLI</span>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-ink">
