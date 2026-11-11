@@ -14,15 +14,14 @@ SpecLock 的调度脚手架：在一台机器上调度多个 CLI agent。**一�
 | `opencode` | OpenCode | 原生 ACP（`opencode acp`） | `opencode-ai` 1.19.1 | 项目里的一个子目录 |
 | `claude` | Claude Code | 官方适配器 | `@agentclientprotocol/claude-agent-acp` 0.94.0 + `@anthropic-ai/claude-code` 2.1.295 | 项目里的一个子目录 |
 | `codex` | Codex | 官方适配器 | `@agentclientprotocol/codex-acp` 2.2.2（依赖 `@openai/codex` 0.160.1；本机另装的 codex-cli 为 0.163.0） | 项目里的一个子目录 |
-| `pi` | 另一个 pi 实例 | 自带适配器 `server/pi-acp-adapter.mjs`（走 pi 的 RPC） | `@earendil-works/pi-coding-agent` 1.3.0 | 基准目录 |
+| `pi` | 另一个 pi 实例 | 自带适配器 `pi-adapter/acp-adapter.mjs`（走 pi 的 RPC） | `@earendil-works/pi-coding-agent` 1.3.0 | 基准目录 |
 
 版本是 2026-10-23 在本机（Windows 11、Node v24.19.0）实测时安装的，升级后行为可能不同。
 claude 的接口地址、模型和密钥读取你自己的 `~/.claude/settings.json`（cc-switch 切换后，下次启动进程时生效）。
 
 ### 各 CLI 能看到什么（实测）
 
-一个执行者干活时，界面上能看到它的哪些内部过程。方法：每种 CLI 各让它用工具创建一个文件，读它的会话记录
-（`node packages/agentd/tools/explore/executors-activity-probe.mjs`，会调用真实模型）。
+一个执行者干活时，界面上能看到它的哪些内部过程。方法：每种 CLI 各让它用工具创建一个文件，再读它的会话记录（会调用真实模型）。
 
 | CLI | 工具调用 | 输入 | 输出 | 思考过程 |
 | --- | --- | --- | --- | --- |
@@ -42,7 +41,7 @@ claude 的接口地址、模型和密钥读取你自己的 `~/.claude/settings.j
 ### 给 agent 的规则怎么交进去（实测）
 
 规则（执行者能做什么、不能做什么、怎么汇报）不写进你的项目，不碰项目自己的 `AGENTS.md` / `CLAUDE.md`，
-而是启动进程或开会话时，通过各个 CLI 自己的「额外系统提示」入口交给它。规则文本放在 agentd 自己的 `data/outputs/rules/` 下。
+而是启动进程或开会话时，通过各个 CLI 自己的「额外系统提示」入口交给它。规则文本放在 agentd 自己的 `data/projects/<项目>/rules/` 下。
 探针：`npm run preflight -- probe`（驱动自带的行为探针，见下面「驱动与预检」）（给每种 CLI 一条「每次回复结尾加暗号」的规则，
 在空目录里问两次：新会话一次，进程停掉再恢复会话一次）。
 
@@ -80,7 +79,7 @@ npm test -w @speclock-scaffold/backend   # 网关测试
 ```
 
 backend 只监听 `127.0.0.1`，并拒绝非本机的 Host / 跨站 Origin：它能运行 agent、改 pi 的 `models.json`，不要对外暴露。
-命令中的路径（`tools/`、`data/`、`agentd.config.json` 等）都相对 `packages/agentd`。
+命令中的路径（`scripts/`、`test/`、`data/`、`agentd.config.json` 等）都相对 `packages/agentd`。
 
 ---
 
@@ -121,14 +120,12 @@ daemon 由客户端按需拉起，不需要手动起服务。
 | `agent_session_new` | 给一个执行者开新会话并命名（一个会话对应一个模块 block），随即成为活跃会话 | `agent`、`label` |
 | `agent_session_use` | 切到已有会话，按名字（模块名）或会话 id | `agent`、`session` |
 | `agent_session_rename` | 给会话改名（默认当前活跃的那个） | `agent`、`label`、`session` |
-| `agent_use` | 切到已有会话 | `sessionId`、`agent` |
-| `agent_new` | 开新会话 | `agent`、`cwd` |
-| `agent_rename` | 给会话设本地标签 | `label`、`sessionId` |
 | `agent_models` | 列模型 / 推理强度 / 权限选项 | `agent`、`sessionId` |
 | `agent_set_model` | 为会话设模型 | `value`、`configId` |
 | `agent_status` | 存活、健康、会话、模型、spawns、pid、cwd | `agent` |
 | `agent_instances` | 列出本项目的执行者及可创建的类型 | — |
 | `agent_instance_create` | 给本项目加一个执行者，绑定项目内的一个目录 | `id`、`type`、`cwd`（相对项目根目录） |
+| `propose_handoff` | 提议给某个执行者（或调度器自己）换新会话；只是提议，生成文档和确认由人来做 | `agent`、`reason`、`evidence` |
 
 这些工具只存在于项目的调度器里；`agent` 参数是执行者在本项目里的名字（daemon 端把它限定在本项目内）。
 
@@ -136,7 +133,7 @@ daemon 由客户端按需拉起，不需要手动起服务。
 
 - **会话是延续的**：不加 `reset` 就接着上次聊。要干净起一轮，说「开个新会话」。
 - **模型是会话级的**：每个会话独立，切换后下一轮生效。
-- **标签只在本地**：agent 自己没有 rename 接口，所以标签存在 `data/state/session-labels.json`，在 agent 自己的界面里看不到。
+- **标签只在本地**：agent 自己没有 rename 接口，所以标签存在 `data/projects/<项目>/session-labels.json`，在 agent 自己的界面里看不到。
 - **流式进度**：长任务运行时 TUI 会显示 `mcode: 123 chars · 4.2s`。
 - **中断**：Ctrl+C 会触发 `session/cancel`。
 
@@ -150,7 +147,7 @@ tps:         32 tok/s (output)
 throughput:  108.7 chars/s, 499 chars in 124 chunks
 context:     2588 / 1000000 (0.3%)
 cost:        0.000909 USD
-log:         data/runtime/runs/pi-xxx.log
+log:         data/projects/<项目>/runs/pi-xxx.log
 ```
 
 `tokens` 只有 pi agent 能给——mcode 和 dsh 的协议不暴露 token 数，会如实显示
@@ -170,7 +167,7 @@ log:         data/runtime/runs/pi-xxx.log
 
 ### 对话记录
 
-agentd 把它经手的每一轮对话记在 `data/conversations/transcripts/<实例>/<sessionId>.jsonl`（user / assistant 两类条目，
+agentd 把它经手的每一轮对话记在 `data/projects/<项目>/transcripts/<执行者>/<sessionId>.jsonl`（user / assistant 两类条目，
 带递增 `seq`、`jobId`、`stopReason`），看板读它即可，不必向 agent 要历史。
 
 ```
@@ -207,7 +204,7 @@ agentd 操作：transcript {agent, sessionId?, afterSeq?, limit?, tail?}
 
 项目 = 一个根目录 + 一个调度器（pi，cwd 就是根目录）+ 一组实例（`id`、`type`、相对根目录的 `dir`、`role`）。
 实例只属于一个项目、不共享，池里的键是 `<项目>~<实例>`；不同项目可以有同名实例，各自是独立进程。
-配置存在 `data/state/projects.json`，重启 daemon 后恢复。
+配置存在 `data/projects/<项目>/project.json`，重启 daemon 后恢复；删项目会把它的整个文件夹（配置、对话、任务、回执…）一起删掉。
 
 - **切项目只是切视图**：其它项目的进程继续跑，不卸载。
 - **没有「全局」视图**：看板里一切都挂在项目下；空闲回收对所有执行者生效。
@@ -238,16 +235,14 @@ agentd 操作：projects | project.create {id,name?,root,instances?} | project.a
 | 变量 | 默认 | 作用 |
 | --- | --- | --- |
 | `PI_CLI` / `PI_NODE_BIN` | 预检清单，没有就在 node 旁边找 | 调度器启动 pi 用的入口 / node |
-| `DISPATCHER_SESSION_DIR` | `./data/conversations/dispatcher-sessions` | 调度器会话文件目录 |
+| `DISPATCHER_SESSION_DIR` | `./data/projects/<项目>/dispatcher-sessions` | 调度器会话文件目录 |
 | `AGENTD_PIPE` | `\\.\pipe\pi-agentd` | 命名管道地址 |
 | `AGENTD_PORT` | — | 改用 TCP `127.0.0.1:<port>` |
 | `AGENTD_IDLE_MIN` | `30` | 空闲多少分钟自动退出 |
 | `AGENTD_CONFIG` | `./agentd.config.json` | 配置文件位置 |
-| `AGENTD_LABELS_FILE` | `./data/state/session-labels.json` | 标签文件位置 |
-| `AGENTD_RUNS_DIR` | `./data/runtime/runs` | 运行日志目录 |
 | `MCODE_NODE_BIN` | 预检清单里的 node，没有就是运行 daemon 的 node | node 可执行文件 |
 | `AGENTD_NODE_MODULES` | node 旁边的 `node_modules` | 没有预检清单时，到哪里找 CLI 的 npm 包 |
-| `AGENTD_CLIS_FILE` | `./data/state/clis.json` | 预检清单的位置 |
+| `AGENTD_CLIS_FILE` | `./data/global/clis.json` | 预检清单的位置 |
 
 ### 驱动与预检：怎么找到 CLI，怎么应对升级
 
@@ -258,20 +253,20 @@ agentd 操作：projects | project.create {id,name?,root,instances?} | project.a
   `test/drivers-test.mjs` 检查每个驱动都符合约定；`packages/drivers/probes` 里的行为探针（规则、MCP、恢复会话）是升级后重新验证行为的办法，用 `npm run preflight -- probe` 运行。
   **某个 CLI 升级后行为变了，主要改它的驱动**；驱动对外的约定不变，别的部分就不用动。
 - **预检**（`packages/preflight`）：在 daemon 之外运行，找出各 CLI 的 npm 包装在哪、什么版本，和驱动里验证过的版本对照，
-  结果写成清单 `data/state/clis.json`（daemon 只读这个文件；没有它就在 node 旁边的 `node_modules` 里找）。
+  结果写成清单 `data/global/clis.json`（daemon 只读这个文件；没有它就在 node 旁边的 `node_modules` 里找）。
 
 ```powershell
 npm run preflight                          # 检查，只读，什么都不改
 npm run preflight -- write                 # 检查，并写下清单（daemon 下次启动 CLI 时就用它，不用重启）
 npm run preflight -- probe                 # 深度自检：真的让每个 CLI 带着规则和一个 MCP 工具跑两次（新会话、重启后恢复），约 1 分钟，会调用真实模型
 npm run preflight -- install               # 只显示会装什么（缺的包，固定版本），不执行
-npm run preflight -- install --yes         # 真的装：只装缺的，装进 data/tools（不装全局），然后写清单
+npm run preflight -- install --yes         # 真的装：只装缺的，装进 data/global/tools（不装全局），然后写清单
 npm run preflight -- install --yes --pin   # 连版本不一样的也装验证过的那个（脚手架自己的那份优先于全局的）
 npm run preflight -- --type claude,pi      # 只看 / 只装这几个；加 --json 输出机器可读结果，--strict 缺了就退出码 1
 ```
 
 - 安装是**可选**的，而且**从不自己发生**：不加 `--yes` 什么都不做。装的是验证过的固定版本，装进脚手架自己的目录
-  `data/tools`，不碰你自己装的全局版本；会从 npm 下载，并运行这些包的安装脚本。
+  `data/global/tools`，不碰你自己装的全局版本；会从 npm 下载，并运行这些包的安装脚本。
 - 查找顺序：脚手架自己的目录，然后全局。**验证过的版本优先**：全局的是验证过的版本，就用全局的。
 - 版本比验证过的新，只提示（`~`），不阻止：这时该跑探针看行为有没有变。
 - 登录和配置没法替你做，只提示（比如没有 `~/.claude/settings.json`、pi 没有凭据）。
@@ -290,7 +285,7 @@ npm run preflight -- --type claude,pi      # 只看 / 只装这几个；加 --js
   文件头写名称、用途、目录（`.` 是项目根目录）、建议的 CLI 和模型，正文是这类执行者的系统提示词（markdown，HTML 注释不会交给 agent）。
   新建执行者时选模板就会预填这些；创建出来的执行者记着自己来自哪个模板，规则 = 通用规则 + 模板提示词，
   **每次启动时重新读**，所以改模板后，用它创建的执行者下次启动就用新提示词，不用逐个改。自带三个：`spec-agent`、`business-agent`（交付项目）、`product-agent`（自己的产品，提示词留空待填）。
-- 交接不再用技能文件：执行者直接把交接文档作为回复交出来，agentd 保存副本在 `data/outputs/handoffs/`，项目里不留文件。
+- 交接不再用技能文件：执行者直接把交接文档作为回复交出来，agentd 保存副本在 `data/projects/<项目>/handoffs/`，项目里不留文件。
   交接用的两条提示词也是 md：`contexts/handoff-write.md`（生成文档时发）、`contexts/handoff-start.md`（开新会话时发，`{{doc}}` 换成文档）。
   它们**不是**启动时的规则，只在交接那一步发出；改了下次交接就生效，不用重启。
 
@@ -310,9 +305,9 @@ npm run preflight -- --type claude,pi      # 只看 / 只装这几个；加 --js
 - 状态里只显示服务器的名字和种类（`mcp`），不显示 `env` 和 `headers`——里面可能有密钥。
 - **每次开会话或恢复会话时都会重新交一遍**：实测 CLI 只会启动「这次请求里」带的服务器，`session/resume` 不带就没有。
   所以改了列表，下次启动进程或下次恢复会话时生效，正在跑的会话不变。
-- 六种 CLI 都实测过（`npm run preflight -- probe`，模型真的调用了工具；`tools/live/mcp-live-test.mjs` 经 agentd 再测一遍）：
+- 六种 CLI 都实测过（`npm run preflight -- probe`，模型真的调用了工具；`test/live/mcp-live-test.mjs` 经 agentd 再测一遍）：
   mcode、dsh、opencode、claude、codex 走 `session/new` / `session/resume` 的 `mcpServers`。mcode 是用到时才启动服务器，别的是会话一建好就启动。
-- pi 没有这个参数，走另一条路：agentd 把服务器放进环境变量 `AGENTD_MCP_SERVERS`，适配器改用 `-e builtin:mcp -e server/pi-mcp-bridge.ts` 启动内层 pi
+- pi 没有这个参数，走另一条路：agentd 把服务器放进环境变量 `AGENTD_MCP_SERVERS`，适配器改用 `-e builtin:mcp -e pi-adapter/mcp-bridge.ts` 启动内层 pi
   （去掉 `--no-mcp`，仍然 `--no-extensions`，所以不会加载别的扩展；没配服务器时仍是 `--no-mcp`）。
   注意：pi 内置的 MCP 客户端**还会读它自己的** `~/.pi/agent/mcp.json` 和项目里的 `.pi/mcp.json`，所以这两个文件里的服务器也会出现在 pi 执行者里
   （这台机器上前者不存在）。`--no-mcp` 当初就是为防止内层 pi 连回调度器，这两个文件里不要放指向 agentd 的服务器。
@@ -320,10 +315,12 @@ npm run preflight -- --type claude,pi      # 只看 / 只装这几个；加 --js
 
 ### 供应商：给 CLI 换一个地址和 Key
 
-在看板侧栏点「供应商（Key 与地址）」：填一次 Key、地址和模型 id，点「测试连通」，agentd 会先对地址发一个最小请求，
+在看板左下角点齿轮打开设置，选「供应商」：填一次 Key、地址和模型 id，点「测试」，agentd 会先对地址发一个最小请求，
 再**逐个启动能用它的 CLI**，让它通过这个供应商回答一个词，列出哪些真的能用。通过后，到执行者的设置里选这个供应商。
 
-- **按设备保存**：存在 `data/state/providers.json`（不进 git，只有本机用户可读），所有项目共用。Key 只出不进：列表和接口只返回末四位。
+- **按设备保存**：存在 `data/global/providers.json`（不进 git，只有本机用户可读），所有项目共用。Key 只出不进：列表和接口只返回末四位。
+- **每个供应商自己选「可用的 CLI」**：保存时勾选，默认勾上不碰各 CLI 全局配置的五个，**mcode 默认不勾**。只有勾上的 CLI 才会被测试、才能在执行者里选这个供应商；
+  每个 CLI 一行有「只测它」按钮，「测试全部已启用的」只测勾上的。已有执行者在用的 CLI 不能取消勾选。
 - **两种地址**：Claude Code 和 MiniMax Code 说 Anthropic 协议，其余说 OpenAI 兼容协议（Codex 还要求地址支持 `/responses`）。
   两个地址都填就都能测；缺哪个，用那个协议的 CLI 就显示「需要 … 地址」。
 - **怎么交给 CLI**（每个 CLI 一份，写在 `packages/drivers/<cli>.mjs` 的 `provider` 里，都实测过，并用错误的 Key 对照过）：
@@ -352,9 +349,8 @@ npm run restart-daemon                                # 让守护进程用上新
 npm run restart-daemon -- --stop-only                 # 只正常退出，不重新拉起
 npm run restart-daemon -- --help                      # 查看帮助，不会执行任何操作
 # 退出码：0 成功；1 有任务在跑或排队，未改动任何东西；2 未能在 30 秒内退出或参数错误
-# 也可以双击仓库根目录的 restart-daemon.bat
-node packages/agentd/tools/ops/run-isolated.mjs      # 在私有守护进程上跑整套测试（独立数据目录和管道，不碰你正在用的那个）
-npm test              # 七组回归
+npm test              # 在私有守护进程上跑整套回归：独立的数据目录、临时目录和管道，跑完整个删除，不碰你正在用的那个
+node packages/agentd/scripts/run-isolated.mjs test:projects test:events   # 同样在私有守护进程上，只跑指定的几组
 npm run test:events   # 事件 id / 重放 / 重启检测
 npm run test:switch   # 会话切换 + 标签
 npm run test:models   # 模型隔离 + 跨重启持久化
@@ -377,22 +373,20 @@ npm run daemon:stop   # 停掉
 
 ### 状态文件
 
-都在 `data/`，按用途分四个文件夹（`AGENTD_DATA_DIR` 可整体换位置）：
+都在 `data/`，按「属于谁」分两块（`AGENTD_DATA_DIR` 可整体换位置）：
 
-| 文件夹 | 内容 | 能不能删 |
+| 位置 | 内容 | 能不能删 |
 | --- | --- | --- |
-| `state/` | `projects.json`、`tasks.json`、`session-labels.json`（标签 + 模型选择）、`journal.jsonl`、`receipts.jsonl`（每次运行的回执） | 要备份，删了就丢数据 |
-| `conversations/` | `transcripts/`（按实例、会话分文件的对话记录）、`dispatcher-sessions/`、`pi-sessions/` | 要备份 |
-| `outputs/` | `handoffs/`、`results/`（长回复全文）、`rules/`（交给各 CLI 的规则文件，每次启动重写） | `rules/` 可删 |
-| `runtime/` | `agentd.log`（daemon 日志）、`runs/<jobId>.log`（单次运行的流式正文，超过 14 天自动清） | 可以删 |
+| `global/` | 属于这台机器：`providers.json`（供应商和 Key）、`clis.json`（预检清单）、`tools/`（预检装进来的 CLI）、`agentd.log`（daemon 日志） | 删了要重新配供应商、重新预检 |
+| `projects/<项目id>/` | 属于这个项目的一切：`project.json`（配置）、`transcripts/`（按执行者、会话分文件的对话记录）、`dispatcher-sessions/`、`pi-sessions/`、`session-labels.json`（标签 + 模型选择）、`tasks.json`、`receipts.jsonl`（每次运行的回执）、`journal.jsonl`、`results/`（长回复全文）、`handoffs/`、`rules/`（交给各 CLI 的规则文件，每次启动重写）、`runs/<jobId>.log`（单次运行的流式正文，超过 14 天自动清） | 要备份；**删项目就是删这个文件夹**，不会留下别的 |
 
-`agentd.endpoint.json`（daemon 实际监听地址，跨 shell 共享的关键）留在 `data/` 最上层。旧版的平铺目录会在 daemon 启动时自动移进这些文件夹。
+`agentd.endpoint.json`（daemon 实际监听地址，跨 shell 共享的关键）留在 `data/` 最上层。
 
 ### 排查
 
 | 现象 | 先看 |
 | --- | --- |
-| 调用没反应 | `data/runtime/agentd.log` |
+| 调用没反应 | `data/global/agentd.log` |
 | 回答很慢 | 用 `agent_status` 看是 agent 慢还是外层模型慢 |
 | agent 反复重启 | `spawns` 是否持续增长；看 `agent.exit` 事件 |
 | 上下文快满 | 回执里的 `attention` 有 `context_pressure` |

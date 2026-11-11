@@ -222,10 +222,10 @@ Invalid params: A prompt is already active for this session.
 
 **症状**：pi agent 反复重启 14 次。
 
-**根因**：`AcpClient` 从 `server/` 移到 `core/` 后，`join(dirname(import.meta.url), 'pi-acp-adapter.mjs')`
+**根因**：`AcpClient` 换了位置后，`join(dirname(import.meta.url), 'acp-adapter.mjs')`
 指向了不存在的位置。
 
-**修法**：改成 `join(dirname(...), '..', 'server', 'pi-acp-adapter.mjs')`。
+**修法**：改成指向 `pi-adapter/acp-adapter.mjs` 的路径。
 
 **教训**：移动文件时要重新检查所有基于 `import.meta.url` 的相对路径。启动失败的错误信息
 也该更明确——当时只看到 spawns 飙升，日志里没有"文件不存在"。
@@ -408,7 +408,7 @@ B 终端设了 `AGENTD_PORT` 连 TCP，于是出现两个 daemon，两套 agent�
 - **pi 适配器**：同一时刻只有一个活跃会话，要并行必须多开实例。
 - **mcode**：本环境模型路由报错（`managed_token_plan` 不可用），没能测，属环境问题。
 
-所以统一按「一个实例一个 prompt」调度，并行靠多实例；探针在 `tools/concurrency-probe.mjs`。
+所以统一按「一个实例一个 prompt」调度，并行靠多实例。
 
 ## 23. 作用域要在服务端强制
 

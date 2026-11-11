@@ -6,7 +6,7 @@
 ┌──────────────────────────────────────────────────────────┐
 │ pi（TUI）                                                 │
 │   extension: agent-router                                │
-│     · 10 个工具                                          │
+│     · 11 个工具                                          │
 │     · 3 个斜杠命令                                        │
 │     · onUpdate 流式渲染（不占 context）                    │
 │     · abort signal → session/cancel                      │
@@ -16,7 +16,7 @@
 ┌──────────────────────────────────────────────────────────┐
 │ agentd（单例常驻，detached）                               │
 │                                                          │
-│   core/agent-pool.mjs                                    │
+│   core/pool（执行者池）                                    │
 │     AcpClient × 每个项目里的每个执行者                       │
 │       · 活跃会话指针   · live: Set                        │
 │       · 串行队列       · job 注册表 + 指标                 │
@@ -28,7 +28,7 @@
 └──────────────────────────────────────────────────────────┘
       │ ACP              │ ACP                 │ ACP
       ▼                  ▼                     ▼
- mcode acp         dsh --profile acp     pi-acp-adapter.mjs
+ mcode acp         dsh --profile acp     acp-adapter.mjs
  （常驻）           （常驻）                    │ RPC
                                               ▼
                                        pi --mode rpc
@@ -40,23 +40,23 @@
 **三项扩展（协议版本 2）**
 
 - **多实例**：池里的单位是「实例」而不是「CLI 类型」。实例 id → 一个 AcpClient 进程 → 一个固定目录。
-  每个实例都属于一个项目（`core/projects.mjs` 创建、记在 `data/state/projects.json`）；daemon 启动时池子是空的，没有项目就没有实例，也没有调度器。
-- **对话记录**：`core/transcripts.mjs` 把经手的每一轮追加到 `data/conversations/transcripts/<实例>/<sessionId>.jsonl`，
+  每个实例都属于一个项目（`core/projects` 创建、记在 `data/projects/<项目>/project.json`）；daemon 启动时池子是空的，没有项目就没有实例，也没有调度器。
+- **对话记录**：`core/records/transcripts.mjs` 把经手的每一轮追加到 `data/projects/<项目>/transcripts/<执行者>/<sessionId>.jsonl`，
   `seq` 做游标。这是「补 harness 缺的」：ACP 不提供读历史的统一方式。
 - **调度器就是 pi**：`core/dispatcher/dispatcher.mjs` 持有一个 `pi --mode rpc`（加载 agent-router 扩展），
   由它的 LLM 决定调哪个实例。池里的 `pi` agent 是 `--no-extensions` 的执行者，二者是两个进程。
-  LLM 通过 `core/pi-models.mjs` 写 pi 的 `models.json` 来增删，随后重启调度器。
+  LLM 通过 `core/pi/models.mjs` 写 pi 的 `models.json` 来增删，随后重启调度器。
 
 ```
 看板/客户端 ──► agentd ──► dispatcher (pi rpc + 扩展) ──agent_run──► agentd ──► 实例 × N
                   │
-                  └──► transcripts/  projects.json  dispatcher-sessions/
+                  └──► data/projects/<项目>/（配置、对话记录、调度器会话…）
 ```
 
 **仓库是 monorepo，三层各一个包：**
 
 ```
-web（React SPA）──/api──► backend（HTTP+SSE 薄网关）──agentd-client──► agentd ──► 实例 / 调度器
+web（React SPA）──/api──► backend（HTTP+SSE 薄网关）──agentd 客户端──► agentd ──► 实例 / 调度器
 ```
 
 backend 只是 agentd 的又一个客户端（和测试脚本、pi 扩展同级）：路由一对一映射到 agentd 操作，
@@ -64,81 +64,157 @@ SSE 把 `subscribe('*')` 收到的事件原样转发。业务规则只在 agentd
 
 ---
 
-## 分层
+## 目录与分层
 
-| 层 | 文件 | 只负责 |
+### 五个包，各有一个入口
+
+| 包 | 入口 | 只负责 |
 | --- | --- | --- |
-| 入口 | `extension/agent-router.ts` | 调度器的扩展入口：只注册工具、斜杠命令和每轮的执行者名单；pi 按路径加载它，它引用旁边 `router/` 里的文件 |
-| | `extension/router/tools/` | 八个工具：`run`（agent_run）、`sessions`（会话、模型、状态）、`instances`、`handoff` |
-| | `extension/router/` | `daemon`（连接和按项目限定的代理）、`format`、`failure`（纯函数，可直接用 Node 测）、`roster`（名单，文本在 `contexts/roster.md`）、`commands`、`params` |
-| 客户端 | `client/agentd-client.mjs` | 连接 + 订阅 + 续传 |
-| 服务 | `daemon/agentd.mjs` | 只做组装：把下面几块接起来并启动 |
-| | `daemon/ops/` | 客户端能调的 62 个操作，按领域分五个文件：`executors`、`run`、`dispatcher`（含交接）、`projects`（含模板）、`system`；`index.mjs` 合并，重名直接报错 |
-| | `daemon/dispatchers.mjs` | 执行者的事件接线、每个项目一个调度器的注册表、交接提议和连续失败计数 |
-| | `daemon/startup.mjs` | 启动时处理上一个守护进程没跑完的任务 |
-| | `daemon/server.mjs` | socket 协议、端点文件、监听 |
-| | `daemon/lifecycle.mjs` | 空闲回收、空闲退出、关闭 |
-| | `daemon/events.mjs` | 事件身份（epoch/seq）、环形缓冲、投递 |
-| | `daemon/guard.mjs` | 谁能调哪些操作（调度器的限制）、项目内名字解析 |
-| | `daemon/receipts.mjs` | 回执（`receipts.jsonl`） |
-| 核心 | `core/agent-pool.mjs` | 只做再导出，保持一个导入路径 |
-| | `core/data-dir.mjs` | 数据放哪（`AGENTD_DATA_DIR` 可改，私有测试守护进程靠它）；没有任何依赖 |
-| | `core/app-config.mjs` | 读 `agentd.config.json`（全局设置；各部分读自己的那一段）；没有任何依赖 |
-| | `core/pool/config.mjs` | 执行者池自己的：CLI 注册表、各 CLI 的默认目录、超时、强停阈值 |
-| | `core/pool/store.mjs` | 会话旁路数据（标签、目录、模型、上下文、压缩次数） |
-| | `core/pool/registry.mjs` | 池 Map、进程数上限、同类型启动锁 |
-| | `core/pool/acp-client.mjs` | 只做再导出，导入路径不变；代码在 `core/pool/acp/` |
-| | `core/pool/acp/client.mjs` | 一个常驻进程：启动与关闭、把一条提示变成一次运行；把下面几块组合起来，对外接口不变 |
-| | `core/pool/acp/sessions.mjs` | 会话与模型：新建、续接、切换、命名、隐藏、列出；选模型并记住每个会话的配置；状态都归它，对 CLI 的请求通过传进来的函数发 |
-| | `core/pool/acp/transport.mjs` | 和 ACP 进程之间的线：启动、读行、应答（含自动批准权限）、带空闲/总超时的请求、放弃进程；不知道会话和运行 |
-| | `core/pool/acp/run-tracker.mjs` | 一次运行怎么从 `session/update` 变成状态和对话记录：文字、推理、工具调用（从开始跟到结束）、分段写入、进度；不知道进程 |
-| | `core/pool/acp/runs.mjs` | 运行的记账：正在跑的、最近三十次、用时窗口；被拒绝的运行（取消、不稳定）的错误 |
-| | `core/pool/acp/prompt-queue.mjs` | 一个执行者的排队：先进先出、按任务号取消排队中的、取消后立刻回复调用方；会话操作走同一条队 |
-| | `core/pool/acp/rules-channel.mjs` | 规则怎么交给 CLI：各自的通道，没有通道的放在每个会话第一条消息前 |
-| | `core/pool/acp/health.mjs` | 进程被强停的记录与"不稳定"的判断 |
-| | `core/pool/metrics.mjs` | 运行指标与推断的健康信号 |
-| | `core/pool/compaction.mjs` | 上下文占用与自动压缩 |
-| | `core/pool/instances.mjs` | 项目里的实例：把驱动、目录、规则和 MCP 配置组成一个进程；实例的清单在 `core/projects.mjs` |
-| | `core/projects.mjs` | 项目、执行者配置（不往项目里写任何文件） |
-| | `core/rules.mjs` | 调度器和执行者的规则文本（来源 `contexts/`） |
-| | `core/templates.mjs` | 执行者模板：`contexts/templates/*.md`（文件头 + 系统提示词）的增删改查；执行者规则 = 通用规则 + 模板提示词，每次启动重读 |
-| | `core/pool/system-prompt.mjs` | 把规则交给各 CLI 的系统提示入口 |
-| | `core/pi-rpc.mjs` | 和 pi RPC 通话的唯一一份实现（调度器和 pi 适配器共用，只依赖 node 内置模块） |
-| | `core/dispatcher.mjs` | 只做再导出，导入路径不变；代码在 `core/dispatcher/` |
-| | `core/dispatcher/dispatcher.mjs` | 调度器：pi 进程的生命周期、接线、模型与状态、作为交接的目标；把下面三块组合起来 |
-| | `core/dispatcher/sessions.mjs` | 会话文件：列表、命名、删除、每一轮的用时；只认目录，不碰 pi |
-| | `core/dispatcher/turn-queue.mjs` | 一轮是否在跑、排队的消息、取消排队；只要一个 `send` 函数，不碰 pi |
-| | `core/dispatcher/context.mjs` | 上下文数字（存盘）与超过阈值的压缩；规则和执行者共用 `pool/compaction.mjs` |
-| | `core/handoff.mjs` | 交接：提案、生成文档、开新会话 |
-| 适配 | `server/pi-acp-adapter.mjs` | ACP ↔ pi RPC（含 `/compact`） |
-| 驱动 | `packages/drivers/` | 每个 CLI 特有的一切，一个文件一个 CLI：npm 包与验证过的版本、启动方式、规则和 MCP 怎么交、能力（`compact`、`rules`、`mcp`、`sessionsOnDisk`）、pi 的两个环境变量、dsh 的磁盘会话读取。没有任何依赖，池里的代码问它的 `capabilities`，不再判断「是哪个 CLI」 |
-| | `core/pool/providers.mjs` | 供应商（另一个地址和 Key），按设备存 `data/state/providers.json`：存取、列表不带 Key、测试（先测地址，再逐个 CLI 用它回答）、给将要启动的进程算出环境变量、参数和文件。每个 CLI 怎么接受它由驱动的 `provider` 决定（协议 anthropic/openai，作用域 process/global），测试代码在 `packages/drivers/probes/provider.mjs` |
-| | `core/pool/install.mjs` | 本机装了什么：读预检的清单（`data/state/clis.json`），没有就在 node 旁边找；给驱动 `{ node, dir(包), version(包) }`。每次调用都重新算，清单改了不用重启 |
-| 预检 | `packages/preflight/` | 在 daemon 之外：探测、对照驱动验证过的版本、写清单、（可选，显式 `--yes`）把验证过的版本装进 `data/tools`。和 daemon 之间只共享清单这一份文件 |
+| `packages/agentd` | 守护进程 `daemon/agentd.mjs`；客户端 `client/index.mjs`（对外是 `@speclock-scaffold/agentd/client`）；pi 扩展 `extension/agent-router.ts` | 调度器：daemon、执行者池、调度器 pi、pi 扩展、测试 |
+| `packages/drivers` | `index.mjs`（包的 `exports` 只有这一个出口） | 每个 CLI 特有的一切，一个文件一个 CLI：npm 包与验证过的版本、启动方式、规则和 MCP 怎么交、能力（`compact`、`rules`、`mcp`、`sessionsOnDisk`）、pi 的两个环境变量、dsh 的磁盘会话读取。没有任何依赖；池里的代码问它的 `capabilities`，不判断「是哪个 CLI」 |
+| `packages/preflight` | 命令行 `bin/preflight.mjs`；函数 `src/index.mjs` | 在 daemon 之外：探测、对照驱动验证过的版本、写清单、（可选，显式 `--yes`）把验证过的版本装进 `data/global/tools`。和 daemon 之间只共享清单这一份文件 |
+| `packages/backend` | `src/server.mjs` | HTTP + SSE 薄网关，`src/daemon.mjs` 是它连 agentd 的那一小段 |
+| `packages/web` | `src/main.tsx` | 看板 |
 
-依赖方向是单向的：入口 → 客户端 → daemon → core（`core/pool/` 内：acp/client → acp/ 里的各块、registry/store/metrics/compaction → config；acp/ 里的各块互相不引用，只被 client 组合）。`core` 不知道 HTTP、MCP、pi 扩展、
-命名管道的存在，所以能被任何前端复用（测试脚本就通过同样的 socket 驱动它）。
+### agentd 的目录
 
-**层次由测试守着**（`tools/unit/layers-test.mjs`，直接读源码里的 import，不启动任何东西）：
+```
+packages/agentd/
+├─ daemon/        守护进程：把 core 接成服务（socket、操作、事件、回执、启动对账）
+├─ core/          核心，按功能分七组，每组一个 index.mjs（见下）
+├─ client/        index.mjs：连接 + 订阅 + 续传；backend、pi 扩展、测试都用它
+├─ extension/     pi 扩展 agent-router：调度器 pi 加载它，得到派活的工具和斜杠命令
+├─ pi-adapter/    pi 没有 ACP，这里把 ACP 翻译成 pi RPC：acp-adapter.mjs；mcp-bridge.ts 让它加载 MCP 服务器
+├─ contexts/      交给 Agent 的提示词文本：项目规则、执行者规则、名单、交接、执行者模板
+├─ test/          unit/（不启动进程，或用假的 CLI）、live/（要守护进程或真实 CLI/模型）、lib/（测试共用的连接封装）
+├─ scripts/       restart-daemon、run-isolated（见「测试与脚本」）
+├─ agentd.config.json   全局设置，各部分读自己的那一段
+└─ data/          运行数据（被 git 忽略，见「数据目录」）
+```
 
-- 叶子（`data-dir`、`app-config`、`transcripts`、`rules`、`reply`、`pi-rpc`、`pi-models`、`session-disk`、`journal`、`tasks`）只引用叶子。
-- `core/pool/` 只引用池里的文件，加上只管数据和文件的 `data-dir`、`app-config`、`transcripts`。
-- `core/` 不引用 `daemon/`、`client/`、`extension/`、`server/`；池外面的只经 `core/agent-pool.mjs`（或调度器共用的 `compaction`、`store`、`system-prompt`）进池；`daemon/` 里的 `ops/` 文件互不引用。
-- 驱动包只被池里的代码引用，它自己不引用脚手架的任何东西（预检读的是同一份文件）；这两条也在 `layers-test.mjs` 里检查。
-- 例如"上次被中断的任务"（`interrupted`）不在池的实例列表里，是守护进程在返回前加上的（`daemon/startup.mjs` 的 `withInterrupted`），因为那是启动对账的信息，不是池的事实。
+### core 的七组
 
-**数据目录**（`packages/agentd/data/`，已被 git 忽略；`AGENTD_DATA_DIR` 可整体换位置）按用途分四个文件夹，路径都集中在 `core/data-dir.mjs`：
+`core/` 按「这些代码是做什么的」分组，每组一个文件夹，**每组有且只有一个入口 `index.mjs`，里面只做再导出**。组外的代码只经它进组；组里其余文件是内部实现。
 
-| 文件夹 | 放什么 | 能不能删 |
-|---|---|---|
-| `state/` | 系统记住的：`projects.json`、`tasks.json`、`session-labels.json`、`journal.jsonl`、`receipts.jsonl` | 要备份，删了就丢数据 |
-| `conversations/` | 对话本身：`transcripts/`、`dispatcher-sessions/`、`pi-sessions/` | 要备份 |
-| `outputs/` | agentd 写给人和 CLI 的文档：`handoffs/`、`results/`（长回复全文）、`rules/`（交给各 CLI 的规则文件，每次启动重写） | `rules/` 可删；其余按需 |
-| `runtime/` | 守护进程日志 `agentd.log`、每次运行的日志 `runs/` | 可以删；超过 14 天的运行日志启动时自动清 |
+| 组 | 入口导出的 | 里面有什么 |
+| --- | --- | --- |
+| `core/base` | 数据目录的路径、`CONFIG` | `data-dir.mjs`：数据放哪（`AGENTD_DATA_DIR` 可改，私有测试守护进程靠它）；`app-config.mjs`：读 `agentd.config.json`。没有任何依赖 |
+| `core/records` | 对话记录、任务与重试、在途日志 | `transcripts.mjs`：经手的每一轮追加成对话记录；`tasks.mjs`：任务身份、第几次尝试、重试上限；`journal.mjs`：在途任务的预写日志，重启后对账；`reply.mjs`：长回复裁剪（给调度器的只有头尾，全文存文件） |
+| `core/prompts` | 规则文本、模板 | `rules.mjs`：调度器和执行者的规则（来源 `contexts/`）；`templates.mjs`：执行者模板（`contexts/templates/*.md`，文件头 + 系统提示词）的增删改查，执行者规则 = 通用规则 + 模板提示词，每次启动重读 |
+| `core/pi` | pi 的 RPC 客户端、pi 的模型清单 | `rpc.mjs`：和 pi RPC 通话的唯一一份实现（调度器和 pi 适配器共用，只依赖 node 内置模块）；`models.mjs`：读写 pi 的 `models.json`，写前备份 |
+| `core/pool` | 执行者池 | 见下 |
+| `core/dispatcher` | `Dispatcher`、`savedContext` | `dispatcher.mjs`：调度器，pi 进程的生命周期、接线、模型与状态、作为交接的目标；`sessions.mjs`：会话文件的列表、命名、删除、每一轮的用时，只认目录、不碰 pi；`turn-queue.mjs`：一轮是否在跑、排队的消息、取消排队，只要一个 `send` 函数；`context.mjs`：上下文数字（存盘）与超过阈值的压缩 |
+| `core/projects` | 项目、执行者配置、交接 | `manager.mjs`：项目与执行者的配置（每个项目一个文件 `data/projects/<id>/project.json`）、增删改、目录必须在项目根之内，不往项目里写任何文件；`handoff.mjs`：交接，提案、生成文档、开新会话 |
 
-`agentd.endpoint.json` 留在最上层：客户端靠它找到正在运行的守护进程。旧的平铺目录由 `daemon/data-layout.mjs` 在守护进程启动时移进这些文件夹（不覆盖已有文件，移动失败就拒绝启动并说明原因）。
+**`core/pool`**（执行者池，每个实例一个常驻 ACP 进程）：
 
-**脚本目录**（`packages/agentd/tools/`）：`unit/` 不启动进程或用假的 CLI，`live/` 需要守护进程或真实 CLI/模型，`ops/` 是 `restart-daemon`、`run-isolated`，`explore/` 是一次性的探针（`executors-activity-probe`：各 CLI 能看到什么，调真实模型），`lib/` 是共用的连接封装。各 CLI 的行为探针（规则、MCP、恢复会话）随驱动放在 `packages/drivers/probes`，由 `preflight probe` 运行。
+| 文件 | 只负责 |
+| --- | --- |
+| `config.mjs` | CLI 注册表、各 CLI 的默认目录、超时、强停阈值 |
+| `store.mjs` | 会话旁路数据：标签、目录、模型、上下文、压缩次数 |
+| `registry.mjs` | 池 Map、进程数上限、同类型启动锁 |
+| `instances.mjs` | 项目里的实例：把驱动、目录、规则和 MCP 配置组成一个进程；实例的清单在 `core/projects` |
+| `metrics.mjs` | 运行指标与推断的健康信号 |
+| `compaction.mjs` | 上下文占用与自动压缩（执行者和调度器共用） |
+| `system-prompt.mjs` | 把规则交给各 CLI 的系统提示入口 |
+| `mcp.mjs` | 每个实例的 MCP 服务器配置（密钥不进状态输出） |
+| `providers.mjs` | 供应商（另一个地址和 Key），按设备存 `data/global/providers.json`：存取、列表不带 Key、测试（先测地址，再逐个 CLI 用它回答）、给将要启动的进程算出环境变量、参数和文件。每个 CLI 怎么接受它由驱动的 `provider` 决定（协议 anthropic/openai，作用域 process/global），测试代码在 `packages/drivers/probes/provider.mjs` |
+| `install.mjs` | 本机装了什么：读预检的清单（`data/global/clis.json`），没有就在 node 旁边找；给驱动 `{ node, dir(包), version(包) }`。每次调用都重新算，清单改了不用重启 |
+| `process.mjs` | 结束子进程及其整棵进程树 |
+| `tool-text.mjs` | 工具的输入输出变成对话记录里的短文本 |
+| `acp/` | 一个常驻 ACP 进程（入口 `acp/index.mjs` 只放出 `AcpClient`），见下 |
+
+**`core/pool/acp`**（`client.mjs` 把下面几块组合起来，各块互相不引用）：
+
+| 文件 | 只负责 |
+| --- | --- |
+| `client.mjs` | 启动与关闭、把一条提示变成一次运行 |
+| `sessions.mjs` | 会话与模型：新建、续接、切换、命名、隐藏、列出；选模型并记住每个会话的配置；状态都归它，对 CLI 的请求通过传进来的函数发 |
+| `transport.mjs` | 和 ACP 进程之间的线：启动、读行、应答（含自动批准权限）、带空闲/总超时的请求、放弃进程；不知道会话和运行 |
+| `run-tracker.mjs` | 一次运行怎么从 `session/update` 变成状态和对话记录：文字、推理、工具调用（从开始跟到结束）、分段写入、进度；不知道进程 |
+| `runs.mjs` | 运行的记账：正在跑的、最近三十次、用时窗口；被拒绝的运行（取消、不稳定）的错误 |
+| `prompt-queue.mjs` | 一个执行者的排队：先进先出、按任务号取消排队中的、取消后立刻回复调用方；会话操作走同一条队 |
+| `rules-channel.mjs` | 规则怎么交给 CLI：各自的通道，没有通道的放在每个会话第一条消息前 |
+| `health.mjs` | 进程被强停的记录与「不稳定」的判断 |
+
+### daemon
+
+| 文件 | 只负责 |
+| --- | --- |
+| `agentd.mjs` | 只做组装：把下面几块接起来并启动 |
+| `ops/` | 客户端能调的 65 个操作，按领域分六个文件：`executors`、`run`、`dispatcher`（含交接）、`projects`（含模板）、`providers`、`system`；`index.mjs` 合并，重名直接报错 |
+| `dispatchers.mjs` | 执行者的事件接线、每个项目一个调度器的注册表、交接提议和连续失败计数 |
+| `startup.mjs` | 启动时处理上一个守护进程没跑完的任务 |
+| `server.mjs` | socket 协议、端点文件、监听 |
+| `lifecycle.mjs` | 空闲回收、空闲退出、关闭 |
+| `events.mjs` | 事件身份（epoch/seq）、环形缓冲、投递 |
+| `guard.mjs` | 谁能调哪些操作（调度器的限制）、项目内名字解析 |
+| `receipts.mjs` | 回执（每个项目一份 `receipts.jsonl`） |
+| `data-layout.mjs` | 启动时把旧的平铺数据目录移进下面的四个文件夹 |
+
+### 扩展与适配器
+
+- **`extension/`**：`agent-router.ts` 只注册 11 个工具（`agent_run`、`agent_sessions`、`agent_session_new`、`agent_session_use`、`agent_session_rename`、`agent_models`、`agent_set_model`、`agent_status`、`agent_instances`、`agent_instance_create`、`propose_handoff`）、3 个斜杠命令（`/agents`、`/agent-model`、`/agent-usage`）和每轮的执行者名单；pi 按路径加载它。`router/tools/` 是工具本身（`run`、`sessions`、`instances`、`handoff`）；`router/` 里 `daemon`（连接和按项目限定的代理）、`format`、`failure`（纯函数，可直接用 Node 测）、`roster`（名单，文本在 `contexts/roster.md`）、`commands`、`params`。
+- **`pi-adapter/`**：`acp-adapter.mjs` 是 ACP ↔ pi RPC（含 `/compact`），驱动 `packages/drivers/pi.mjs` 用它启动池里的 pi 执行者；`mcp-bridge.ts` 是内层 pi 加载 MCP 服务器用的扩展。
+
+### 依赖规则
+
+箭头只朝一个方向：扩展 / 客户端 → daemon → core。`core` 不知道 HTTP、MCP、pi 扩展、命名管道的存在，所以能被任何前端复用（测试脚本就通过同样的 socket 驱动它）。`core` 内部：
+
+```
+base ◄── records, prompts, pi
+base, records ◄── pool
+base, pi, prompts, pool ◄── dispatcher
+base, prompts, pool, records ◄── projects
+```
+
+**由测试守着**（`test/unit/layers-test.mjs`，直接读源码里的 import，不启动任何东西）：
+
+- 每组都有 `index.mjs`，`core/` 顶层没有散落的文件。
+- 组外的代码只能 import 组的 `index.mjs`；一个 `index.mjs` 只做再导出，且只导出自己组里的文件。测试不受这条限制：它们要单独测某一块，会直接进组。
+- 一组只能引用上面箭头允许的组。
+- `core/` 不引用 `daemon/`、`client/`、`extension/`、`pi-adapter/`；`daemon/` 只被 `daemon/` 自己引用；`daemon/ops/` 里的文件互不引用。
+- 驱动包只被池里的代码引用，它自己不引用脚手架的任何东西（预检读的是同一份文件）。
+- 唯一的例外：pi 扩展跑在 pi 的进程里，直接用 `core/records/reply.mjs`（长回复裁剪），因为 `records` 的其余文件一加载就会读状态文件。
+- 例如「上次被中断的任务」（`interrupted`）不在池的实例列表里，是守护进程在返回前加上的（`daemon/startup.mjs` 的 `withInterrupted`），因为那是启动对账的信息，不是池的事实。
+
+**数据目录**（`packages/agentd/data/`，已被 git 忽略；`AGENTD_DATA_DIR` 可整体换位置）按「属于谁」分，路径都集中在 `core/base/data-dir.mjs`：
+
+```
+data/
+├─ agentd.endpoint.json          客户端靠它找到正在运行的守护进程
+├─ global/                       属于这台机器，不属于任何项目
+│   ├─ providers.json            供应商（地址和 Key）
+│   ├─ clis.json                 预检找到的 CLI 清单（还有 clis-probes.json：行为探针的结果）
+│   ├─ tools/                    预检装进来的、脚手架自己的 CLI
+│   ├─ probe/                    探测某类 CLI 有哪些模型时用的空目录
+│   └─ agentd.log                守护进程的日志
+└─ projects/<项目id>/            属于一个项目的一切
+    ├─ project.json              项目配置：根目录、执行者清单、调度器的压缩设置
+    ├─ transcripts/<执行者>/     对话记录，每个会话一个 `<sessionId>.jsonl`
+    ├─ dispatcher-sessions/      调度器 pi 的会话文件
+    ├─ pi-sessions/<执行者>/     pi 执行者的会话
+    ├─ session-labels.json       会话标签、模型选择、上下文、压缩次数
+    ├─ tasks.json                任务与尝试
+    ├─ receipts.jsonl            回执
+    ├─ journal.jsonl             在途任务日志；interrupted.json 是被中断的记录
+    ├─ results/                  长回复全文
+    ├─ handoffs/<执行者>/        交接文档的副本
+    ├─ rules/                    交给各 CLI 的规则文件（每次启动重写）
+    ├─ provider-config/<执行者>/ 供应商需要的配置文件（每次启动重写）
+    └─ runs/                     每次运行的日志（超过 14 天的启动时自动清）
+```
+
+所以删一个项目就是删它的文件夹，不会留下孤儿；备份、迁移、查看一个项目的全部历史也只看这一个文件夹。`global/` 里是整台机器共用的，删项目不会动它。守护进程用「执行者名字」（`<项目>~<执行者>`，调度器是 `<项目>~@dispatcher`）找到它属于哪个项目。`data/` 整个删掉也不会让系统坏掉，会按需重建，但供应商和预检清单要重新配。
+
+**测试与脚本**（`packages/agentd/`）：
+
+- `test/unit/`：不启动进程，或用假的 CLI。每个测试第一行引入 `test/lib/isolate.mjs`：数据目录和系统临时目录都指进它自己的文件夹，测试结束整个删除，不会写进真实的 `data/`，也不留临时文件。
+- `test/live/`：需要守护进程或真实 CLI/模型。`npm test` 就是用 `scripts/run-isolated.mjs` 在私有守护进程上跑整套（`test:all`），也可以只跑指定几组；跑完私有的数据目录和临时目录整个删除。直接对共享的守护进程跑单个测试会在它的 `data/` 里留下测试用的项目和对话记录，不要这样做。
+- `test/lib/scheduler.mjs`：测试共用的连接封装，也是「前端怎么用 agentd」的参考。
+- `scripts/restart-daemon.mjs`：让守护进程用上新代码（`npm run restart-daemon`）。
+- `scripts/run-isolated.mjs`：私有的数据目录、临时目录和管道，跑整套或指定的测试，跑完整个删除。
+- 各 CLI 的行为探针（规则、MCP、恢复会话）随驱动放在 `packages/drivers/probes`，由 `preflight probe` 运行。
 
 ---
 
@@ -191,7 +267,7 @@ extension          daemon              AcpClient            agent
 | `agent.exit` | ✓ | ✓ | 进程异常退出（无 jobId，广播给所有连接） |
 | `progress` | ✗ | ✗ | 累计字符数快照，重放无意义 |
 
-正文的持久形态是 `data/runtime/runs/<jobId>.log`，不是进度事件。
+正文的持久形态是 `data/projects/<项目>/runs/<jobId>.log`，不是进度事件。
 
 ### 投递规则
 
@@ -245,7 +321,7 @@ dsh 新建会话时不会关闭上一个，多个会话可同时处于「活跃�
 ### 标签
 
 三个 agent 都没有 rename API（`session/set_title`、`session/rename` 等均 Method not found），
-所以标签是本地 sidecar：`data/state/session-labels.json`，展示时与 agent 自带的 title 合并，
+所以标签是本地 sidecar：`data/projects/<项目>/session-labels.json`，展示时与 agent 自带的 title 合并，
 标签优先。
 
 ---
@@ -304,7 +380,7 @@ slow_run                                           → info
 ```
 
 - 只杀直接子进程不够：适配器、真正的 CLI、它启动的工具是三层进程，卡住的构建会留下来。
-  `tools/unit/forced-stop-test.mjs` 用「脱离父进程的孙进程」验证这一点。
+  `test/unit/forced-stop-test.mjs` 用「脱离父进程的孙进程」验证这一点。
 - 强制结束不算崩溃：不发 `agent.exit`，发 `agent.forced-stop`（带次数）。
 - 每个任务有明确终态 `outcome`：`done / failed / timeout / cancelled`（另有 `unstable`，见下），
   回执的 `status` 取自它；`forced` 表示是靠杀进程收尾的。
@@ -323,10 +399,10 @@ slow_run                                           → info
 回执在任务**结束**时才写，所以守护进程在任务运行中被重启或崩溃，原本不会留下任何痕迹。
 做法是先记下来，重启后对账（思路同预写日志）：
 
-- `core/journal.mjs` 把每个任务交出去时记一条 `start`，结束时记一条 `end`（`data/state/journal.jsonl`，追加式）。
+- `core/records/journal.mjs` 把每个任务交出去时记一条 `start`，结束时记一条 `end`（`data/projects/<项目>/journal.jsonl`，追加式）。
 - 守护进程启动时读一遍：有 `start` 没有 `end` 的就是上一个进程没做完的（排队中或运行中），
   补写一条 `interrupted` 回执，发 `job.interrupted` 事件，然后清空日志，每个任务只报一次。
-- 每个执行者记住自己最近一次被中断的任务（`data/state/journal.jsonl.interrupted.json`），直到它收到新任务才清掉；
+- 每个执行者记住自己最近一次被中断的任务（`data/projects/<项目>/interrupted.json`），直到它收到新任务才清掉；
   它出现在实例行的 `interrupted` 字段里，界面标题栏显示「上次任务因服务重启被中断」，
   调度器每一轮的系统提示里也会看到这一条，和 `unstable` 一起。
 - 执行者自己的对话里也要看得到：启动对账时，在它那次任务所在的会话（按任务号在会话记录里找）末尾追加一条 `error` 条目（`interrupted: true`），网页显示为「被中断」，不带用时。
@@ -338,8 +414,8 @@ slow_run                                           → info
 
 调度器拿到的每一段内容都会一直留在它的对话里。执行者一次贴出几万字（整份文件、长日志），调度器就被撑满。
 
-- `core/reply.mjs` 的 `fitReply`：回复不超过 6000 字符（`AGENTD_REPLY_CHARS`）原样给；
-  超过则全文存进 `data/outputs/results/<jobId>.md`，调度器只收到开头、结尾，和「省略了多少字、全文在哪个文件」的提示。
+- `core/records/reply.mjs` 的 `fitReply`：回复不超过 6000 字符（`AGENTD_REPLY_CHARS`）原样给；
+  超过则全文存进 `data/projects/<项目>/results/<jobId>.md`，调度器只收到开头、结尾，和「省略了多少字、全文在哪个文件」的提示。
 - 只在给调度器的那一层裁剪：网页、会话记录、`run` 操作的返回仍然是全文。
 - 文件夹只保留最新 200 个。
 - 这也是「用文件传递大量信息」的兜底：调度器想看中间部分可以自己读那个文件。
@@ -348,8 +424,8 @@ slow_run                                           → info
 
 `jobId` 是一次运行。同一件事失败后再发，要能认出它们是同一个任务，并且不能无限重试：
 
-- `core/tasks.mjs`：每次运行归入一个任务（`taskId`），带第几次尝试（`attempt`）和重试的是哪一次运行（`retryOf`）。
-  任务状态在 `data/state/tasks.json`，重启后仍在。
+- `core/records/tasks.mjs`：每次运行归入一个任务（`taskId`），带第几次尝试（`attempt`）和重试的是哪一次运行（`retryOf`）。
+  任务状态在 `data/projects/<项目>/tasks.json`，重启后仍在。
 - 怎么认出是重试（不依赖调度器配合）：
   1. `agent_run` 的 `retry_of` 参数给出上一次的任务号或运行号；
   2. 或者同一个执行者在失败后 30 分钟内收到**同样的提示词**（空白不影响）。
@@ -372,7 +448,7 @@ slow_run                                           → info
 
 一个任务跑几分钟，界面上不能是一片安静，否则分不清是在干活还是挂了。
 
-- **pi 适配器**（`server/pi-acp-adapter.mjs`）原来只转发回答文字，工具调用和推理全被丢掉。现在把 pi 的
+- **pi 适配器**（`pi-adapter/acp-adapter.mjs`）原来只转发回答文字，工具调用和推理全被丢掉。现在把 pi 的
   `tool_execution_start / update / end` 转成 ACP 的 `tool_call / tool_call_update`，`thinking_delta` 转成
   `agent_thought_chunk`。下游本来就会处理它们：写进会话记录（网页里显示工具调用），也算作「有动静」，
   所以长时间跑工具的 pi 执行者不会再被沉默超时误杀。
@@ -401,9 +477,9 @@ slow_run                                           → info
 
 ### pi 的两条通路共用一个客户端
 
-调度器（`core/dispatcher.mjs`）和 pi 适配器（`server/pi-acp-adapter.mjs`，单独的进程）以前各自带一份和 `pi --mode rpc`
+调度器（`core/dispatcher/`）和 pi 适配器（`pi-adapter/acp-adapter.mjs`，单独的进程）以前各自带一份和 `pi --mode rpc`
 通话的代码，两份写得不一样：调度器取上下文统计时多拆了一层 `data`（占用环一直空），适配器没实现 `session/cancel`
-（停止 pi 执行者是空操作），只有适配器会压缩。现在都用 `core/pi-rpc.mjs` 的 `PiRpc`：启动与停止、命令与回复按编号对应并带超时、
+（停止 pi 执行者是空操作），只有适配器会压缩。现在都用 `core/pi/rpc.mjs` 的 `PiRpc`：启动与停止、命令与回复按编号对应并带超时、
 一轮的开始与结束、事件监听、一组带名字的命令（状态、统计、压缩、中止、新会话、换模型……）。各自特有的留在各自那边
 （调度器：会话文件、排队、用时；适配器：ACP 翻译、会话编号对应）。
 
@@ -473,9 +549,9 @@ pi 没有 ACP，官方集成方式是 `pi --mode rpc`。适配器负责翻译：
 | --- | --- | --- |
 | 对话历史 | 各 harness 的磁盘 | 不碰，只要求 resume |
 | 会话 id | harness 生成 | 记录 + 映射 |
-| 对话内容（经 agentd 的） | 我们（`data/conversations/transcripts/`） | 追加记录 |
-| 调度器对话历史 | pi（`data/conversations/dispatcher-sessions/`） | 不复制，按需读取 |
-| 项目清单（根目录、实例、角色） | 我们（`data/state/projects.json`） | 持久化 + 启动时恢复；项目调度器会话在 `data/conversations/dispatcher-sessions/<项目>/` |
+| 对话内容（经 agentd 的） | 我们（`data/projects/<项目>/transcripts/`） | 追加记录 |
+| 调度器对话历史 | pi（`data/projects/<项目>/dispatcher-sessions/`） | 不复制，按需读取 |
+| 项目清单（根目录、实例、角色） | 我们（`data/projects/<项目>/project.json`） | 持久化 + 启动时恢复；删项目就是删它的文件夹 |
 | pi 的 LLM 清单 | pi（`models.json`） | 显式命令才写，写前备份 |
 | 活跃会话指针 | 我们（连接内） | 持有 |
 | 标签 / 模型选择 | 我们（sidecar） | 补 harness 的缺口 |
@@ -497,14 +573,14 @@ pi 没有 ACP，官方集成方式是 `pi --mode rpc`。适配器负责翻译：
   （同一会话压缩 ≥3 次、连续失败 ≥3 次）出现时自动提出。之后必须由人：生成交接文档 → 查看并可修改 →
   确认，才会开新会话。交接文档由执行者直接作为回复交出（提示词在 `contexts/handoff-write.md`，开新会话那条在 `handoff-start.md`，
   都只在交接那一步发出、每次现读；不再用 skill 文件，也不写进执行者目录），
-  副本留在 `data/outputs/handoffs/`；新会话的第一条消息里带着这份文档。
+  副本留在 `data/projects/<项目>/handoffs/`；新会话的第一条消息里带着这份文档。
 - **支持的 CLI**：mcode、dsh、pi、opencode（原生 ACP）、claude 和 codex（经官方适配器 `@agentclientprotocol/claude-agent-acp`、`codex-acp`，全局安装在 Node 目录）。注册表在 `core/pool/config.mjs`；claude 用 `CLAUDE.md`、技能放 `.claude/skills`，opencode 技能放 `.opencode/skills`，codex 与 dsh、pi 一样用 `.agents/skills`。opencode 的 `/compact` 虽不在 ACP 的命令列表里，但可用（实测占用 8512→806）。
 - **规则**：不写进项目（没有 AGENTS.md、CLAUDE.md、skills），通过各 CLI 的额外系统提示入口交：mcode 启动参数、pi 启动参数、
   claude / codex 的 `session/new` `_meta`、opencode 的配置环境变量，dsh 没有入口，放在每个会话第一条消息前面（压缩后再补一次）。
-  六种都实测过：新会话、恢复会话后都生效（`npm run preflight -- probe`、`tools/live/rules-live-test.mjs`）。
+  六种都实测过：新会话、恢复会话后都生效（`npm run preflight -- probe`、`test/live/rules-live-test.mjs`）。
 - **MCP 服务器**：每个实例可带一组（`core/pool/mcp.mjs`），agentd 不知道它们是什么，只在每次 `session/new` 和 `session/resume` 的 `mcpServers`
-  里交给 CLI（只在 `session/new` 里给不够：实测 resume 不带就不加载）。pi 没有这个参数，走环境变量 `AGENTD_MCP_SERVERS` 和 `server/pi-mcp-bridge.ts`。
-  配置里的 `env` / `headers` 不进状态输出，调度器不能创建实例或改它们。六种都实测过（`npm run preflight -- probe`、`tools/live/mcp-live-test.mjs`）。
+  里交给 CLI（只在 `session/new` 里给不够：实测 resume 不带就不加载）。pi 没有这个参数，走环境变量 `AGENTD_MCP_SERVERS` 和 `pi-adapter/mcp-bridge.ts`。
+  配置里的 `env` / `headers` 不进状态输出，调度器不能创建实例或改它们。六种都实测过（`npm run preflight -- probe`、`test/live/mcp-live-test.mjs`）。
 
 ---
 
@@ -555,4 +631,3 @@ harness 自己能做好的，我们不做。每项状态都必须对应某个 ha
 - **无 `session/close`**：切过的会话会留在进程内存里
 - **对话记录不含 agentd 之外的会话**：直接在 CLI 里聊的内容我们看不到
 - **改 models.json 要重启调度器**：pi 只在启动时读取该文件；调度器忙时拒绝修改
-- **未做 Web**：事件层已经具备条件（id + 重放 + 回执），但还没有 HTTP 出口
