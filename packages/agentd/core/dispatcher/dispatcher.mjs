@@ -17,7 +17,7 @@
 import { PiRpc } from '../pi/index.mjs';
 import { dispatcherRules } from '../prompts/index.mjs';
 import { nodeBin, piPaths } from '../pool/index.mjs';
-import { injectionFor } from '../pool/index.mjs';
+import { injectionFor, providerForDispatcher } from '../pool/index.mjs';
 import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { agentDir, usablePiProviders } from '../pi/index.mjs';
@@ -54,7 +54,9 @@ export class Dispatcher {
    * With `project` set, the extension runs scoped: every tool call it makes carries
    * that project, and agentd refuses anything outside it.
    */
-  constructor({ cwd, project = null, sessionDir = SESSION_DIR ?? projectPath(project ?? '_', 'dispatcher-sessions'), onEvent, compactAt = null }) {
+  constructor({ cwd, project = null, sessionDir = SESSION_DIR ?? projectPath(project ?? '_', 'dispatcher-sessions'), onEvent, compactAt = null, provider = null }) {
+    /** { id, model } of the device provider it starts with, or a function giving it; null: pi's own models. */
+    this.provider = provider;
     this.cwd = cwd;
     this.project = project;
     this.sessionDir = sessionDir;
@@ -163,6 +165,12 @@ export class Dispatcher {
     const env = { ...process.env };
     if (this.project) env.AGENTD_PROJECT = this.project;
     else delete env.AGENTD_PROJECT;
+    const choice = typeof this.provider === 'function' ? this.provider() : this.provider;
+    if (choice && this.project) {
+      const p = providerForDispatcher({ project: this.project, choice, env });
+      Object.assign(env, p.env);
+      args.push(...p.args);
+    }
     this.pi.start({ cmd: nodeForPi(), args, cwd: this.cwd, env });
 
     // After a daemon restart nothing is remembered in memory: go back to the newest conversation.

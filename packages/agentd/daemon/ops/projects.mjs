@@ -32,17 +32,27 @@ export function projectOps(ctx) {
       projects: projects.listProjects().map((p) => ({
         ...p,
         instances: withInterrupted(p.instances, (i) => i.key),
-        dispatcher: { alive: Boolean(dispatchers.get(p.id)?.child), busy: Boolean(dispatchers.get(p.id)?.busy), compactAt: projects.dispatcherCompactAt(p.id), compactions: dispatchers.get(p.id)?.compactions() ?? 0, queued: (dispatchers.get(p.id)?.queue ?? []).map((m) => m.slice(0, 300)), context: (dispatchers.get(p.id)?.child ? dispatchers.get(p.id)?.context : null) ?? savedContext(projectPath(p.id, 'dispatcher-sessions')) },
+        dispatcher: { provider: projects.dispatcherProvider(p.id), alive: Boolean(dispatchers.get(p.id)?.child), busy: Boolean(dispatchers.get(p.id)?.busy), compactAt: projects.dispatcherCompactAt(p.id), compactions: dispatchers.get(p.id)?.compactions() ?? 0, queued: (dispatchers.get(p.id)?.queue ?? []).map((m) => m.slice(0, 300)), context: (dispatchers.get(p.id)?.child ? dispatchers.get(p.id)?.context : null) ?? savedContext(projectPath(p.id, 'dispatcher-sessions')) },
       })),
       limits: { maxProcesses: MAX_PROCESSES, alive: aliveCount(), idleMinutes: ctx.idleInstanceMs / 60_000 },
     }),
 
     /** The size at which the project's dispatcher compacts its conversation (null: never). */
-    'project.updateDispatcher': ({ project, compactAt }) => {
-      const value = projects.setDispatcherCompactAt(project, compactAt);
+    'project.updateDispatcher': async ({ project, compactAt, provider }) => {
       const d = dispatchers.get(project);
-      if (d) d.compactAt = value;
-      return { project, compactAt: value };
+      const out = { project };
+      if (compactAt !== undefined) {
+        out.compactAt = projects.setDispatcherCompactAt(project, compactAt);
+        if (d) d.compactAt = out.compactAt;
+      }
+      if (provider !== undefined) {
+        const next = projects.checkDispatcherProvider(provider); // a bad choice is refused whatever the dispatcher is doing
+        if (d?.busy) throw new Error('the dispatcher is working on a prompt; abort it first');
+        out.provider = projects.setDispatcherProvider(project, next);
+        // a running pi keeps the models it started with: start it again so the next turn uses the new provider
+        if (d?.child) await d.restart();
+      }
+      return out;
     },
 
     'project.create': (args) => {

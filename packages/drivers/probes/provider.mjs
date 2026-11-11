@@ -57,6 +57,52 @@ export async function checkEndpoint({ protocol, endpoint, apiKey, model, timeout
 }
 
 /**
+ * Which models does the endpoint offer? One listing request per protocol the provider speaks (OpenAI: `GET <base>/models`,
+ * Anthropic: `GET <base>/v1/models`); what each answers is merged. An endpoint that has no listing says so in `errors`.
+ * @returns {Promise<{ models: string[], errors: Record<string, string> }>}
+ */
+export async function discoverModels({ endpoints, apiKey, timeoutMs = 20_000, fetchImpl = fetch }) {
+  const found = new Set();
+  const errors = {};
+  await Promise.all(
+    Object.entries(endpoints ?? {})
+      .filter(([, url]) => url)
+      .map(async ([protocol, endpoint]) => {
+        const base = String(endpoint).replace(/\/+$/, '');
+        const anthropic = protocol === 'anthropic';
+        const url = anthropic ? `${base}/v1/models?limit=1000` : `${base}/models`;
+        const headers = anthropic ? { 'x-api-key': apiKey, authorization: `Bearer ${apiKey}`, 'anthropic-version': '2023-06-01' } : { authorization: `Bearer ${apiKey}` };
+        try {
+          const res = await fetchImpl(url, { headers, signal: AbortSignal.timeout(timeoutMs) });
+          const text = await res.text();
+          let json = null;
+          try {
+            json = JSON.parse(text);
+          } catch {
+            /* not JSON */
+          }
+          if (!res.ok) {
+            errors[protocol] = scrub(clip(json?.error?.message ?? json?.message ?? `HTTP ${res.status}`), [apiKey]);
+            return;
+          }
+          const rows = Array.isArray(json?.data) ? json.data : Array.isArray(json?.models) ? json.models : null;
+          if (!rows) {
+            errors[protocol] = 'the answer is not a list of models';
+            return;
+          }
+          for (const m of rows) {
+            const id = typeof m === 'string' ? m : (m?.id ?? m?.name);
+            if (id) found.add(String(id));
+          }
+        } catch (e) {
+          errors[protocol] = scrub(e.name === 'TimeoutError' ? `no answer within ${Math.round(timeoutMs / 1000)}s` : e.message, [apiKey]);
+        }
+      }),
+  );
+  return { models: [...found].sort((a, b) => a.localeCompare(b)), errors };
+}
+
+/**
  * The provider applied the way the scaffold applies it at a process start. Shared by the test and by the daemon, so what is
  * tested is what runs.
  * @returns {{ ok: boolean, skipped?: string, env?: object, args?: string[], model?: string|null, applied?: object }}

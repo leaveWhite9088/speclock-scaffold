@@ -29,7 +29,7 @@ export function piMcpServers(list = []) {
 
 export default {
   type: 'pi',
-  label: 'independent process',
+  label: 'Pi',
   description:
     'A separate pi instance, exposed through an ACP adapter over pi RPC mode. ' +
     'Runs with --no-mcp so it cannot call back into this server.',

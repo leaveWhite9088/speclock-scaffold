@@ -3,13 +3,15 @@
  * None of them is for a dispatcher (guard.mjs), and none returns a key.
  */
 
-import { getProvider, listProviders, pool, providerClis, providerSupport, removeProvider, saveProvider, testProviderAll } from '../../core/pool/index.mjs';
+import * as projects from '../../core/projects/index.mjs';
+import { discoverProviderModels, getProvider, listProviders, pool, providerClis, providerSupport, removeProvider, saveProvider, testProviderAll } from '../../core/pool/index.mjs';
 
 /** The executors that are set to a provider (`type` narrows it to one CLI). */
 function usedBy(id, type) {
   return [...pool.values()]
     .filter((a) => (typeof a.spec.provider === 'function' ? a.spec.provider() : a.spec.provider)?.id === id && (!type || a.type === type))
-    .map((a) => a.name);
+    .map((a) => a.name)
+    .concat(!type || type === 'pi' ? projects.dispatcherProviders().filter((d) => d.provider.id === id).map((d) => `dispatcher:${d.project}`) : []);
 }
 
 /** Tests that are running, by provider and CLIs: asking for the same one again waits for the running one. */
@@ -23,6 +25,9 @@ export function providerOps(_ctx) {
       /** The CLIs that can take a provider, so a form can offer them before there is one. */
       clis: providerClis(),
     }),
+
+    /** The models an endpoint offers, so a person picks them instead of typing them. */
+    'provider.discover': (spec) => discoverProviderModels(spec),
 
     /** Add or change one. An empty `apiKey` keeps the stored key. A CLI cannot be taken off while an executor of it uses the provider. */
     'provider.save': (spec) => {

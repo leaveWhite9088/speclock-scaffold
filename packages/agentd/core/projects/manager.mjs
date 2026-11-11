@@ -344,6 +344,28 @@ export function dispatcherCompactAt(projectId) {
   return find(projectId).dispatcherCompactAt ?? null;
 }
 
+/** The provider (kept on this device) the project's dispatcher starts with, `{ id, model }`; null: pi's own models. */
+export function dispatcherProvider(projectId) {
+  return find(projectId).dispatcherProvider ?? null;
+}
+
+/** Every project's dispatcher provider, for what must know where a provider is in use. */
+export function dispatcherProviders() {
+  return projects.filter((p) => p.dispatcherProvider).map((p) => ({ project: p.id, provider: p.dispatcherProvider }));
+}
+
+/** The choice checked: `{ id, model }` or null. */
+export const checkDispatcherProvider = (value) => cleanInstanceProvider(value, 'pi');
+
+export function setDispatcherProvider(projectId, value) {
+  const project = find(projectId);
+  const next = checkDispatcherProvider(value);
+  if (next) project.dispatcherProvider = next;
+  else delete project.dispatcherProvider;
+  save();
+  return next;
+}
+
 export function setDispatcherCompactAt(projectId, value) {
   const project = find(projectId);
   project.dispatcherCompactAt = cleanCompactAt(value);

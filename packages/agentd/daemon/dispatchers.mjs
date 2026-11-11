@@ -52,6 +52,7 @@ export function getDispatcher(project) {
     sessionDir: projectPath(project, 'dispatcher-sessions'),
     onEvent: (ev) => publishLive('dispatcher.event', { project, data: ev }),
     compactAt: projects.dispatcherCompactAt(project),
+    provider: () => projects.dispatcherProvider(project),
   });
   // Like an executor's: a compaction is announced, and a conversation compacted again and again is proposed for a handoff.
   d.onCompact = (info) => {

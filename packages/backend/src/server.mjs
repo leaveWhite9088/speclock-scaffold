@@ -112,7 +112,7 @@ const routes = [
     ({ params, query }) => call('project.sessions', { project: params.id, type: query.type, dir: query.dir || '.' }),
   ],
   ['POST', '/api/projects/:id/instances', ({ params, body }) => call('project.addInstance', { ...body, project: params.id })],
-  ['PATCH', '/api/projects/:id/dispatcher', ({ params, body }) => call('project.updateDispatcher', { project: params.id, compactAt: body.compactAt })],
+  ['PATCH', '/api/projects/:id/dispatcher', ({ params, body }) => call('project.updateDispatcher', { project: params.id, compactAt: body.compactAt, provider: body.provider })],
   [
     'PATCH',
     '/api/projects/:id/instances/:iid',
@@ -153,6 +153,7 @@ const routes = [
   // Providers: another endpoint and key for the CLIs, kept once per device. The key goes in, never comes out.
   ['GET', '/api/providers', () => call('provider.list')],
   ['POST', '/api/providers', ({ body }) => call('provider.save', body)],
+  ['POST', '/api/providers/discover', ({ body }) => call('provider.discover', body)],
   ['DELETE', '/api/providers/:id', ({ params }) => call('provider.remove', { id: params.id })],
   ['POST', '/api/providers/:id/test', ({ params, body }) => call('provider.test', { id: params.id, model: body?.model, types: body?.types })],
   ['GET', '/api/dispatcher/llms', () => call('dispatcher.customModels')],

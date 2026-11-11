@@ -14,7 +14,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applyProvider, checkEndpoint, drivers, getDriver, scrub, testProvider } from '@speclock-scaffold/drivers';
+import { applyProvider, checkEndpoint, discoverModels, drivers, getDriver, scrub, testProvider } from '@speclock-scaffold/drivers';
 import { GLOBAL_DIR, instanceIdOf, projectPath } from '../base/index.mjs';
 import { currentInstall } from './install.mjs';
 
@@ -123,6 +123,23 @@ export function removeProvider(id) {
   return { id, removed: true };
 }
 
+/**
+ * The models an endpoint offers. For a provider being typed in, `endpoints` and `apiKey` are what is on the form; for one that is
+ * saved already, `id` supplies what the form leaves out (the stored key stays on this side).
+ */
+export async function discoverProviderModels({ id, endpoints, apiKey }) {
+  const old = id ? load().providers[id] : null;
+  const key = String(apiKey ?? '').trim() || old?.apiKey;
+  if (!key) throw new Error('an API key is needed to list the models');
+  const eps = {};
+  for (const proto of PROTOCOLS) {
+    const url = cleanUrl(endpoints?.[proto] ?? old?.endpoints?.[proto], `${proto} endpoint`);
+    if (url) eps[proto] = url;
+  }
+  if (!Object.keys(eps).length) throw new Error('give an endpoint first');
+  return discoverModels({ endpoints: eps, apiKey: key });
+}
+
 /** What each CLI can do with a provider, from the drivers: which protocol it speaks and whether it works per process. */
 export function providerSupport(p) {
   return Object.values(drivers).map((d) => {
@@ -170,6 +187,12 @@ export function providerForSpawn({ driver, name, choice, env }) {
   const r = applyProvider({ driver, provider: p, model: choice.model, dir, env });
   if (!r.ok) throw new Error(`provider "${p.id}" cannot be used by ${driver.type}: ${r.skipped}`);
   return { env: r.env, args: r.args, model: r.model };
+}
+
+/** The same for a project's dispatcher (a pi process the daemon starts itself): `{ env, args }` to add to its start. */
+export function providerForDispatcher({ project, choice, env }) {
+  const r = providerForSpawn({ driver: getDriver('pi'), name: `dispatcher-${project}`, choice, env });
+  return { env: r.env, args: r.args };
 }
 
 /**

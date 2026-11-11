@@ -11,7 +11,7 @@ export { nodeBin, piPaths } from './install.mjs';
 export { buildInstance, listInstances } from './instances.mjs';
 export { cleanMcpServers, describeMcpServers } from './mcp.mjs';
 export { formatMetrics } from './metrics.mjs';
-export { cleanInstanceProvider, getProvider, listProviders, providerClis, providerSupport, removeProvider, saveProvider, testProviderAll } from './providers.mjs';
+export { cleanInstanceProvider, discoverProviderModels, getProvider, providerForDispatcher, listProviders, providerClis, providerSupport, removeProvider, saveProvider, testProviderAll } from './providers.mjs';
 export { MAX_PROCESSES, aliveCount, defaultModelFor, getAgent, pool } from './registry.mjs';
 export { forgetProject, saved, seedContexts } from './store.mjs';
 export { injectionFor } from './system-prompt.mjs';

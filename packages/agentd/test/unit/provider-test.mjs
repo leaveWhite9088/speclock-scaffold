@@ -21,7 +21,7 @@ process.env.AGENTD_DATA_DIR = dir;
 
 const { check } = await import('../lib/scheduler.mjs');
 const { cleanInstanceProvider, getProvider, listProviders, providerClis, providerForSpawn, providerSupport, removeProvider, saveProvider } = await import('../../core/pool/providers.mjs');
-const { checkEndpoint, getDriver } = await import('@speclock-scaffold/drivers');
+const { checkEndpoint, discoverModels, getDriver } = await import('@speclock-scaffold/drivers');
 
 console.log('\n=== providers ===\n');
 const KEY = 'sk-unit-key-0123456789';
@@ -108,6 +108,28 @@ check('the Anthropic check posts to v1/messages with the key in x-api-key', seen
 const refused = await checkEndpoint({ protocol: 'openai', endpoint: `${base}/v1`, apiKey: 'wrong-key-0123456789', model: 'm1' });
 check('a refused key is reported with the endpoint\'s own words', !refused.ok && refused.status === 401 && /invalid key/.test(refused.detail), refused.detail);
 check('and the key is not repeated in the report', !refused.detail.includes('wrong-key-0123456789'), refused.detail);
+// model discovery
+const listing = createServer((req, res) => {
+  const ok = req.headers.authorization === `Bearer ${KEY}` || req.headers['x-api-key'] === KEY;
+  let status = 200;
+  let body = {};
+  if (!ok) [status, body] = [401, { error: { message: 'no' } }];
+  else if (req.url === '/v1/models') body = { object: 'list', data: [{ id: 'b-model' }, { id: 'a-model' }] };
+  else if (req.url.startsWith('/anthropic/v1/models')) body = { data: [{ id: 'a-model' }, { id: 'c-model' }] };
+  else status = 404;
+  res.writeHead(status, { 'content-type': 'application/json' });
+  res.end(JSON.stringify(body));
+});
+await new Promise((r) => listing.listen(0, '127.0.0.1', r));
+const lb = `http://127.0.0.1:${listing.address().port}`;
+const both = await discoverModels({ endpoints: { openai: `${lb}/v1`, anthropic: `${lb}/anthropic` }, apiKey: KEY });
+check('discovery lists the models of every endpoint once, sorted', both.models.join() === 'a-model,b-model,c-model' && !Object.keys(both.errors).length, JSON.stringify(both));
+const partly = await discoverModels({ endpoints: { openai: `${lb}/v1`, anthropic: `${lb}/nothing` }, apiKey: KEY });
+check('an endpoint with no listing is reported and the other still counts', partly.models.length === 2 && /HTTP 404/.test(partly.errors.anthropic ?? ''), JSON.stringify(partly));
+const denied = await discoverModels({ endpoints: { openai: `${lb}/v1` }, apiKey: 'wrong-key-0123456789' });
+check('a refused key gives no models and an error without the key', denied.models.length === 0 && /no/.test(denied.errors.openai) && !JSON.stringify(denied).includes('wrong-key'), JSON.stringify(denied));
+listing.close();
+
 server.close();
 const down = await checkEndpoint({ protocol: 'openai', endpoint: 'http://127.0.0.1:1/v1', apiKey: KEY, model: 'm1', timeoutMs: 3000 });
 check('an endpoint nobody listens on is reported, with no status', !down.ok && down.status === null && down.detail.length > 0, down.detail);
