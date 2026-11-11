@@ -11,7 +11,7 @@ import { AGENTS } from './config.mjs';
 import { pool } from './registry.mjs';
 import { saved } from './store.mjs';
 
-export function buildInstance({ id, type, cwd, project = null, shortId = id, role = null, model = null, sessionId = null, onSession = null, compactAt = null, systemPrompt = null, mcpServers = [] }) {
+export function buildInstance({ id, type, cwd, project = null, shortId = id, role = null, model = null, sessionId = null, onSession = null, compactAt = null, systemPrompt = null, mcpServers = [], provider = null }) {
   const base = AGENTS[type];
   if (!base) throw new Error(`unknown type "${type}"; available: ${Object.keys(AGENTS).join(', ')}`);
   if (!cwd || typeof cwd !== 'string') throw new Error('an instance needs a directory (cwd)');
@@ -25,6 +25,8 @@ export function buildInstance({ id, type, cwd, project = null, shortId = id, rol
     systemPrompt,
     // MCP servers handed to the CLI whenever a session starts or resumes (see pool/mcp.mjs). A list, or a function giving it.
     mcpServers,
+    // { id, model } of a provider kept on this device (pool/providers.mjs), or a function giving it
+    provider,
     project,
     shortId,
     role,
@@ -65,6 +67,7 @@ export function listInstances() {
     compactions: saved(a.name, a.sessionId ?? a.preferSession)?.compactions ?? 0,
     sessionId: a.sessionId,
     /** The name given to the conversation it is in now (a block, when the dispatcher opened it for one). */
+    provider: typeof a.spec.provider === 'function' ? a.spec.provider() : (a.spec.provider ?? null),
     sessionLabel: a.sessionId ? (saved(a.name, a.sessionId)?.label ?? null) : null,
     model: a.currentModel(),
   }));

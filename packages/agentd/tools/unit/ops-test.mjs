@@ -30,9 +30,10 @@ check('every operation is a function', names.every((n) => typeof ops[n] === 'fun
 const { executorOps } = await import('../../daemon/ops/executors.mjs');
 const { systemOps } = await import('../../daemon/ops/system.mjs');
 const { projectOps } = await import('../../daemon/ops/projects.mjs');
+const { providerOps } = await import('../../daemon/ops/providers.mjs');
 const { runOps } = await import('../../daemon/ops/run.mjs');
 const { dispatcherOps } = await import('../../daemon/ops/dispatcher.mjs');
-const parts = { executors: executorOps(ctx), system: systemOps(ctx), projects: projectOps(ctx), run: runOps(ctx), dispatcher: dispatcherOps(ctx) };
+const parts = { executors: executorOps(ctx), system: systemOps(ctx), projects: projectOps(ctx), providers: providerOps(ctx), run: runOps(ctx), dispatcher: dispatcherOps(ctx) };
 
 // 4
 const owners = new Map();

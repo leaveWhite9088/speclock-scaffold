@@ -24,4 +24,5 @@ export { cleanMcpServers, describeMcpServers } from './pool/mcp.mjs';
 export { canCompact } from './pool/compaction.mjs';
 export { formatMetrics } from './pool/metrics.mjs';
 export { buildInstance, listInstances } from './pool/instances.mjs';
+export { cleanInstanceProvider, getProvider, listProviders, providerSupport, removeProvider, saveProvider, testProviderAll } from './pool/providers.mjs';
 export { readTranscript };

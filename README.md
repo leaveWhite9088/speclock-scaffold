@@ -318,6 +318,30 @@ npm run preflight -- --type claude,pi      # 只看 / 只装这几个；加 --js
   （这台机器上前者不存在）。`--no-mcp` 当初就是为防止内层 pi 连回调度器，这两个文件里不要放指向 agentd 的服务器。
   工具设为 `direct`，和别的 CLI 一样直接出现在模型的工具列表里。改列表后 pi 要下次启动进程才生效。
 
+### 供应商：给 CLI 换一个地址和 Key
+
+在看板侧栏点「供应商（Key 与地址）」：填一次 Key、地址和模型 id，点「测试连通」，agentd 会先对地址发一个最小请求，
+再**逐个启动能用它的 CLI**，让它通过这个供应商回答一个词，列出哪些真的能用。通过后，到执行者的设置里选这个供应商。
+
+- **按设备保存**：存在 `data/state/providers.json`（不进 git，只有本机用户可读），所有项目共用。Key 只出不进：列表和接口只返回末四位。
+- **两种地址**：Claude Code 和 MiniMax Code 说 Anthropic 协议，其余说 OpenAI 兼容协议（Codex 还要求地址支持 `/responses`）。
+  两个地址都填就都能测；缺哪个，用那个协议的 CLI 就显示「需要 … 地址」。
+- **怎么交给 CLI**（每个 CLI 一份，写在 `packages/drivers/<cli>.mjs` 的 `provider` 里，都实测过，并用错误的 Key 对照过）：
+
+  | CLI | 做法 |
+  |---|---|
+  | claude | 进程环境变量 `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN`，各模型别名都指向所选模型 |
+  | codex | 环境变量 `MODEL_PROVIDER` + `CODEX_CONFIG`（JSON）；Key 放在它指定的环境变量里 |
+  | opencode | `OPENCODE_CONFIG_CONTENT` 里加一个 provider（OpenAI 兼容），和规则合并 |
+  | dsh | `--patch` 一个 yaml（llm-pi-ai 的 providers），Key 按环境变量名取；启动后选这个模型 |
+  | pi | 私有的 `PI_CODING_AGENT_DIR`（`models.json` 用 `$变量` 引用 Key），所以它看不到 pi 自己的登录 |
+  | mcode | **不行用环境变量**：它的供应商存在自己的配置里。测试时临时加一个 `speclock-…` 的供应商、测完删除，不留痕迹；**执行者暂时不能用**，选不了 |
+
+- 以上都只作用于这个执行者的进程，不改你机器上各 CLI 自己的配置（mcode 的测试除外，见上）。改了执行者的供应商会让它的进程重启，下次使用时生效。
+- 失败时界面显示原因：地址被拒（带状态码和服务端原话）、CLI 没装、CLI 启动失败、没有这个模型、答不出来。Key 不会出现在任何一条里。
+- 调度器不能用任何 `provider.*` 操作。接口：`/api/providers`（GET 列表、POST 保存、DELETE `/:id`、POST `/:id/test`）。
+- 想在自己的账号上验证：`PROVIDER_TEST_KEY=… PROVIDER_TEST_MODEL=… PROVIDER_TEST_OPENAI=… PROVIDER_TEST_ANTHROPIC=… npm run test:provider-live -- claude`（用 `npm run test:isolated` 的私有 daemon 跑更稳）。
+
 ---
 
 ## 运维

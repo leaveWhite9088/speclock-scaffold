@@ -4,6 +4,7 @@ import { Dot } from '@/components/ui/dot';
 import { useProject, useProjectsQuery } from '@/hooks/queries';
 import { useUi } from '@/store';
 import { NewMemberDialog } from '../member/NewMemberDialog';
+import { ProvidersDialog } from '../member/ProvidersDialog';
 import { MemberList } from './MemberList';
 import { ProjectBar } from './ProjectBar';
 
@@ -31,6 +32,7 @@ function StatusBar() {
 export function Sidebar() {
   const project = useProject();
   const [creating, setCreating] = useState(false);
+  const [providers, setProviders] = useState(false);
   return (
     <aside className="flex min-h-0 flex-col bg-side max-[620px]:max-h-[34vh]">
       <ProjectBar />
@@ -39,9 +41,13 @@ export function Sidebar() {
         <Button variant="outline" className="w-full" disabled={!project} onClick={() => setCreating(true)}>
           新建执行者
         </Button>
+        <Button variant="link" className="justify-self-start" onClick={() => setProviders(true)}>
+          供应商（Key 与地址）
+        </Button>
         <StatusBar />
       </div>
       <NewMemberDialog open={creating} onOpenChange={setCreating} />
+      <ProvidersDialog open={providers} onOpenChange={setProviders} />
     </aside>
   );
 }

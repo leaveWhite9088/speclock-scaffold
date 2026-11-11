@@ -151,6 +151,19 @@ check('afterSeq passes through', after.body.entries.length >= 1 && after.body.en
   const pdel = await api('DELETE', `/api/projects/${pid}`);
   check('DELETE /api/projects/:id removes it', pdel.status === 200);
 
+  // providers: kept on the device, the key goes in and never comes out
+  const KEY = 'sk-api-test-0123456789';
+  const provId = `api${Date.now().toString(36)}`;
+  const saved = await api('POST', '/api/providers', { id: provId, name: 'api test', apiKey: KEY, endpoints: { openai: 'https://api.example.test/v1' }, models: ['m1'] });
+  check('POST /api/providers saves one', saved.status === 200 && saved.body?.id === provId && saved.body?.keyHint === '…6789', JSON.stringify(saved.body));
+  const plist = await api('GET', '/api/providers');
+  const prow = plist.body?.providers?.find((p) => p.id === provId);
+  check('GET /api/providers lists it without the key', Boolean(prow) && !JSON.stringify(plist.body).includes(KEY) && prow.support.some((s) => s.type === 'opencode' && s.supported) && !prow.support.find((s) => s.type === 'claude').supported);
+  const badp = await api('POST', '/api/providers', { id: provId, apiKey: KEY, endpoints: {}, models: ['m1'] });
+  check('a provider without an endpoint is refused', badp.status >= 400, JSON.stringify(badp.body));
+  const delp = await api('DELETE', `/api/providers/${provId}`);
+  check('DELETE /api/providers/:id removes it', delp.status === 200 && !(await api('GET', '/api/providers')).body.providers.some((p) => p.id === provId));
+
   ac.abort();
 } finally {
   server.kill();

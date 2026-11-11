@@ -112,6 +112,7 @@ SSE 把 `subscribe('*')` 收到的事件原样转发。业务规则只在 agentd
 | | `core/handoff.mjs` | 交接：提案、生成文档、开新会话 |
 | 适配 | `server/pi-acp-adapter.mjs` | ACP ↔ pi RPC（含 `/compact`） |
 | 驱动 | `packages/drivers/` | 每个 CLI 特有的一切，一个文件一个 CLI：npm 包与验证过的版本、启动方式、规则和 MCP 怎么交、能力（`compact`、`rules`、`mcp`、`sessionsOnDisk`）、pi 的两个环境变量、dsh 的磁盘会话读取。没有任何依赖，池里的代码问它的 `capabilities`，不再判断「是哪个 CLI」 |
+| | `core/pool/providers.mjs` | 供应商（另一个地址和 Key），按设备存 `data/state/providers.json`：存取、列表不带 Key、测试（先测地址，再逐个 CLI 用它回答）、给将要启动的进程算出环境变量、参数和文件。每个 CLI 怎么接受它由驱动的 `provider` 决定（协议 anthropic/openai，作用域 process/global），测试代码在 `packages/drivers/probes/provider.mjs` |
 | | `core/pool/install.mjs` | 本机装了什么：读预检的清单（`data/state/clis.json`），没有就在 node 旁边找；给驱动 `{ node, dir(包), version(包) }`。每次调用都重新算，清单改了不用重启 |
 | 预检 | `packages/preflight/` | 在 daemon 之外：探测、对照驱动验证过的版本、写清单、（可选，显式 `--yes`）把验证过的版本装进 `data/tools`。和 daemon 之间只共享清单这一份文件 |
 

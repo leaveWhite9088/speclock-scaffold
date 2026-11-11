@@ -25,7 +25,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RUNTIME_DIR, STATE_DIR } from './data-dir.mjs';
 import { executorRulesFor, getTemplate } from './templates.mjs';
-import { AGENTS, buildInstance, driverOf, cleanMcpServers, defaultModelFor, describeMcpServers, listInstances, pool } from './agent-pool.mjs';
+import { AGENTS, buildInstance, driverOf, cleanInstanceProvider, cleanMcpServers, defaultModelFor, describeMcpServers, listInstances, pool } from './agent-pool.mjs';
 
 export const SEP = '~';
 
@@ -130,6 +130,8 @@ function register(project, inst) {
     compactAt: inst.compactAt ?? null,
     // A function, like the rules: an edit applies the next time a session starts or resumes.
     mcpServers: () => inst.mcpServers ?? [],
+    // Same for the provider: a change applies the next time the process starts.
+    provider: () => inst.provider ?? null,
     // A function: the rules are read again whenever the agent starts, so an edited template applies at once.
     systemPrompt: () => executorRulesFor(inst.template) || null,
     // The instance comes back to the session it last used, also after a daemon restart.
@@ -246,6 +248,7 @@ export function addInstance(projectId, spec, { persist = true } = {}) {
   const { sessionId = null, compactAt = null } = spec;
   const mcpServers = cleanMcpServers(spec.mcpServers);
   checkId('instance', id);
+  const provider = AGENTS[type] ? cleanInstanceProvider(spec.provider, type) : null;
   if (!AGENTS[type]) throw new Error(`unknown type "${type}"; available: ${Object.keys(AGENTS).join(', ')}`);
   if (project.instances.some((i) => i.id === id)) throw new Error(`instance "${id}" already exists in project "${projectId}"`);
   const abs = ensureInside(project.root, dir);
@@ -262,11 +265,12 @@ export function addInstance(projectId, spec, { persist = true } = {}) {
     compactAt: cleanCompactAt(compactAt),
     template: tpl?.id ?? null,
     ...(mcpServers.length ? { mcpServers } : {}),
+    ...(provider ? { provider } : {}),
   };
   project.instances.push(inst);
   const agent = register(project, inst);
   if (persist) save();
-  return { key: agent.name, id, type, dir: rel, cwd: abs, role: inst.role, model: inst.model, sessionId: inst.sessionId, compactAt: inst.compactAt, template: inst.template, mcp: describeMcpServers(inst.mcpServers) };
+  return { key: agent.name, id, type, dir: rel, cwd: abs, role: inst.role, model: inst.model, sessionId: inst.sessionId, compactAt: inst.compactAt, template: inst.template, mcp: describeMcpServers(inst.mcpServers), provider: inst.provider ?? null };
 }
 
 /** Executors (in any project) made from a template: [{ project, id }]. */
@@ -340,7 +344,7 @@ export function setDispatcherCompactAt(projectId, value) {
   return project.dispatcherCompactAt;
 }
 
-export async function updateInstance(projectId, id, { role, model, name, dir, compactAt, template, mcpServers }) {
+export async function updateInstance(projectId, id, { role, model, name, dir, compactAt, template, mcpServers, provider }) {
   const project = find(projectId);
   const inst = project.instances.find((i) => i.id === id);
   if (!inst) throw new Error(`unknown instance "${id}" in project "${projectId}"`);
@@ -375,6 +379,14 @@ export async function updateInstance(projectId, id, { role, model, name, dir, co
     if (clean.length) inst.mcpServers = clean;
     else delete inst.mcpServers;
   }
+  if (provider !== undefined) {
+    // A process that is running keeps the endpoint it started with: stop it so the next use starts it with the new one.
+    const next = cleanInstanceProvider(provider, inst.type);
+    if (agent.busy) throw new Error(`instance "${id}" is running a prompt; cancel it first`);
+    if (next) inst.provider = next;
+    else delete inst.provider;
+    if (agent.child) await agent.shutdown();
+  }
   if (compactAt !== undefined) {
     inst.compactAt = cleanCompactAt(compactAt);
     agent.compactAt = inst.compactAt;
@@ -384,7 +396,7 @@ export async function updateInstance(projectId, id, { role, model, name, dir, co
     await agent.chooseModel(inst.model);
   }
   save();
-  return { key: agent.name, id, role: inst.role, model: inst.model, dir: inst.dir, compactAt: inst.compactAt, template: inst.template ?? null };
+  return { key: agent.name, id, role: inst.role, model: inst.model, dir: inst.dir, compactAt: inst.compactAt, template: inst.template ?? null, provider: inst.provider ?? null };
 }
 
 function busyOf(agents) {

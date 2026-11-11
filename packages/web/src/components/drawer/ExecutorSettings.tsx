@@ -6,7 +6,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { toast } from '@/components/ui/toast';
-import { useCatalog, useExecutorSessions, useTemplates } from '@/hooks/queries';
+import { useCatalog, useExecutorSessions, useProviders, useTemplates } from '@/hooks/queries';
 import { useDraft } from '@/hooks/useDraft';
 import { useForceable } from '@/hooks/useForceable';
 import { api, enc } from '@/lib/api';
@@ -26,14 +26,17 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
   const { data: catalog } = useCatalog(m.type);
   const { data: sessions, error: sessionsError } = useExecutorSessions(m.key);
   const { data: templates = [] } = useTemplates();
+  const { data: providers = [] } = useProviders();
 
   let current = m.model ?? m.preferModel ?? '';
   if (current === catalog?.default) current = '';
-  const saved = { name: m.id, role: m.role ?? '', template: m.template ?? '', model: current, compactK: m.compactAt ? String(Math.round(m.compactAt / 1000)) : '' };
+  const saved = { name: m.id, role: m.role ?? '', template: m.template ?? '', model: current, compactK: m.compactAt ? String(Math.round(m.compactAt / 1000)) : '', provider: m.provider?.id ?? '', providerModel: m.provider?.model ?? '' };
   const dirLabel = relDir(m.dir, root);
   const draft = useDraft(`draft:instance:${projectId}:${m.id}`, saved);
   const v = draft.values;
 
+  // Providers this executor's CLI can start with (a CLI that keeps providers in its own configuration cannot)
+  const usable = providers.filter((p) => p.support.some((s) => s.type === m.type && s.supported && s.scope === 'process'));
   const options = [{ value: '', label: catalog?.default ? `默认（${modelName(catalog, catalog.default)}）` : '默认' }, ...(catalog?.models ?? []).map((x) => ({ value: x.value, label: modelLabel(x.value, x.name) }))];
   // The saved choice must show even when the model list could not be read.
   if (current && !options.some((o) => o.value === current)) options.push({ value: current, label: modelName(catalog, current) ?? current });
@@ -51,6 +54,9 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
     if (v.role !== (m.role ?? '')) patch.role = v.role;
     if (v.template !== saved.template) patch.template = v.template || null;
     if (v.model !== current) patch.model = v.model || null;
+    if (v.provider !== saved.provider || (v.provider && v.providerModel !== saved.providerModel)) {
+      patch.provider = v.provider ? { id: v.provider, model: v.providerModel || providers.find((p) => p.id === v.provider)?.models[0] } : null;
+    }
     if (v.compactK.trim() !== saved.compactK) patch.compactAt = v.compactK.trim() ? Number(v.compactK) * 1000 : null;
     try {
       const r = await api<{ key: string }>('PATCH', `/api/projects/${enc(projectId)}/instances/${enc(m.id)}`, patch);
@@ -108,6 +114,19 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
         <Field label="模型">
           <Select filled={v.model !== saved.model} value={v.model} onChange={(x) => draft.set({ model: x })} options={options} />
         </Field>
+        <Field label="供应商" hint={v.provider !== saved.provider ? '改动会让这个执行者的进程重启，下次使用时用新的供应商' : usable.length ? '用「供应商」里保存的 Key 和地址，不用这个 CLI 自己的登录' : '没有可用的供应商：到侧栏的「供应商」里添加并测试'}>
+          <Select
+            filled={v.provider !== saved.provider}
+            value={v.provider}
+            onChange={(x) => draft.set({ provider: x, providerModel: providers.find((p) => p.id === x)?.models[0] ?? '' })}
+            options={[{ value: '', label: '不使用（用这个 CLI 自己的登录）' }, ...usable.map((p) => ({ value: p.id, label: p.name })), ...(v.provider && !usable.some((p) => p.id === v.provider) ? [{ value: v.provider, label: `${v.provider}（不可用）` }] : [])]}
+          />
+        </Field>
+        {v.provider ? (
+          <Field label="供应商的模型">
+            <Select filled={v.providerModel !== saved.providerModel} value={v.providerModel} onChange={(x) => draft.set({ providerModel: x })} options={(providers.find((p) => p.id === v.provider)?.models ?? [v.providerModel]).map((x) => ({ value: x, label: x }))} />
+          </Field>
+        ) : null}
         <Field label="压缩" hint={m.canCompact === false ? '这个 CLI 没有压缩命令，设置不会生效' : `超过多少 K tokens 自动压缩，留空为不压缩${m.compactions ? `（这个会话已压缩 ${m.compactions} 次）` : ''}`}>
           <Input type="number" min={10} step={1} disabled={m.canCompact === false} placeholder="例如 256" filled={v.compactK.trim() !== saved.compactK} value={v.compactK} onChange={(e) => draft.set({ compactK: e.target.value })} />
         </Field>

@@ -6,6 +6,42 @@ export interface Context {
   size?: number;
 }
 
+/** What one CLI can do with a provider kept on this device. */
+export interface ProviderSupport {
+  type: string;
+  label: string;
+  supported: boolean;
+  protocol?: 'anthropic' | 'openai';
+  scope?: 'process' | 'global';
+  reason?: string | null;
+}
+
+/** Another endpoint and key for the CLIs, kept once per device. The key itself never comes back, only its last four characters. */
+export interface Provider {
+  id: string;
+  name: string;
+  keyHint: string;
+  endpoints: { anthropic?: string; openai?: string };
+  models: string[];
+  support: ProviderSupport[];
+  usedBy: string[];
+}
+
+export interface ProviderTestResult {
+  type: string;
+  ok: boolean;
+  skipped?: string;
+  detail: string;
+  ms: number;
+}
+
+export interface ProviderTest {
+  id: string;
+  model: string;
+  endpoints: Record<string, { ok: boolean; status: number | null; detail: string; ms: number }>;
+  results: ProviderTestResult[];
+}
+
 /** A kind of executor: what it is for, where it works and the system prompt that makes it so. A markdown file on the server. */
 export interface Template {
   id: string;
@@ -29,6 +65,8 @@ export interface Member {
   /** The id of the template it was made from. */
   template?: string | null;
   model: string | null;
+  /** The provider (kept on this device) this executor starts with, and its model; null for the CLI's own login. */
+  provider?: { id: string; model: string } | null;
   preferModel: string | null;
   preferSession: string | null;
   alive: boolean;

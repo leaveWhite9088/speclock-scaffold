@@ -9,6 +9,7 @@ import { appendEntry } from '../../transcripts.mjs';
 import { COMPACT_PROMPT, maybeCompact } from '../compaction.mjs';
 import { CANCEL_GRACE_MS, CONFIG, MAX_RUN_MS, log } from '../config.mjs';
 import { mcpServersOf } from '../mcp.mjs';
+import { providerForSpawn } from '../providers.mjs';
 import { modelName, runMetrics } from '../metrics.mjs';
 import { MAX_PROCESSES, START_ATTEMPTS, aliveCount, withStartLock } from '../registry.mjs';
 import { entry, noteSession, saved } from '../store.mjs';
@@ -124,7 +125,7 @@ export class AcpClient {
     }
     const inj = this._inj();
     const driver = this.spec.driver;
-    const env = {
+    let env = {
       ...process.env,
       ...l.env,
       ...(this.spec.env ?? {}),
@@ -133,7 +134,17 @@ export class AcpClient {
       ...(driver.spawnEnv?.({ cwd: this.spec.defaultCwd, mcpServers: mcpServersOf(this.spec) }) ?? {}),
       ...inj.env,
     };
-    this.transport.spawn({ cmd: l.cmd, args: [...l.args, ...inj.args], env });
+    // Another endpoint and key for this executor, when it was given one (a function, so a change applies at the next start).
+    const choice = typeof this.spec.provider === 'function' ? this.spec.provider() : this.spec.provider;
+    let extraArgs = [];
+    if (choice) {
+      const prov = providerForSpawn({ driver, name: this.name, choice, env });
+      env = { ...env, ...prov.env };
+      extraArgs = prov.args;
+      // the model that provider needs, unless the executor was given one of its own
+      if (prov.model && !this.spec.model) this.preferModel = prov.model;
+    }
+    this.transport.spawn({ cmd: l.cmd, args: [...l.args, ...inj.args, ...extraArgs], env });
   }
 
   // The wire's state, under the names the rest of the daemon and the tests use.

@@ -116,7 +116,7 @@ const routes = [
   [
     'PATCH',
     '/api/projects/:id/instances/:iid',
-    ({ params, body }) => call('project.updateInstance', { project: params.id, id: params.iid, role: body.role, model: body.model, name: body.name, dir: body.dir, compactAt: body.compactAt, template: body.template, mcpServers: body.mcpServers }),
+    ({ params, body }) => call('project.updateInstance', { project: params.id, id: params.iid, role: body.role, model: body.model, name: body.name, dir: body.dir, compactAt: body.compactAt, template: body.template, mcpServers: body.mcpServers, provider: body.provider }),
   ],
   ['GET', '/api/handoffs', ({ query }) => call('handoff.list', { project: query.project })],
   ['POST', '/api/handoffs/:id/generate', ({ params }) => call('handoff.generate', { id: params.id })],
@@ -150,6 +150,11 @@ const routes = [
   ['POST', '/api/dispatcher/new', ({ query }) => call('dispatcher.new', { project: query.project })],
   ['GET', '/api/dispatcher/messages', ({ query }) => call('dispatcher.messages', { project: query.project })],
   ['GET', '/api/dispatcher/sessions', ({ query }) => call('dispatcher.sessions', { project: query.project })],
+  // Providers: another endpoint and key for the CLIs, kept once per device. The key goes in, never comes out.
+  ['GET', '/api/providers', () => call('provider.list')],
+  ['POST', '/api/providers', ({ body }) => call('provider.save', body)],
+  ['DELETE', '/api/providers/:id', ({ params }) => call('provider.remove', { id: params.id })],
+  ['POST', '/api/providers/:id/test', ({ params, body }) => call('provider.test', { id: params.id, model: body?.model, types: body?.types })],
   ['GET', '/api/dispatcher/llms', () => call('dispatcher.customModels')],
   ['POST', '/api/dispatcher/llms', ({ body }) => call('dispatcher.addModel', body)],
   [
