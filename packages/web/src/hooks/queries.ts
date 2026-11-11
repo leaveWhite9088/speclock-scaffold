@@ -67,4 +67,9 @@ export const useProbeSessions = (project: string, type: string, dir: string, ena
 export const useLlms = () => useQuery({ queryKey: ['llms'], queryFn: async () => (await api<{ providers: Llm[] }>('GET', '/api/dispatcher/llms')).providers });
 
 export const useProviders = (enabled = true) => useQuery({ queryKey: ['providers'], queryFn: () => api<{ providers: Provider[]; clis: ProviderCli[] }>('GET', '/api/providers'), enabled });
+/** The name of a provider by its id (the id itself while the list is loading). */
+export function useProviderName() {
+  const list = useProviders().data?.providers ?? [];
+  return (id: string) => list.find((p) => p.id === id)?.name ?? id;
+}
 export const useTemplates = (enabled = true) => useQuery({ queryKey: ['templates'], queryFn: async () => (await api<{ templates: Template[] }>('GET', '/api/templates')).templates, enabled });

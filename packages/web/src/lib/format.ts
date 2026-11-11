@@ -75,7 +75,8 @@ export function modelName(catalog: ModelCatalog | undefined, value: string | nul
 }
 
 /** The model an executor will use: its own choice, else the preferred one, else the CLI default. */
-export function memberLlm(m: Member, catalog?: ModelCatalog) {
+export function memberLlm(m: Member, catalog?: ModelCatalog, providerName?: (id: string) => string) {
+  if (m.provider) return { text: `${providerName?.(m.provider.id) ?? m.provider.id} · ${m.provider.model}`, faint: false };
   const value = m.model ?? m.preferModel ?? catalog?.default ?? null;
   return { text: modelName(catalog, value), faint: !m.model };
 }

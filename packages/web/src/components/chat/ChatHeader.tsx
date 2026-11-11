@@ -6,7 +6,7 @@ import { ContextRing } from '@/components/ui/context-ring';
 import { IconButton } from '@/components/ui/icon-button';
 import { Tag } from '@/components/ui/tag';
 import { toast } from '@/components/ui/toast';
-import { useCatalog, useDispatcherModels, useSelectedMember } from '@/hooks/queries';
+import { useCatalog, useDispatcherModels, useProviderName, useSelectedMember } from '@/hooks/queries';
 import { useActivity } from '@/hooks/useActivity';
 import { api, enc } from '@/lib/api';
 import { memberLlm, modelLabel, took } from '@/lib/format';
@@ -19,6 +19,7 @@ export function ChatHeader() {
   const setDrawer = useUi((s) => s.setDrawer);
   const { data: models } = useDispatcherModels(project?.id ?? '', isDispatcher);
   const { data: catalog } = useCatalog(member?.type);
+  const providerName = useProviderName();
   const [starting, setStarting] = useState(false);
   const live = useActivity(!isDispatcher && member?.busy ? member.key : undefined);
 
@@ -34,10 +35,12 @@ export function ChatHeader() {
   const busy = isDispatcher ? d?.busy : member?.busy;
   const alive = isDispatcher ? d?.alive : member?.alive;
   const context = isDispatcher ? d?.context : member?.context;
-  const llm = isDispatcher
+  const llm = isDispatcher && d?.provider
+    ? { text: `${providerName(d.provider.id)} · ${d.provider.model}`, faint: false }
+    : isDispatcher
     ? { text: (() => { const x = models?.models.find((y) => y.value === models.current); return x ? modelLabel(x.value, x.name) : (models?.current ?? null); })(), faint: !models?.current }
     : member
-      ? memberLlm(member, catalog)
+      ? memberLlm(member, catalog, providerName)
       : { text: null, faint: true };
 
   let state = member?.unstable ? '不稳定：最近多次被强制结束，已暂停派活' : busy ? (live ? `工作中 · 已用时 ${took(live.elapsedMs)}` : '工作中') : member?.interrupted ? '上次任务因服务重启被中断，可能只做了一半，请先检查文件' : alive ? '待命' : member?.lastError ? `启动失败：${member.lastError.slice(0, 80)}` : '未启动，发消息时才会启动';

@@ -5,7 +5,7 @@ import { Empty } from '@/components/ui/empty';
 import { Dot, type DotState } from '@/components/ui/dot';
 import { IconButton } from '@/components/ui/icon-button';
 import { Tag } from '@/components/ui/tag';
-import { useCatalog, useDispatcherModels, useProject } from '@/hooks/queries';
+import { useCatalog, useDispatcherModels, useProject, useProviderName } from '@/hooks/queries';
 import { memberLlm, modelLabel } from '@/lib/format';
 import type { Context, Member } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -44,7 +44,8 @@ function Row({ id, name, role, type, llm, status, context }: RowProps) {
 
 function ExecutorRow({ m }: { m: Member }) {
   const { data: catalog } = useCatalog(m.type);
-  return <Row id={m.key} name={m.id} role={m.role} type={m.type} llm={memberLlm(m, catalog)} status={m.busy ? 'busy' : m.alive ? 'on' : 'idle'} context={m.context} />;
+  const name = useProviderName();
+  return <Row id={m.key} name={m.id} role={m.role} type={m.type} llm={memberLlm(m, catalog, name)} status={m.busy ? 'busy' : m.alive ? 'on' : 'idle'} context={m.context} />;
 }
 
 export function MemberList({ onNew }: { onNew: () => void }) {
@@ -52,6 +53,7 @@ export function MemberList({ onNew }: { onNew: () => void }) {
   const select = useUi((s) => s.select);
   const sel = useUi((s) => s.sel);
   const { data: models } = useDispatcherModels(project?.id ?? '');
+  const providerName = useProviderName();
 
   // An executor that was deleted (here or elsewhere) must not stay selected.
   useEffect(() => {
@@ -70,7 +72,7 @@ export function MemberList({ onNew }: { onNew: () => void }) {
         name="调度器"
         role="听你的需求，决定让谁去做"
         type="pi"
-        llm={{ text: models?.current ? (dName ? modelLabel(dName.value, dName.name) : models.current) : null, faint: !models?.current }}
+        llm={d?.provider ? { text: `${providerName(d.provider.id)} · ${d.provider.model}`, faint: false } : { text: models?.current ? (dName ? modelLabel(dName.value, dName.name) : models.current) : null, faint: !models?.current }}
         status={d?.busy ? 'busy' : d?.alive ? 'on' : 'idle'}
         context={d?.context}
       />

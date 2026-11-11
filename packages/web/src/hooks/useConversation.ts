@@ -10,6 +10,8 @@ const textOf = (c: unknown): string =>
   typeof c === 'string' ? c : Array.isArray(c) ? (c as { type?: string; text?: string }[]).map((x) => (x.type === 'text' ? (x.text ?? '') : '')).filter(Boolean).join('\n') : '';
 
 interface PiMessage {
+  stopReason?: string;
+  errorMessage?: string;
   role: string;
   content?: unknown;
   toolName?: string;
@@ -57,6 +59,11 @@ function fromPi(messages: PiMessage[], turns: { at: number; tookMs: number }[], 
       turnTook = turns.find((t) => t.at === msg.timestamp)?.tookMs;
       out.push({ id: next(), kind: 'user', text: textOf(msg.content), at: msg.timestamp });
     } else if (msg.role === 'assistant') {
+      // The model could not answer (wrong address, bad key, quota): say so, with where to look.
+      if (msg.stopReason === 'error' && msg.errorMessage) {
+        out.push({ id: next(), kind: 'error', text: `${msg.errorMessage}${/40[134]|404|not found|key|auth/i.test(msg.errorMessage) ? '\n检查「设置 → 调度器模型」里这个模型的地址和 Key，点测试确认。' : ''}`, who: '模型出错', at: msg.timestamp });
+        lastSay = out.length - 1;
+      }
       for (const c of (msg.content ?? []) as { type: string; text?: string; name?: string; id?: string; arguments?: unknown }[]) {
         if (c.type === 'text' && c.text?.trim()) {
           out.push({ id: next(), kind: 'assistant', text: c.text, who: '调度器', at: msg.timestamp });

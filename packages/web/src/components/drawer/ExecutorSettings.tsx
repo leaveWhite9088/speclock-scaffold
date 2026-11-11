@@ -13,6 +13,7 @@ import { api, enc } from '@/lib/api';
 import { modelLabel, modelName, relDir, when } from '@/lib/format';
 import type { Member, Session } from '@/lib/types';
 import { DISPATCHER, useUi } from '@/store';
+import { RuntimeFields } from './RuntimeFields';
 import { SessionsSection } from './SessionList';
 import { DraftActions } from './parts';
 
@@ -35,8 +36,6 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
   const draft = useDraft(`draft:instance:${projectId}:${m.id}`, saved);
   const v = draft.values;
 
-  // Providers this executor's CLI can start with (a CLI that keeps providers in its own configuration cannot)
-  const usable = providers.filter((p) => p.support.some((s) => s.type === m.type && s.supported && s.enabled && s.scope === 'process'));
   const options = [{ value: '', label: catalog?.default ? `默认（${modelName(catalog, catalog.default)}）` : '默认' }, ...(catalog?.models ?? []).map((x) => ({ value: x.value, label: modelLabel(x.value, x.name) }))];
   // The saved choice must show even when the model list could not be read.
   if (current && !options.some((o) => o.value === current)) options.push({ value: current, label: modelName(catalog, current) ?? current });
@@ -111,22 +110,14 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
             {dirLabel}
           </div>
         </Field>
-        <Field label="模型">
-          <Select value={v.model} onChange={(x) => draft.set({ model: x })} options={options} />
-        </Field>
-        <Field label="供应商">
-          <Select
-           
-            value={v.provider}
-            onChange={(x) => draft.set({ provider: x, providerModel: providers.find((p) => p.id === x)?.models[0] ?? '' })}
-            options={[{ value: '', label: '不使用（用这个 CLI 自己的登录）' }, ...usable.map((p) => ({ value: p.id, label: p.name })), ...(v.provider && !usable.some((p) => p.id === v.provider) ? [{ value: v.provider, label: `${v.provider}（不可用）` }] : [])]}
-          />
-        </Field>
-        {v.provider ? (
-          <Field label="供应商的模型">
-            <Select value={v.providerModel} onChange={(x) => draft.set({ providerModel: x })} options={(providers.find((p) => p.id === v.provider)?.models ?? [v.providerModel]).map((x) => ({ value: x, label: x }))} />
-          </Field>
-        ) : null}
+        <RuntimeFields
+          type={m.type}
+          providerId={v.provider}
+          providerModel={v.providerModel}
+          onProvider={(id, model) => draft.set({ provider: id, providerModel: model })}
+          onProviderModel={(model) => draft.set({ providerModel: model })}
+          base={{ value: v.model, options, onChange: (x) => draft.set({ model: x }) }}
+        />
         <Field label="压缩">
           <Input type="number" min={10} step={1} disabled={m.canCompact === false} placeholder="例如 256" value={v.compactK} onChange={(e) => draft.set({ compactK: e.target.value })} />
         </Field>

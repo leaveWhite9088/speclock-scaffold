@@ -108,6 +108,8 @@ export interface DispatcherInfo {
   queued?: string[];
   /** Compact the conversation at this many tokens; null: never. */
   compactAt?: number | null;
+  /** The device provider it starts with; null: pi's own models. */
+  provider?: { id: string; model: string } | null;
   /** How many times the current conversation was compacted. */
   compactions?: number;
   context?: Context | null;
