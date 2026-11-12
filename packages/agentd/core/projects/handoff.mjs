@@ -28,9 +28,10 @@ const SHOWN_WRITE = '（交接）请写出这个会话的交接文档';
 const SHOWN_START = '（交接）新会话开始，已收到上一个会话的交接文档';
 
 /**
- * @param {{ getAgent: (key: string) => any, keyOf: (project: string, id: string) => string, onChange: (p: object) => void }} deps
+ * `onApplied(p)` is told when a handoff is done (the dispatcher is told about it).
+ * @param {{ getAgent: (key: string) => any, keyOf: (project: string, id: string) => string, onChange: (p: object) => void, onApplied?: (p: object) => void }} deps
  */
-export function createHandoffs({ getAgent, keyOf, onChange }) {
+export function createHandoffs({ getAgent, keyOf, onChange, onApplied }) {
   /** @type {Map<string, any>} */
   const proposals = new Map();
   let seq = 0;
@@ -38,7 +39,7 @@ export function createHandoffs({ getAgent, keyOf, onChange }) {
   const view = (p) => ({
     id: p.id, project: p.project, agent: p.agent, reason: p.reason, evidence: p.evidence, status: p.status,
     doc: p.doc ?? null, error: p.error ?? null, oldSession: p.oldSession ?? null, newSession: p.newSession ?? null,
-    createdAt: p.createdAt,
+    createdAt: p.createdAt, label: p.label ?? null,
   });
   const touch = (p, patch) => {
     Object.assign(p, patch);
@@ -105,12 +106,27 @@ export function createHandoffs({ getAgent, keyOf, onChange }) {
       /* ignore */
     }
     touch(p, { status: 'applying', error: null });
+    // The new conversation takes over the old one's name (the dispatcher finds a block's conversation by it) and the old one
+    // is renamed, so the two are told apart and the old one can be cleaned up.
+    const oldLabel = (() => {
+      try {
+        return String(a.status?.()?.sessionLabel ?? '').trim() || null;
+      } catch {
+        return null;
+      }
+    })();
     (async () => {
       const sessionId = await a.newSession();
-      await Promise.resolve(a.renameSession(sessionId, `交接自 ${shortSession(p.oldSession)}`)).catch(() => {});
-      touch(p, { newSession: sessionId });
+      await Promise.resolve(a.renameSession(sessionId, oldLabel ?? `交接自 ${shortSession(p.oldSession)}`)).catch(() => {});
+      if (oldLabel && p.oldSession) await Promise.resolve(a.renameSession(p.oldSession, `（已交接）${oldLabel}`)).catch(() => {});
+      touch(p, { newSession: sessionId, label: oldLabel });
       await a.startPrompt(startText, { timeoutMs: 300_000, display: SHOWN_START }).done;
       touch(p, { status: 'done' });
+      try {
+        onApplied?.(view(p));
+      } catch {
+        /* telling the dispatcher is best effort */
+      }
     })().catch((err) => touch(p, { status: 'review', error: err.message }));
     return view(p);
   }

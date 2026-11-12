@@ -36,6 +36,14 @@ await sleep(2000);
 check('the answer reaches the dispatcher once, as a report', sent.length === 1 && sent[0].startsWith(R.REPORT_TAG) && sent[0].includes('all built') && sent[0].includes('job demo~web-1') && sent[0].includes('1 分 36 秒'));
 check('and is forgotten after that', pendingOnDisk('demo').length === 0);
 
+// the heading says which module the task was about, however the dispatcher wrote it (a tester's "工作项 **#3（模块「X」）**" too)
+sent.length = 0;
+R.expectReport(task('demo', 9, { prompt: '【按规格安排】请对已实现的工作项 **#3（模块「写一页」）** 做独立端到端验收。' }));
+await sleep(100);
+R.settleReport({ project: 'demo', jobId: 'demo~web-9', outcome: 'done', text: 'tested', tookMs: 5000 });
+await sleep(2000);
+check('a report is headed with the module the task was for (named in the task when Core cannot be asked)', sent.length === 1 && /### web · 完成 · 「写一页」 · 用时/.test(sent[0]), sent[0]);
+
 // 2
 sent.length = 0;
 R.expectReport(task('demo', 2));

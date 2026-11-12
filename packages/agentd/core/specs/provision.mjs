@@ -118,6 +118,26 @@ export async function revokeKey(keyId) {
 }
 
 /** For the screen. Never starts anything. */
+/**
+ * What the work items named in a task are: `[{ id, title, version }]`, asked of Core with the project's admin key. Best effort and
+ * never starts Core: a report only gets a nicer heading from it. Items it cannot read are left out.
+ */
+export async function workLabels(projectId, ids) {
+  const key = readProject(projectId).adminKey;
+  if (!key || !ids?.length) return [];
+  const base = baseUrl();
+  const out = [];
+  for (const id of [...new Set(ids)].slice(0, 6)) {
+    try {
+      const w = await call(base, 'GET', `/work/${id}`, { key, timeoutMs: 3000 });
+      out.push({ id, title: w.block_title, version: w.version });
+    } catch {
+      /* not there, or Core is down */
+    }
+  }
+  return out;
+}
+
 /** The project's id inside Core (what Core's own page takes as `?project=`), or null while it has none there yet. Never the key. */
 export const coreProjectId = (projectId) => readProject(projectId).coreProjectId ?? null;
 

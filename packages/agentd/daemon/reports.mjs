@@ -15,6 +15,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { projectDir, projectIdsOnDisk } from '../core/base/index.mjs';
 import { fitReply } from '../core/records/index.mjs';
+import * as specs from '../core/specs/index.mjs';
 
 const log = (...a) => process.stderr.write(`[reports] ${a.join(' ')}\n`);
 
@@ -71,6 +72,33 @@ export function expectReport({ project, jobId, agent, prompt, taskId = null, att
     state: 'running',
   });
   save(project);
+  void labelWork(project, jobId, prompt);
+}
+
+/**
+ * The work items a task names, as 「module」@version: put on the report so the heading says which modules it was about. The dispatcher
+ * writes them in a few ways ("待办 #11（模块「X」）", "工作项 **#11**", a tester's "验收待办 #11"): any "#N" after those words counts.
+ */
+async function labelWork(project, jobId, prompt) {
+  const text = typeof prompt === 'string' ? prompt : '';
+  const ids = [...text.matchAll(/(?:待办|工作项|任务)\s*\**\s*#(\d+)/g)].map((m) => Number(m[1]));
+  const names = [...text.matchAll(/模块\s*[「“"]([^」”"]+)[」”"]/g)].map((m) => `「${m[1].trim()}」`).filter((v, i, a) => a.indexOf(v) === i);
+  if (!ids.length && !names.length) return;
+  const found = ids.length ? await specs.workLabels(project, ids).catch(() => []) : [];
+  const e = entriesOf(project).find((x) => x.jobId === jobId);
+  if (!e) return;
+  e.work = found.length ? found.map((w) => `「${w.title}」@${w.version}`).join('、') : names.join('、') || null;
+  save(project);
+}
+
+/**
+ * Something the dispatcher should know that no task of its own brought (a handoff finished): it goes with the reports, in the same
+ * kind of message and under the same rules (never cutting in on a turn), as a section of its own.
+ */
+export function noteNotice({ project, agent, title = null, text }) {
+  entriesOf(project).push({ jobId: `notice-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, agent, state: 'notice', work: title, text, endedAt: Date.now() });
+  save(project);
+  schedule(project, GATHER_MS);
 }
 
 /** Pending reports of a project, for a page that lists the tasks still out. */
@@ -121,8 +149,9 @@ const took = (ms) => (ms == null ? '' : ms < 60_000 ? `${Math.round(ms / 1000)} 
 
 function describe(e) {
   const short = String(e.agent).split('~').slice(1).join('~') || e.agent;
+  if (e.state === 'notice') return `### ${short} · 已交接${e.work ? ` · ${e.work}` : ''}\n${e.text}\n[task -, attempt 1 of 1, job ${e.jobId}]`;
   const tag = `[task ${e.taskId ?? '-'}, attempt ${e.attempt ?? 1} of ${e.maxAttempts ?? 3}, job ${e.jobId}]`;
-  const head = `${short} · ${{ done: '完成', failed: '失败', cancelled: '被用户取消', interrupted: '被中断' }[e.state] ?? e.state}${e.tookMs != null ? ` · 用时 ${took(e.tookMs)}` : ''}`;
+  const head = `${short} · ${{ done: '完成', failed: '失败', cancelled: '被用户取消', interrupted: '被中断' }[e.state] ?? e.state}${e.work ? ` · ${e.work}` : ''}${e.tookMs != null ? ` · 用时 ${took(e.tookMs)}` : ''}`;
   const task = `任务：${e.prompt.replace(/\s+/g, ' ').slice(0, 120)}`;
   if (e.state === 'done') return `### ${head}\n${task}\n${fitReply(e.jobId, e.text).text || '(没有文字输出)'}\n${tag}`;
   if (e.state === 'cancelled') return `### ${head}\n${task}\n用户取消了这个任务，不用再处理。\n${tag}`;
@@ -132,7 +161,10 @@ function describe(e) {
 
 /** The message the dispatcher receives for these reports. */
 export function reportMessage(list) {
-  return `${REPORT_TAG}以下是你之前不等结果就派出去的任务的结果，不是用户发的消息。核对结果后再向用户汇报；任务还没全部回来时，只汇报已经回来的。\n\n${list.map(describe).join('\n\n')}`;
+  const head = list.every((e) => e.state === 'notice')
+    ? '以下是系统通知，不是用户发的消息。按通知里说的处理，一句话告诉用户就行。'
+    : '以下是你之前不等结果就派出去的任务的结果，不是用户发的消息。核对结果后再向用户汇报；任务还没全部回来时，只汇报已经回来的。';
+  return `${REPORT_TAG}${head}\n\n${list.map(describe).join('\n\n')}`;
 }
 
 async function flush(project) {

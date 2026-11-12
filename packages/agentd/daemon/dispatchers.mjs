@@ -12,7 +12,7 @@ import { createHandoffs } from '../core/projects/index.mjs';
 import * as projects from '../core/projects/index.mjs';
 import * as specs from '../core/specs/index.mjs';
 import { allocEvent, publish, publishEphemeral, publishLive } from './events.mjs';
-import { dispatcherSettled, wireReports } from './reports.mjs';
+import { dispatcherSettled, noteNotice, wireReports } from './reports.mjs';
 
 const log = (...a) => process.stderr.write(`[agentd] ${a.join(' ')}\n`);
 
@@ -107,6 +107,20 @@ export const handoffs = createHandoffs({
   },
   keyOf: (project, id) => `${project}${projects.SEP}${id}`,
   onChange: (p) => publishLive('handoff.changed', { project: p.project, data: p }),
+  // An executor's handoff is done: the dispatcher is told, so it does not have to be told by hand.
+  onApplied: (p) => {
+    if (p.agent === DISPATCHER_ID) return;
+    const name = p.label ? `「${p.label}」` : '那个会话';
+    noteNotice({
+      project: p.project,
+      agent: `${p.project}${projects.SEP}${p.agent}`,
+      title: p.label ? name : null,
+      text:
+        `${p.agent} 的会话${name}已经交接完成：换成了新会话，新会话收到了交接文档，${p.label ? `沿用原名${name}，` : ''}之后发给它的任务继续在新会话里做。` +
+        (p.label ? `旧会话已改名为「（已交接）${p.label}」，不再使用：请用 agent_session_delete 把它删掉。` : '旧会话不再使用，可以用 agent_session_delete 删掉。') +
+        '这是交接带来的变化，不是用户发的消息。如果它之前的任务因为卡住而中断了，是否需要接着做，按规格和现状判断。',
+    });
+  },
 });
 
 /**
