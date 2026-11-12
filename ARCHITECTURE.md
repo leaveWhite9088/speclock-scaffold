@@ -6,7 +6,7 @@
 ┌──────────────────────────────────────────────────────────┐
 │ pi（TUI）                                                 │
 │   extension: agent-router                                │
-│     · 11 个工具                                          │
+│     · 12 个工具                                          │
 │     · 3 个斜杠命令                                        │
 │     · onUpdate 流式渲染（不占 context）                    │
 │     · abort signal → session/cancel                      │
@@ -155,7 +155,7 @@ packages/agentd/
 
 ### 扩展与适配器
 
-- **`extension/`**：`agent-router.ts` 只注册 11 个工具（`agent_run`、`agent_sessions`、`agent_session_new`、`agent_session_use`、`agent_session_rename`、`agent_models`、`agent_set_model`、`agent_status`、`agent_instances`、`agent_instance_create`、`propose_handoff`）、3 个斜杠命令（`/agents`、`/agent-model`、`/agent-usage`）和每轮的执行者名单；pi 按路径加载它。`router/tools/` 是工具本身（`run`、`sessions`、`instances`、`handoff`）；`router/` 里 `daemon`（连接和按项目限定的代理）、`format`、`failure`（纯函数，可直接用 Node 测）、`roster`（名单，文本在 `contexts/roster.md`）、`commands`、`params`。
+- **`extension/`**：`agent-router.ts` 只注册 11 个工具（`agent_run`、`agent_sessions`、`agent_session_new`、`agent_session_use`、`agent_session_rename`、`agent_session_delete`、`agent_models`、`agent_set_model`、`agent_status`、`agent_instances`、`agent_instance_create`、`propose_handoff`）、3 个斜杠命令（`/agents`、`/agent-model`、`/agent-usage`）和每轮的执行者名单；pi 按路径加载它。`router/tools/` 是工具本身（`run`、`sessions`、`instances`、`handoff`）；`router/` 里 `daemon`（连接和按项目限定的代理）、`format`、`failure`（纯函数，可直接用 Node 测）、`roster`（名单，文本在 `contexts/roster.md`）、`commands`、`params`。
 - **`pi-adapter/`**：`acp-adapter.mjs` 是 ACP ↔ pi RPC（含 `/compact`），驱动 `packages/drivers/pi.mjs` 用它启动池里的 pi 执行者；`mcp-bridge.ts` 是内层 pi 加载 MCP 服务器用的扩展。
 
 ### 依赖规则
@@ -567,7 +567,7 @@ pi 没有 ACP，官方集成方式是 `pi --mode rpc`。适配器负责翻译：
 
 - **执行者的目录创建后只读**：要换目录就新建执行者（`projects.updateInstance` 拒绝改目录）。
 - **调度器可以新建、命名、切换执行者的会话**（一个会话对应一个模块 block，见 `contexts/project.md`；工具
-  `agent_session_new / agent_session_use / agent_session_rename`），但**删除会话、重置会话、改目录**只有人能做。
+  `agent_session_new / agent_session_use / agent_session_rename`），也能删掉不要的会话（`agent_session_delete`，只是隐藏，正在用的删不了），但**重置会话、改目录**只有人能做。
   `daemon/guard.mjs` 对带 `caller: "dispatcher"` 的请求拒绝这些操作，扩展里也没有对应工具。
 - **压缩**：每个执行者可设阈值（`compactAt`），由 agentd 在一个回合结束、执行者空闲时检查，超过就让 CLI 自己压缩
   （`/compact`；mcode、pi 支持，dsh 没有）。同一个会话内进行，不换会话。
@@ -633,6 +633,20 @@ harness 自己能做好的，我们不做。每项状态都必须对应某个 ha
 - **无 `session/close`**：切过的会话会留在进程内存里
 - **对话记录不含 agentd 之外的会话**：直接在 CLI 里聊的内容我们看不到
 - **改 models.json 要重启调度器**：pi 只在启动时读取该文件；调度器忙时拒绝修改
+
+## 会话切换、回报与交接的几条规则
+
+- **切换会话不排在整轮之后才返回**：`sessions`（列表）不再排在正在跑的任务后面（执行者忙时向 CLI 问列表只给 5 秒，其余用 agentd 自己记的），所以界面和调度器在对话进行时也能看到会话。`use` / `new` 在执行者忙或有任务排队时，**放进它的队伍里按顺序执行**并立刻返回 `queued`（`new` 带 `label`，开完自己命名）：调度器可以「切到 A 的会话 → 派 A → 切到 B 的会话 → 派 B」连着发，切换排在前一个任务之后生效，不会卡住调度器。
+- **派给模块的任务必须在那个模块的会话里**：调度器派的任务写着「待办 #N（模块「X」）」，而执行者空闲时所在会话的名字不是 X，`run` 直接拒绝并说明怎么切；执行者忙时切换可能还在队里，不检查。
+- **上下文占用跟着会话走**：CLI 报的占用（`usage_update`）记下它属于哪个会话，换会话后不再显示（也不再拿去判断要不要压缩）上一个会话的数字，要等这个会话自己报，或用它上次保存的。
+- **回答里没有 stop reason 不等于结束**：有的 CLI（opencode 上见过）在模型还在调工具时就回了一个没有 `stopReason` 的 `session/prompt` 回答。agentd 这时继续等，直到它安静 20 秒且没有打开的工具（有打开的工具就按派活时的静默期），再算这次运行结束；最终仍没有 stop reason 的，回执里带警告 `no_stop_reason`，给调度器的回报开头也写明「可能没做完，以文件和规格库为准」，不当成正式结论。
+- **回报的标题带模块名和版本**：回报里的「待办 #N」由 agentd 用项目管理员的钥匙向 Core 查成「模块名@版本」，写在标题上（`后端开发工程师 · 完成 · 「整本阅读」@1.0.0`）；查不到就用任务里写的模块名。
+- **交接完成会通知调度器**：新会话沿用旧会话的名字（调度器按名字找会话），旧会话改名「（已交接）…」；agentd 随回报机制给调度器发一条通知，提醒它删掉旧会话。调度器自己的交接不通知它自己。
+- **不要的会话由调度器删**（`agent_session_delete`）：交接后的旧会话、已验收模块的会话、看不出用途的临时会话。只是隐藏，正在用的删不了。
+- **服务由调度器启动**：执行者不启动开发服务器和后端服务（`contexts/executor.md`），需要时在回报里说明，由调度器（`contexts/project.md` 的「运行中的服务」）在后台启动并把地址写进派活消息。
+- **执行者停在半路会被叫着继续**：一轮回答结束时，如果它最后做的是一段思考或一个工具结果（没有最后的话），或者最后一条消息是写成文字的工具调用（`<｜DSML｜`、`<function=…>`），就当没做完：agentd 在同一个会话里发一条自动提醒（转录里标「（自动提醒）」），最多两次；仍然不行，回执带警告 `ended_without_result`，给调度器的回报开头写明可能没做完。叫它继续救回来的，回执带 `auto_continued`。压缩这类命令不算。小模型（opencode、glm、DeepSeek 这类）常这样，另外自定义模型在 pi 里默认最大输出只有 16384 个 token，会推理的模型可能全花在思考上，也会表现成停在思考之后。
+- **调度器自己把工具调用写成文字**（同上的标记）：立刻中断这一轮，发一条【系统提示】让它真的调用，最多两次，仍不行就在界面上提示换模型（`core/dispatcher/dispatcher.mjs`）。
+- **推理强度**：执行者的设置和新建界面里选，存在执行者上（`effort`，CLI 自己的值），每次开会话或换级别时设给它（`session/set_config_option`，选项按 ACP 的 `thought_level` 或名字 `thinking / effort / reasoning` 找）；调度器的设置里直接设给运行中的 pi。能选的级别取决于 CLI **和它当前用的模型**：pi、claude、codex、dsh 一启动就有；opencode、mcode 只有选了会推理的模型才出现这一项（opencode 的 `effort`，mcode 的 `thinkingEffort`），所以界面选了模型之后，会开一个探测会话把它切到那个模型再读（`GET /api/effort?type&model`，按 CLI 和模型缓存）。换模型时已选的强度清空，因为别的模型未必有同一级。供应商里的模型 pi 默认当成不推理、只给「off」，所以供应商设置里每个模型有个「推理」勾选，勾上后才有强度可选。
 
 ## SpecLock Core（规格库）
 

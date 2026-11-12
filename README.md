@@ -140,6 +140,7 @@ npm run preflight -- core --yes    # 下载 Core，建好它的 Python 环境和
 | `agent_session_new` | 给一个执行者开新会话并命名（一个会话对应一个模块 block），随即成为活跃会话 | `agent`、`label` |
 | `agent_session_use` | 切到已有会话，按名字（模块名）或会话 id | `agent`、`session` |
 | `agent_session_rename` | 给会话改名（默认当前活跃的那个） | `agent`、`label`、`session` |
+| `agent_session_delete` | 删掉不要的会话（交接后留下的旧会话、已验收模块的会话、看不出用途的临时会话）；只是从列表里隐藏，正在用的那个删不了 | `agent`、`session` |
 | `agent_models` | 列模型 / 推理强度 / 权限选项 | `agent`、`sessionId` |
 | `agent_set_model` | 为会话设模型 | `value`、`configId` |
 | `agent_status` | 存活、健康、会话、模型、spawns、pid、cwd | `agent` |
