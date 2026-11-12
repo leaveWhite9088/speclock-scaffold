@@ -45,6 +45,20 @@ export function took(ms: number): string {
 }
 
 /** An id made from a name: lowercase letters, digits and "-"; `taken` ids get a number so it stays unique. */
+/** A context length typed as people write it ("1M", "200k", "131072") as a number; 0 when it is not one. */
+export function parseSize(text: string): number {
+  const m = /^\s*(\d+(?:\.\d+)?)\s*([kKmM]?)\s*$/.exec(text);
+  if (!m) return 0;
+  return Math.round(Number(m[1]) * (m[2] ? (m[2].toLowerCase() === 'm' ? 1_000_000 : 1000) : 1));
+}
+
+/** The same, short: 1000000 -> "1M", 200000 -> "200K". */
+export function sizeText(n: number): string {
+  if (n >= 1_000_000 && n % 100_000 === 0) return `${n / 1_000_000}M`;
+  if (n >= 1000 && n % 1000 === 0) return `${n / 1000}K`;
+  return String(n);
+}
+
 export const slug = (name: string, taken: string[] = [], fallback = 'item') => {
   const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 28) || fallback;
   let id = base;

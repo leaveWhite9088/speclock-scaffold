@@ -101,7 +101,7 @@ function fromPi(messages: PiMessage[], turns: { at: number; tookMs: number }[], 
     } else if (msg.role === 'assistant') {
       // The model could not answer (wrong address, bad key, quota): say so, with where to look.
       if (msg.stopReason === 'error' && msg.errorMessage) {
-        out.push({ id: next(), kind: 'error', text: `${msg.errorMessage}${/40[134]|404|not found|key|auth/i.test(msg.errorMessage) ? '\n检查「设置 → 调度器模型」里这个模型的地址和 Key，点测试确认。' : ''}`, who: '模型出错', at: msg.timestamp });
+        out.push({ id: next(), kind: 'error', text: `${msg.errorMessage}${/40[134]|404|not found|key|auth/i.test(msg.errorMessage) ? '\n检查「设置 → 供应商」里这个模型所在供应商的地址和 Key，点测试确认。' : ''}`, who: '模型出错', at: msg.timestamp });
         lastSay = out.length - 1;
       }
       for (const c of (msg.content ?? []) as { type: string; text?: string; name?: string; id?: string; arguments?: unknown }[]) {

@@ -33,6 +33,8 @@ export interface Provider {
   keyHint: string;
   endpoints: { anthropic?: string; openai?: string };
   models: string[];
+  /** Context length in tokens per model, where known. */
+  contexts?: Record<string, number>;
   /** The CLIs it may be used with. */
   types: string[];
   support: ProviderSupport[];

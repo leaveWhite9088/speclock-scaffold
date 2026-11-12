@@ -6,6 +6,7 @@ import { IconButton } from '@/components/ui/icon-button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { api } from '@/lib/api';
+import { sizeText } from '@/lib/format';
 
 interface Props {
   /** The saved provider this edits, whose stored key is used while the form's key is empty. */
@@ -16,6 +17,9 @@ interface Props {
   /** The chosen models, as the text the provider is saved with (comma separated). */
   value: string;
   onChange: (value: string) => void;
+  /** The context length of each chosen model, as typed ("1M"); what the endpoint states is filled in. */
+  contexts: Record<string, string>;
+  onContexts: (contexts: Record<string, string>) => void;
 }
 
 const ids = (text: string) => [...new Set(text.split(/[,\s]+/).map((x) => x.trim()).filter(Boolean))];
@@ -24,7 +28,7 @@ const ids = (text: string) => [...new Set(text.split(/[,\s]+/).map((x) => x.trim
  * The models of a provider, found by asking its endpoint (once the key and an address are filled in) instead of typed in.
  * The person ticks the ones to keep; when the endpoint has no listing, they can be typed.
  */
-export function ModelPicker({ id, apiKey, openai, anthropic, value, onChange }: Props) {
+export function ModelPicker({ id, apiKey, openai, anthropic, value, onChange, contexts, onContexts }: Props) {
   const [found, setFound] = useState<string[] | null>(null);
   const [finding, setFinding] = useState(false);
   const [error, setError] = useState('');
@@ -38,9 +42,12 @@ export function ModelPicker({ id, apiKey, openai, anthropic, value, onChange }: 
     setFinding(true);
     setError('');
     try {
-      const r = await api<{ models: string[]; errors: Record<string, string> }>('POST', '/api/providers/discover', { id, apiKey: apiKey.trim(), endpoints: { openai: openai.trim(), anthropic: anthropic.trim() } });
+      const r = await api<{ models: string[]; contexts?: Record<string, number>; errors: Record<string, string> }>('POST', '/api/providers/discover', { id, apiKey: apiKey.trim(), endpoints: { openai: openai.trim(), anthropic: anthropic.trim() } });
       if (mine !== seq.current) return;
       setFound(r.models);
+      // a length the endpoint states is taken for the models that have none typed yet
+      const stated = Object.entries(r.contexts ?? {}).filter(([m]) => !contexts[m]);
+      if (stated.length) onContexts({ ...contexts, ...Object.fromEntries(stated.map(([m, n]) => [m, sizeText(n)])) });
       if (!r.models.length) setError(Object.values(r.errors)[0] ?? '没有找到模型');
       // a short list is taken whole when nothing was chosen yet
       else if (!chosen.length && r.models.length <= 12) onChange(r.models.join(', '));
@@ -96,9 +103,12 @@ export function ModelPicker({ id, apiKey, openai, anthropic, value, onChange }: 
         </div>
         <div className="grid max-h-44 gap-1.5 overflow-y-auto rounded-md border border-line-2 bg-raised px-2.5 py-2">
           {shown.map((m) => (
-            <Checkbox key={m} checked={chosen.includes(m)} onChange={(on) => toggle(m, on)}>
-              <span className="truncate">{m}</span>
-            </Checkbox>
+            <div key={m} className="flex items-center gap-2">
+              <Checkbox checked={chosen.includes(m)} onChange={(on) => toggle(m, on)}>
+                <span className="truncate">{m}</span>
+              </Checkbox>
+              {chosen.includes(m) ? <Input className="h-6 w-20 shrink-0 px-2 text-[12px]" placeholder="上下文" aria-label={`${m} 的上下文长度`} title="上下文长度，如 1M、200K；不填则 CLI 按它自己的默认值（pi 是 128K）" value={contexts[m] ?? ''} onChange={(e) => onContexts({ ...contexts, [m]: e.target.value })} /> : null}
+            </div>
           ))}
           {!shown.length ? <span className="text-[12.5px] text-muted">没有匹配的</span> : null}
         </div>

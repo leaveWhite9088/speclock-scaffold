@@ -6,12 +6,13 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { toast } from '@/components/ui/toast';
+import { RuntimeFields } from '@/components/drawer/RuntimeFields';
 import { useCatalog, useDirs, useInstanceTypes, useProbeSessions, useProject, useTemplates } from '@/hooks/queries';
 import { api, enc } from '@/lib/api';
 import { modelLabel, modelName, relDir, when } from '@/lib/format';
 import { useUi } from '@/store';
 
-const EMPTY = { id: '', type: '', dir: '', role: '', model: '', sessionId: 'new', template: '' };
+const EMPTY = { id: '', type: '', dir: '', role: '', model: '', provider: '', providerModel: '', sessionId: 'new', template: '' };
 
 export function NewMemberDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const qc = useQueryClient();
@@ -49,7 +50,8 @@ export function NewMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
         type,
         dir,
         role: form.role || undefined,
-        model: form.model || undefined,
+        model: form.provider ? undefined : form.model || undefined,
+        provider: form.provider ? { id: form.provider, model: form.providerModel } : undefined,
         sessionId: form.sessionId || 'new',
         template: form.template || undefined,
       });
@@ -74,7 +76,7 @@ export function NewMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
             <Input required autoFocus value={form.id} onChange={(e) => set({ id: e.target.value })} />
           </Field>
           <Field label="CLI">
-            <Select value={type} onChange={(v) => set({ type: v, model: '', sessionId: 'new' })} options={types.map((t) => ({ value: t, label: t }))} />
+            <Select value={type} onChange={(v) => set({ type: v, model: '', provider: '', providerModel: '', sessionId: 'new' })} options={types.map((t) => ({ value: t, label: t }))} />
           </Field>
           <Field label="目录">
             <Input
@@ -94,18 +96,21 @@ export function NewMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
           <Field label="用途">
             <Input placeholder="调度器据此挑人，例如 后端服务" value={form.role} onChange={(e) => set({ role: e.target.value })} />
           </Field>
-          <Field label="模型">
-            <Select
-             
-              value={form.model}
-              onChange={(v) => set({ model: v })}
-              placeholder={modelsLoading ? '读取中…' : undefined}
-              options={[
-                { value: '', label: catalog?.default ? `默认（${modelName(catalog, catalog.default)}）` : '默认' },
+          <RuntimeFields
+            type={type}
+            providerId={form.provider}
+            providerModel={form.providerModel}
+            onProvider={(id, model) => set({ provider: id, providerModel: model })}
+            onProviderModel={(model) => set({ providerModel: model })}
+            base={{
+              value: form.model,
+              onChange: (v) => set({ model: v }),
+              options: [
+                { value: '', label: modelsLoading ? '读取中…' : catalog?.default ? `默认（${modelName(catalog, catalog.default)}）` : '默认' },
                 ...(catalog?.models ?? []).map((m) => ({ value: m.value, label: modelLabel(m.value, m.name) })),
-              ]}
-            />
-          </Field>
+              ],
+            }}
+          />
           <Field label="会话">
             <Select
              

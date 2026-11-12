@@ -114,7 +114,7 @@ const listing = createServer((req, res) => {
   let status = 200;
   let body = {};
   if (!ok) [status, body] = [401, { error: { message: 'no' } }];
-  else if (req.url === '/v1/models') body = { object: 'list', data: [{ id: 'b-model' }, { id: 'a-model' }] };
+  else if (req.url === '/v1/models') body = { object: 'list', data: [{ id: 'b-model', context_length: 1048576 }, { id: 'a-model' }] };
   else if (req.url.startsWith('/anthropic/v1/models')) body = { data: [{ id: 'a-model' }, { id: 'c-model' }] };
   else status = 404;
   res.writeHead(status, { 'content-type': 'application/json' });
@@ -128,12 +128,23 @@ const partly = await discoverModels({ endpoints: { openai: `${lb}/v1`, anthropic
 check('an endpoint with no listing is reported and the other still counts', partly.models.length === 2 && /HTTP 404/.test(partly.errors.anthropic ?? ''), JSON.stringify(partly));
 const denied = await discoverModels({ endpoints: { openai: `${lb}/v1` }, apiKey: 'wrong-key-0123456789' });
 check('a refused key gives no models and an error without the key', denied.models.length === 0 && /no/.test(denied.errors.openai) && !JSON.stringify(denied).includes('wrong-key'), JSON.stringify(denied));
+check('a context length the listing states is returned for that model only', both.contexts['b-model'] === 1048576 && Object.keys(both.contexts).length === 1, JSON.stringify(both.contexts));
 listing.close();
+
+// context length: kept per chosen model, shown, and written into pi's models so it does not assume 128K
+const ctxSaved = saveProvider({ id: 'ctx-demo', name: 'ctx', apiKey: KEY, endpoints: { openai: 'https://x.example/v1' }, models: ['big', 'small'], contexts: { big: 1_000_000, small: 5, gone: 9_999_999 } });
+check('a context length is kept for a chosen model; nonsense and models not chosen are dropped', JSON.stringify(ctxSaved.contexts) === '{"big":1000000}', JSON.stringify(ctxSaved.contexts));
+const kept = saveProvider({ id: 'ctx-demo', name: 'ctx', apiKey: '', endpoints: { openai: 'https://x.example/v1' }, models: ['big', 'small'] });
+check('saving without saying keeps what was there', kept.contexts.big === 1_000_000);
+const piApplied = getDriver('pi').provider.apply({ provider: { id: 'ctx-demo', apiKey: KEY, models: ['big', 'small'], contexts: { big: 1_000_000 } }, endpoint: 'https://x.example/v1', model: 'big', dir: '/tmp/x' });
+const piModels = JSON.parse(piApplied.files.find((x) => x.name === 'models.json').content).providers['ctx-demo'].models;
+check("pi's models carry the context length, and a model without one is left to pi's default", piModels[0].contextWindow === 1_000_000 && piModels[1].contextWindow === undefined, JSON.stringify(piModels));
 
 server.close();
 const down = await checkEndpoint({ protocol: 'openai', endpoint: 'http://127.0.0.1:1/v1', apiKey: KEY, model: 'm1', timeoutMs: 3000 });
 check('an endpoint nobody listens on is reported, with no status', !down.ok && down.status === null && down.detail.length > 0, down.detail);
 
+removeProvider('ctx-demo');
 check('a provider can be removed', removeProvider('acme').removed && listProviders().length === 0);
 try {
   rmSync(dir, { recursive: true, force: true });

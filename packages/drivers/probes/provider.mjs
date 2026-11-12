@@ -59,10 +59,21 @@ export async function checkEndpoint({ protocol, endpoint, apiKey, model, timeout
 /**
  * Which models does the endpoint offer? One listing request per protocol the provider speaks (OpenAI: `GET <base>/models`,
  * Anthropic: `GET <base>/v1/models`); what each answers is merged. An endpoint that has no listing says so in `errors`.
- * @returns {Promise<{ models: string[], errors: Record<string, string> }>}
+ * Where the listing states a model's context length it is returned too (`contexts`), so a person need not look it up.
+ * @returns {Promise<{ models: string[], contexts: Record<string, number>, errors: Record<string, string> }>}
  */
+/** The context length a listing entry states, under whichever name the endpoint uses; null when it says nothing. */
+const contextOf = (m) => {
+  for (const k of ['context_length', 'context_window', 'max_model_len', 'max_input_tokens', 'contextWindow', 'input_token_limit', 'context_size']) {
+    const v = Number(m?.[k]);
+    if (Number.isFinite(v) && v >= 1000) return Math.round(v);
+  }
+  return null;
+};
+
 export async function discoverModels({ endpoints, apiKey, timeoutMs = 20_000, fetchImpl = fetch }) {
   const found = new Set();
+  const contexts = {};
   const errors = {};
   await Promise.all(
     Object.entries(endpoints ?? {})
@@ -93,13 +104,15 @@ export async function discoverModels({ endpoints, apiKey, timeoutMs = 20_000, fe
           for (const m of rows) {
             const id = typeof m === 'string' ? m : (m?.id ?? m?.name);
             if (id) found.add(String(id));
+            const ctx = typeof m === 'object' ? contextOf(m) : null;
+            if (id && ctx) contexts[String(id)] = Math.max(contexts[String(id)] ?? 0, ctx);
           }
         } catch (e) {
           errors[protocol] = scrub(e.name === 'TimeoutError' ? `no answer within ${Math.round(timeoutMs / 1000)}s` : e.message, [apiKey]);
         }
       }),
   );
-  return { models: [...found].sort((a, b) => a.localeCompare(b)), errors };
+  return { models: [...found].sort((a, b) => a.localeCompare(b)), contexts, errors };
 }
 
 /**

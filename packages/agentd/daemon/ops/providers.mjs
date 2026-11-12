@@ -4,6 +4,7 @@
  */
 
 import * as projects from '../../core/projects/index.mjs';
+import { getDispatcher } from '../dispatchers.mjs';
 import { discoverProviderModels, getProvider, listProviders, pool, providerClis, providerSupport, removeProvider, saveProvider, testProviderAll } from '../../core/pool/index.mjs';
 
 /** The executors that are set to a provider (`type` narrows it to one CLI). */
@@ -30,13 +31,27 @@ export function providerOps(_ctx) {
     'provider.discover': (spec) => discoverProviderModels(spec),
 
     /** Add or change one. An empty `apiKey` keeps the stored key. A CLI cannot be taken off while an executor of it uses the provider. */
-    'provider.save': (spec) => {
+    'provider.save': async (spec) => {
       const before = Array.isArray(spec.types) ? listProviders().find((p) => p.id === spec.id) : null;
       for (const type of before?.types.filter((t) => !spec.types.includes(t)) ?? []) {
         const using = usedBy(spec.id, type);
         if (using.length) throw new Error(`${type} cannot be taken off: still used by ${using.join(', ')}; change those executors first`);
       }
-      return saveProvider(spec);
+      const saved = saveProvider(spec);
+      // A dispatcher reads the provider (its address, models and context lengths) when it starts: the ones that use this
+      // provider and are idle start again so the change applies now; one in a turn keeps its settings until it is next restarted.
+      const restarted = [];
+      const waiting = [];
+      for (const d of projects.dispatcherProviders().filter((x) => x.provider.id === spec.id)) {
+        const disp = getDispatcher(d.project);
+        if (!disp.child) continue;
+        if (disp.busy) waiting.push(d.project);
+        else {
+          await disp.restart().catch(() => {});
+          restarted.push(d.project);
+        }
+      }
+      return { ...saved, dispatchersRestarted: restarted, dispatchersBusy: waiting };
     },
 
     'provider.remove': ({ id }) => {

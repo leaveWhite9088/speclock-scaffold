@@ -45,7 +45,7 @@ function persist(data) {
 
 /** What a list or a dashboard may show: everything except the key, of which only the end is kept as a hint. */
 function view(p) {
-  return { id: p.id, name: p.name, keyHint: p.apiKey ? `…${p.apiKey.slice(-4)}` : '', endpoints: p.endpoints, models: p.models, types: p.types, updatedAt: p.updatedAt };
+  return { id: p.id, name: p.name, keyHint: p.apiKey ? `…${p.apiKey.slice(-4)}` : '', endpoints: p.endpoints, models: p.models, contexts: p.contexts ?? {}, types: p.types, updatedAt: p.updatedAt };
 }
 
 /**
@@ -89,7 +89,7 @@ const cleanUrl = (v, what) => {
  * Add or change a provider. An empty `apiKey` on a provider that already exists keeps its key, so a form can be saved
  * without typing the key again.
  */
-export function saveProvider({ id, name, apiKey, endpoints = {}, models = [], types }) {
+export function saveProvider({ id, name, apiKey, endpoints = {}, models = [], contexts, types }) {
   if (!ID_RE.test(String(id ?? ''))) throw new Error('provider id: lowercase letters, digits and "-", at most 32, starting with a letter or digit');
   const data = load();
   const old = data.providers[id];
@@ -109,7 +109,10 @@ export function saveProvider({ id, name, apiKey, endpoints = {}, models = [], ty
   const allowed = types === undefined ? (old ? withTypes(old).types : defaultTypes()) : [...new Set(Array.isArray(types) ? types.map(String) : [])];
   const bad = allowed.find((t) => !known.includes(t));
   if (bad) throw new Error(`"${bad}" cannot take a provider; choose from: ${known.join(', ')}`);
-  const record = { id, name: String(name || id).slice(0, 80), apiKey: key, endpoints: eps, models: list, types: allowed, updatedAt: new Date().toISOString() };
+  // The context length of a model, where a person or the endpoint gave one: a CLI otherwise assumes a small default (pi: 128K).
+  const given = contexts === undefined ? (old?.contexts ?? {}) : contexts && typeof contexts === 'object' ? contexts : {};
+  const ctx = Object.fromEntries(list.filter((m) => Number(given[m]) >= 1000 && Number(given[m]) <= 1e8).map((m) => [m, Math.round(Number(given[m]))]));
+  const record = { id, name: String(name || id).slice(0, 80), apiKey: key, endpoints: eps, models: list, contexts: ctx, types: allowed, updatedAt: new Date().toISOString() };
   data.providers[id] = record;
   persist(data);
   return view(record);
