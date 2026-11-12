@@ -9,9 +9,10 @@
  */
 
 import '../lib/isolate.mjs';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 delete process.env.AGENTD_SPECLOCK_DIR;
 const cfg = await import('../../core/specs/config.mjs');
 const { ensureRunning } = await import('../../core/specs/index.mjs');
@@ -26,8 +27,11 @@ const fakeCore = (dir) => {
 
 // 3
 mkdirSync(cfg.OWN_CORE_DIR, { recursive: true });
+// with nothing found, the scaffold’s own place is only the name used in the error; a Core next to the repository (if this machine has one) wins over an empty folder there
+const repoParent = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+const hasSibling = existsSync(join(repoParent, 'speclock-core', 'pyproject.toml'));
 const empty = cfg.coreDir();
-check('an empty folder there is not taken for one', empty !== cfg.OWN_CORE_DIR, empty);
+check('an empty folder there is not taken for one', hasSibling ? empty !== cfg.OWN_CORE_DIR : !existsSync(join(empty, 'pyproject.toml')), empty);
 
 // 2
 fakeCore(cfg.OWN_CORE_DIR);

@@ -16,8 +16,15 @@ import '../lib/isolate.mjs';
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 process.env.AGENTD_SPECLOCK_PORT = '47833';
+// The test runs in a data folder of its own, so the Core the scaffold fetched (or one next to the repository) is looked for in the real places and handed over by name.
+{
+  const here = dirname(fileURLToPath(import.meta.url));
+  const real = [join(here, '..', '..', 'data', 'global', 'tools', 'speclock-core'), join(here, '..', '..', '..', '..', '..', 'speclock-core')].find((d) => existsSync(join(d, 'pyproject.toml')) && existsSync(join(d, '.venv')));
+  if (real) process.env.AGENTD_SPECLOCK_DIR = real;
+}
 const specs = await import('../../core/specs/index.mjs');
 const { check } = await import('../lib/scheduler.mjs');
 
