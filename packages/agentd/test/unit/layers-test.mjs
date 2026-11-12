@@ -58,6 +58,7 @@ const DEPS = {
   'core/prompts': ['core/base'],
   'core/pi': ['core/base'],
   'core/pool': ['core/base', 'core/records'],
+  'core/specs': ['core/base'],
   'core/dispatcher': ['core/base', 'core/pi', 'core/prompts', 'core/pool'],
   'core/projects': ['core/base', 'core/prompts', 'core/pool', 'core/records'],
 };

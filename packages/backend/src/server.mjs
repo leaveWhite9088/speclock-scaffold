@@ -101,6 +101,7 @@ const routes = [
 
   // Projects. Everything belongs to one: the dispatcher routes need `?project=<id>`, and executors are created under
   // `/api/projects/:id/instances`.
+  ['GET', '/api/specs', () => call('specs.status')],
   ['GET', '/api/projects', () => call('projects')],
   ['POST', '/api/projects', ({ body }) => call('project.create', body)],
   ['DELETE', '/api/projects/:id', ({ params, query }) => call('project.remove', { project: params.id, force: query.force === '1' })],
@@ -116,7 +117,7 @@ const routes = [
   [
     'PATCH',
     '/api/projects/:id/instances/:iid',
-    ({ params, body }) => call('project.updateInstance', { project: params.id, id: params.iid, role: body.role, model: body.model, name: body.name, dir: body.dir, compactAt: body.compactAt, template: body.template, mcpServers: body.mcpServers, provider: body.provider }),
+    ({ params, body }) => call('project.updateInstance', { project: params.id, id: params.iid, role: body.role, model: body.model, name: body.name, dir: body.dir, compactAt: body.compactAt, template: body.template, mcpServers: body.mcpServers, provider: body.provider, spec: body.spec }),
   ],
   ['GET', '/api/handoffs', ({ query }) => call('handoff.list', { project: query.project })],
   ['POST', '/api/handoffs/:id/generate', ({ params }) => call('handoff.generate', { id: params.id })],

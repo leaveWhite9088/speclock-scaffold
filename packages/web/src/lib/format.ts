@@ -94,3 +94,14 @@ export function memberLlm(m: Member, catalog?: ModelCatalog, providerName?: (id:
   const value = m.model ?? m.preferModel ?? catalog?.default ?? null;
   return { text: modelName(catalog, value), faint: !m.model };
 }
+
+/** The roles an executor can have in the spec library, as the pickers list them (empty: not connected). */
+export const SPEC_ROLE_OPTIONS = [
+  { value: '', label: '不接入规格库' },
+  { value: 'requirements', label: '需求：整理并维护规格' },
+  { value: 'executor', label: '执行：按规格实现' },
+  { value: 'tester', label: '测试：独立验收' },
+  { value: 'scanner', label: '扫描：只读，提建议' },
+];
+
+export const specRoleName = (role?: string | null) => SPEC_ROLE_OPTIONS.find((o) => o.value === role)?.label.split('：')[0] ?? null;

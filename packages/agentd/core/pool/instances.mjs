@@ -9,7 +9,7 @@ import { canCompact, contextOf } from './compaction.mjs';
 import { instanceIdOf, projectPath } from '../base/index.mjs';
 import { AGENTS } from './config.mjs';
 import { pool } from './registry.mjs';
-import { saved } from './store.mjs';
+import { saved, savedAll } from './store.mjs';
 
 export function buildInstance({ id, type, cwd, project = null, shortId = id, role = null, model = null, sessionId = null, onSession = null, compactAt = null, systemPrompt = null, mcpServers = [], provider = null }) {
   const base = AGENTS[type];
@@ -69,6 +69,12 @@ export function listInstances() {
     /** The name given to the conversation it is in now (a block, when the dispatcher opened it for one). */
     provider: typeof a.spec.provider === 'function' ? a.spec.provider() : (a.spec.provider ?? null),
     sessionLabel: a.sessionId ? (saved(a.name, a.sessionId)?.label ?? null) : null,
+    /** Every conversation that has a name, newest first, read from agentd's own records (no CLI is started for it): the dispatcher's roster lists them. */
+    sessionNames: Object.entries(savedAll(a.name))
+      .filter(([, m]) => m.label && !m.hidden)
+      .sort(([, x], [, y]) => String(y.updatedAt ?? '').localeCompare(String(x.updatedAt ?? '')))
+      .slice(0, 40)
+      .map(([id, m]) => ({ label: m.label, active: id === a.sessionId })),
     model: a.currentModel(),
   }));
 }

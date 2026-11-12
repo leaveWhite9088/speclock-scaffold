@@ -10,7 +10,7 @@ import { useCatalog, useExecutorSessions, useProviders, useTemplates } from '@/h
 import { useDraft } from '@/hooks/useDraft';
 import { useForceable } from '@/hooks/useForceable';
 import { api, enc } from '@/lib/api';
-import { modelLabel, modelName, relDir, when } from '@/lib/format';
+import { SPEC_ROLE_OPTIONS, modelLabel, modelName, relDir, when } from '@/lib/format';
 import type { Member, Session } from '@/lib/types';
 import { DISPATCHER, useUi } from '@/store';
 import { RuntimeFields } from './RuntimeFields';
@@ -31,7 +31,7 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
 
   let current = m.model ?? m.preferModel ?? '';
   if (current === catalog?.default) current = '';
-  const saved = { name: m.id, role: m.role ?? '', template: m.template ?? '', model: current, compactK: m.compactAt ? String(Math.round(m.compactAt / 1000)) : '', provider: m.provider?.id ?? '', providerModel: m.provider?.model ?? '' };
+  const saved = { name: m.id, role: m.role ?? '', template: m.template ?? '', spec: m.spec ?? '', model: current, compactK: m.compactAt ? String(Math.round(m.compactAt / 1000)) : '', provider: m.provider?.id ?? '', providerModel: m.provider?.model ?? '' };
   const dirLabel = relDir(m.dir, root);
   const draft = useDraft(`draft:instance:${projectId}:${m.id}`, saved);
   const v = draft.values;
@@ -52,6 +52,7 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
     if (v.name !== m.id) patch.name = v.name;
     if (v.role !== (m.role ?? '')) patch.role = v.role;
     if (v.template !== saved.template) patch.template = v.template || null;
+    if (v.spec !== saved.spec) patch.spec = v.spec || null;
     if (v.model !== current) patch.model = v.model || null;
     if (v.provider !== saved.provider || (v.provider && v.providerModel !== saved.providerModel)) {
       patch.provider = v.provider ? { id: v.provider, model: v.providerModel || providers.find((p) => p.id === v.provider)?.models[0] } : null;
@@ -104,6 +105,9 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
             onChange={(x) => draft.set({ template: x })}
             options={[{ value: '', label: '不使用模板' }, ...templates.map((t) => ({ value: t.id, label: t.name })), ...(v.template && !templates.some((t) => t.id === v.template) ? [{ value: v.template, label: `${v.template}（已删除）` }] : [])]}
           />
+        </Field>
+        <Field label="规格角色">
+          <Select value={v.spec} onChange={(x) => draft.set({ spec: x })} options={SPEC_ROLE_OPTIONS} />
         </Field>
         <Field label="目录">
           <div className="truncate text-[12.5px] text-ink-2" title="目录在创建时定下，之后不能修改；要换目录请新建执行者">

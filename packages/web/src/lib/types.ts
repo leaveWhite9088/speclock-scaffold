@@ -65,10 +65,15 @@ export interface Template {
   /** The CLI it suggests (empty: the person picks). */
   type: string;
   model: string;
+  /** The role in the spec library it suggests when an executor is made from it (empty: none). */
+  spec?: SpecRole | '';
   prompt: string;
   /** Executors made from it. */
   usedBy?: { project: string; id: string }[];
 }
+
+/** What an executor may be in the spec library. Independent of its template: the template says how it works, this says what it may do there. */
+export type SpecRole = 'requirements' | 'executor' | 'tester' | 'scanner';
 
 export interface Member {
   key: string;
@@ -78,6 +83,8 @@ export interface Member {
   role: string | null;
   /** The id of the template it was made from. */
   template?: string | null;
+  /** Its role in the spec library (SpecLock Core); null when it is not connected to it. */
+  spec?: SpecRole | null;
   model: string | null;
   /** The provider (kept on this device) this executor starts with, and its model; null for the CLI's own login. */
   provider?: { id: string; model: string } | null;

@@ -7,12 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { toast } from '@/components/ui/toast';
 import { RuntimeFields } from '@/components/drawer/RuntimeFields';
+import { SPEC_ROLE_OPTIONS } from '@/lib/format';
 import { useCatalog, useDirs, useInstanceTypes, useProbeSessions, useProject, useTemplates } from '@/hooks/queries';
 import { api, enc } from '@/lib/api';
 import { modelLabel, modelName, relDir, when } from '@/lib/format';
 import { useUi } from '@/store';
 
-const EMPTY = { id: '', type: '', dir: '', role: '', model: '', provider: '', providerModel: '', sessionId: 'new', template: '' };
+const EMPTY = { id: '', type: '', dir: '', role: '', model: '', provider: '', providerModel: '', sessionId: 'new', template: '', spec: '' };
 
 export function NewMemberDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const qc = useQueryClient();
@@ -27,10 +28,10 @@ export function NewMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
   // A template fills in what it knows; everything stays editable.
   const pick = (id: string) => {
     const t = templates.find((x) => x.id === id);
-    // The name follows the template while it is the template's own name (or empty): a name the person typed stays.
-    const autoName = form.id === '' || form.id === tpl?.id;
+    // The executor is named after the template (its display name, which is in Chinese for the presets) while it still has that name or none: a name the person typed stays.
+    const autoName = form.id === '' || form.id === tpl?.name;
     if (!t) return set({ template: '', id: autoName ? '' : form.id });
-    set({ template: id, id: autoName ? t.id : form.id, type: t.type && types.includes(t.type) ? t.type : form.type, dir: relDir(t.dir, project?.root), role: t.role, model: t.model, sessionId: 'new' });
+    set({ template: id, id: autoName ? t.name : form.id, type: t.type && types.includes(t.type) ? t.type : form.type, dir: relDir(t.dir, project?.root), role: t.role, model: t.model, spec: t.spec ?? '', sessionId: 'new' });
   };
   const type = form.type || types[0] || '';
   const dir = relDir(form.dir, project?.root);
@@ -54,6 +55,8 @@ export function NewMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
         provider: form.provider ? { id: form.provider, model: form.providerModel } : undefined,
         sessionId: form.sessionId || 'new',
         template: form.template || undefined,
+        // Always said outright: an empty choice must not fall back to the template's suggestion.
+        spec: form.spec || 'none',
       });
       onOpenChange(false);
       setForm(EMPTY);
@@ -96,6 +99,10 @@ export function NewMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
           <Field label="用途">
             <Input placeholder="调度器据此挑人，例如 后端服务" value={form.role} onChange={(e) => set({ role: e.target.value })} />
           </Field>
+          <Field label="规格角色">
+            <Select value={form.spec} onChange={(v) => set({ spec: v })} options={SPEC_ROLE_OPTIONS} />
+          </Field>
+          {form.spec && <p className="-mt-1 pl-[6em] text-[12px] text-muted">创建时会在规格库里给它一把只属于这个项目的密钥，密钥不会出现在对话里。</p>}
           <RuntimeFields
             type={type}
             providerId={form.provider}

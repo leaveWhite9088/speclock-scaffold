@@ -9,7 +9,7 @@ export { canCompact, compactIfNeeded } from './compaction.mjs';
 export { AGENTS, CONFIG, IDLE_RUN_MS, driverOf, flattenOptions } from './config.mjs';
 export { nodeBin, piPaths } from './install.mjs';
 export { buildInstance, listInstances } from './instances.mjs';
-export { cleanMcpServers, describeMcpServers } from './mcp.mjs';
+export { cleanMcpServers, describeMcpServers, piMcpServers } from './mcp.mjs';
 export { formatMetrics } from './metrics.mjs';
 export { cleanInstanceProvider, discoverProviderModels, getProvider, providerForDispatcher, listProviders, providerClis, providerSupport, removeProvider, saveProvider, testProviderAll } from './providers.mjs';
 export { MAX_PROCESSES, aliveCount, defaultModelFor, getAgent, pool } from './registry.mjs';

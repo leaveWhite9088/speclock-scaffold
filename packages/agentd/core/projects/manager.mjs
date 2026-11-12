@@ -135,11 +135,11 @@ function register(project, inst) {
     sessionId: inst.sessionId ?? null,
     compactAt: inst.compactAt ?? null,
     // A function, like the rules: an edit applies the next time a session starts or resumes.
-    mcpServers: () => inst.mcpServers ?? [],
+    mcpServers: () => [...(inst.mcpServers ?? []), ...(inst.spec?.mcp ? [inst.spec.mcp] : [])],
     // Same for the provider: a change applies the next time the process starts.
     provider: () => inst.provider ?? null,
     // A function: the rules are read again whenever the agent starts, so an edited template applies at once.
-    systemPrompt: () => executorRulesFor(inst.template) || null,
+    systemPrompt: () => executorRulesFor(inst.template, inst.spec?.role) || null,
     // The instance comes back to the session it last used, also after a daemon restart.
     onSession: (sid) => {
       inst.sessionId = sid;
@@ -173,6 +173,10 @@ export function projectRoot(id) {
   return find(id).root;
 }
 
+export function projectName(id) {
+  return find(id).name;
+}
+
 export function hasProject(id) {
   return projects.some((p) => p.id === id);
 }
@@ -198,6 +202,8 @@ export function listProjects() {
         template: p.instances.find((i) => i.id === r.shortId)?.template ?? null,
         // Names and kinds only: an environment or a header can hold a key.
         mcp: describeMcpServers(p.instances.find((i) => i.id === r.shortId)?.mcpServers),
+        // Which role it has in SpecLock Core (never the key or where it is kept).
+        spec: p.instances.find((i) => i.id === r.shortId)?.spec?.role ?? null,
       })),
       alive: rows.filter((r) => r.alive).length,
       busy: rows.filter((r) => r.busy).length,
@@ -242,6 +248,19 @@ function cleanCompactAt(v) {
   return Math.round(n);
 }
 
+/** What an executor keeps of its place in SpecLock Core: `{ role, keyId, keyFile, mcp }` (the key is in Core's folder, not here). */
+function cleanSpec(v) {
+  if (!v) return null;
+  if (typeof v !== 'object' || typeof v.role !== 'string') throw new Error('spec must be { role, keyId, keyFile, mcp }');
+  const [mcp] = cleanMcpServers([v.mcp]);
+  return { role: v.role, keyId: v.keyId ?? null, keyFile: v.keyFile ?? null, mcp };
+}
+
+/** The SpecLock part an executor has now (to revoke its key when it goes or changes). */
+export function specOf(projectId, id) {
+  return find(projectId).instances.find((i) => i.id === id)?.spec ?? null;
+}
+
 export function addInstance(projectId, spec, { persist = true } = {}) {
   const project = find(projectId);
   // A template gives what the request leaves out.
@@ -253,6 +272,7 @@ export function addInstance(projectId, spec, { persist = true } = {}) {
   const role = spec.role || tpl?.role || null;
   const model = spec.model || tpl?.model || null;
   const { sessionId = null, compactAt = null } = spec;
+  const specRecord = cleanSpec(spec.spec);
   const mcpServers = cleanMcpServers(spec.mcpServers);
   checkId('instance', id);
   const provider = AGENTS[type] ? cleanInstanceProvider(spec.provider, type) : null;
@@ -273,11 +293,12 @@ export function addInstance(projectId, spec, { persist = true } = {}) {
     template: tpl?.id ?? null,
     ...(mcpServers.length ? { mcpServers } : {}),
     ...(provider ? { provider } : {}),
+    ...(specRecord ? { spec: specRecord } : {}),
   };
   project.instances.push(inst);
   const agent = register(project, inst);
   if (persist) save();
-  return { key: agent.name, id, type, dir: rel, cwd: abs, role: inst.role, model: inst.model, sessionId: inst.sessionId, compactAt: inst.compactAt, template: inst.template, mcp: describeMcpServers(inst.mcpServers), provider: inst.provider ?? null };
+  return { key: agent.name, id, type, dir: rel, cwd: abs, role: inst.role, model: inst.model, sessionId: inst.sessionId, compactAt: inst.compactAt, template: inst.template, mcp: describeMcpServers(inst.mcpServers), provider: inst.provider ?? null, spec: inst.spec?.role ?? null };
 }
 
 /** Executors (in any project) made from a template: [{ project, id }]. */
@@ -373,7 +394,7 @@ export function setDispatcherCompactAt(projectId, value) {
   return project.dispatcherCompactAt;
 }
 
-export async function updateInstance(projectId, id, { role, model, name, dir, compactAt, template, mcpServers, provider }) {
+export async function updateInstance(projectId, id, { role, model, name, dir, compactAt, template, mcpServers, provider, spec }) {
   const project = find(projectId);
   const inst = project.instances.find((i) => i.id === id);
   if (!inst) throw new Error(`unknown instance "${id}" in project "${projectId}"`);
@@ -408,6 +429,14 @@ export async function updateInstance(projectId, id, { role, model, name, dir, co
     if (clean.length) inst.mcpServers = clean;
     else delete inst.mcpServers;
   }
+  if (spec !== undefined) {
+    // The key was issued (or taken away) by the caller; the server entry applies the next time a session starts, so a process that is idle stops now.
+    const next = cleanSpec(spec);
+    if (agent.busy) throw new Error(`instance "${id}" is running a prompt; cancel it first`);
+    if (next) inst.spec = next;
+    else delete inst.spec;
+    if (agent.child) await agent.shutdown();
+  }
   if (provider !== undefined) {
     // A process that is running keeps the endpoint it started with: stop it so the next use starts it with the new one.
     const next = cleanInstanceProvider(provider, inst.type);
@@ -425,7 +454,7 @@ export async function updateInstance(projectId, id, { role, model, name, dir, co
     await agent.chooseModel(inst.model);
   }
   save();
-  return { key: agent.name, id, role: inst.role, model: inst.model, dir: inst.dir, compactAt: inst.compactAt, template: inst.template ?? null, provider: inst.provider ?? null };
+  return { key: agent.name, id, role: inst.role, model: inst.model, dir: inst.dir, compactAt: inst.compactAt, template: inst.template ?? null, provider: inst.provider ?? null, spec: inst.spec?.role ?? null };
 }
 
 function busyOf(agents) {

@@ -32,6 +32,11 @@ function load(name) {
 export const dispatcherRules = () => load('project.md');
 export const executorRules = () => load('executor.md');
 
+/** What an executor is told about its role in SpecLock Core: the shared part and the part of its role (an unknown role gets nothing). */
+const SPEC_ROLES = new Set(['requirements', 'executor', 'tester', 'scanner']);
+export const isSpecRole = (role) => SPEC_ROLES.has(role);
+export const specRules = (role) => (SPEC_ROLES.has(role) ? [load('spec/common.md'), load(`spec/${role}.md`)].filter(Boolean).join('\n\n') : '');
+
 /** Read fresh every time: they are sent once per handoff, and an edit should apply to the next one without a restart. */
 function fresh(name) {
   try {

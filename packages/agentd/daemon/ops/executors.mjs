@@ -33,7 +33,8 @@ export function executorOps(ctx) {
     }),
 
     instances: ({ project, short } = {}) => ({
-      instances: viewRows(withInterrupted(listInstances()), project, short),
+      // `spec`: the role in the spec library (the dispatcher's roster shows it), kept apart from `role`, which is what the executor is for.
+      instances: viewRows(withInterrupted(listInstances()).map((r) => ({ ...r, spec: r.project ? (projects.specOf(r.project, r.shortId)?.role ?? null) : null })), project, short),
       types: Object.keys(AGENTS),
     }),
 

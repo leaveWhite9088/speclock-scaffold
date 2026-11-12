@@ -11,6 +11,9 @@
  * driver turns the servers into AGENTD_MCP_SERVERS and the adapter loads them through `pi-adapter/mcp-bridge.ts`.
  */
 
+/** ACP's server list in pi's own mcp.json shape (for a pi process that is not an executor: the dispatcher). */
+export { piMcpServers } from '@speclock-scaffold/drivers';
+
 const NAME_RE = /^[A-Za-z0-9_-]{1,32}$/;
 
 const pairs = (v, what) => {

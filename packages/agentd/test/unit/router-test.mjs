@@ -55,6 +55,12 @@ const rows = rosterLines([
 check('each executor has its state, directory and role', rows[0] === '- web [opencode] busy, dir D:/p/web, role: frontend' && rows[1] === '- api [dsh] running, dir (base)', rows.slice(0, 2).join(' | '));
 check('an unstable one is marked, and not to be sent work', rows.some((r) => /UNSTABLE/.test(r) && /Do not send it work/.test(r)));
 check('one that was cut off says what it was doing', rows.some((r) => /INTERRUPTED: its last task \(10:00, "build the thing"\)/.test(r)));
+const withSpec = rosterLines([{ id: 'pm', type: 'pi', alive: true, role: 'requirements', spec: 'requirements' }, { id: 'qa', type: 'pi', spec: 'tester' }]).split('\n');
+check('an executor with a role in the spec library says what it may do there', /spec library: requirements \(writes change requests/.test(withSpec[0]) && /spec library: tester \(independently verifies/.test(withSpec[1]), withSpec.join(' | '));
+const named = rosterLines([{ id: 'fe', type: 'pi', alive: true, sessionNames: [{ label: '登录', active: true }, { label: '订单', active: false }] }, { id: 'old', type: 'pi', sessionLabel: '搜索' }]).split('\n');
+check('every named conversation is listed, the current one marked', named[0] === '- fe [pi] running, dir (base), conversations: "登录" (current), "订单"', named[0]);
+check('without the list it still says the current conversation', /conversation "搜索"/.test(named[1]), named[1]);
+check('one without a spec role says nothing about it', !/spec library/.test(rows.join('\n')));
 const prompt = rosterPrompt(rows.join('\n'));
 check('the prompt around the roster comes from contexts/roster.md', prompt.startsWith('## Executors of this project') && prompt.includes('- web [opencode] busy') && /You are the dispatcher/.test(prompt) && !prompt.includes('{{roster}}'));
 check('and tells it not to retry on its own', /do not retry or give it to another executor on your own/.test(prompt));

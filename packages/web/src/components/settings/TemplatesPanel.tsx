@@ -14,10 +14,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/toast';
 import { useInstanceTypes, useTemplates } from '@/hooks/queries';
 import { api, enc } from '@/lib/api';
-import { slug } from '@/lib/format';
+import { SPEC_ROLE_OPTIONS, slug } from '@/lib/format';
 import type { Template } from '@/lib/types';
 
-const EMPTY: Template = { id: '', name: '', role: '', dir: '.', type: '', model: '', prompt: '' };
+const EMPTY: Template = { id: '', name: '', role: '', dir: '.', type: '', model: '', spec: '', prompt: '' };
 
 /** Executor templates: what an executor is for and the system prompt that makes it so. Stored as markdown files on the server. */
 export function TemplatesPanel() {
@@ -70,6 +70,9 @@ export function TemplatesPanel() {
         </Field>
         <Field label="模型">
           <Input value={edit.t.model} onChange={(e) => set({ model: e.target.value })} />
+        </Field>
+        <Field label="规格角色">
+          <Select value={edit.t.spec ?? ''} onChange={(v) => set({ spec: v as Template['spec'] })} options={SPEC_ROLE_OPTIONS} />
         </Field>
         <Field label="提示词" className="items-start">
           <Textarea mono className="h-60 resize-y" placeholder="## 写给这类执行者的规则" value={edit.t.prompt} onChange={(e) => set({ prompt: e.target.value })} />

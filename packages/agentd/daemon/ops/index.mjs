@@ -8,12 +8,13 @@ import { executorOps } from './executors.mjs';
 import { projectOps } from './projects.mjs';
 import { providerOps } from './providers.mjs';
 import { runOps } from './run.mjs';
+import { specOps } from './specs.mjs';
 import { systemOps } from './system.mjs';
 
 /** @param {{ protocol: number, startedAt: string, idleInstanceMs: number, shutdown: (code: number) => Promise<void> }} ctx */
 export function buildOps(ctx) {
   const ops = {};
-  for (const part of [executorOps(ctx), runOps(ctx), dispatcherOps(ctx), projectOps(ctx), providerOps(ctx), systemOps(ctx)]) {
+  for (const part of [executorOps(ctx), runOps(ctx), dispatcherOps(ctx), projectOps(ctx), providerOps(ctx), specOps(ctx), systemOps(ctx)]) {
     for (const [name, fn] of Object.entries(part)) {
       if (name in ops) throw new Error(`operation "${name}" is defined twice`);
       ops[name] = fn;

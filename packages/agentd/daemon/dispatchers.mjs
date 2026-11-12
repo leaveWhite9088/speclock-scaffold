@@ -10,9 +10,10 @@ import { projectPath } from '../core/base/index.mjs';
 import { Dispatcher } from '../core/dispatcher/index.mjs';
 import { createHandoffs } from '../core/projects/index.mjs';
 import * as projects from '../core/projects/index.mjs';
+import * as specs from '../core/specs/index.mjs';
 import { allocEvent, publish, publishEphemeral, publishLive } from './events.mjs';
-
 import { dispatcherSettled, wireReports } from './reports.mjs';
+
 const log = (...a) => process.stderr.write(`[agentd] ${a.join(' ')}\n`);
 
 // ---------------------------------------------------------------------------
@@ -57,6 +58,8 @@ export function getDispatcher(project) {
     },
     compactAt: projects.dispatcherCompactAt(project),
     provider: () => projects.dispatcherProvider(project),
+    // SpecLock Core with the project admin key, once the project has a place there
+    mcpServers: () => [specs.dispatcherServer(project)].filter(Boolean),
   });
   // Like an executor's: a compaction is announced, and a conversation compacted again and again is proposed for a handoff.
   d.onCompact = (info) => {
@@ -79,11 +82,11 @@ export function getDispatcher(project) {
   return d;
 }
 
+wireReports(getDispatcher);
+
 export const anyDispatcherBusy = () => [...dispatchers.values()].some((d) => d.busy);
 
 /** Dispatchers that are running now get a restart after models.json changed. */
-wireReports(getDispatcher);
-
 export async function restartRunningDispatchers() {
   const out = [];
   for (const [key, d] of dispatchers) {

@@ -16,7 +16,7 @@
 
 import { PiRpc } from '../pi/index.mjs';
 import { dispatcherRules } from '../prompts/index.mjs';
-import { nodeBin, piPaths } from '../pool/index.mjs';
+import { nodeBin, piMcpServers, piPaths } from '../pool/index.mjs';
 import { injectionFor, providerForDispatcher } from '../pool/index.mjs';
 import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -37,6 +37,7 @@ const piCli = () => {
   return p.cli;
 };
 const EXTENSION = process.env.DISPATCHER_EXTENSION || join(ROOT, 'extension', 'agent-router.ts');
+const MCP_BRIDGE = join(ROOT, 'pi-adapter', 'mcp-bridge.ts');
 const SESSION_DIR = process.env.DISPATCHER_SESSION_DIR || null;
 
 const log = (...a) => process.stderr.write(`[dispatcher] ${a.join(' ')}\n`);
@@ -54,7 +55,11 @@ export class Dispatcher {
    * With `project` set, the extension runs scoped: every tool call it makes carries
    * that project, and agentd refuses anything outside it.
    */
-  constructor({ cwd, project = null, sessionDir = SESSION_DIR ?? projectPath(project ?? '_', 'dispatcher-sessions'), onEvent, compactAt = null, provider = null }) {
+  constructor({ cwd, project = null, sessionDir = SESSION_DIR ?? projectPath(project ?? '_', 'dispatcher-sessions'), onEvent, compactAt = null, provider = null, mcpServers = null }) {
+    /** MCP servers (ACP's shape) it starts with, or a function giving them; read at every start. SpecLock Core is one of them. */
+    this.mcpServers = mcpServers;
+    /** Whether the process now running was started with servers (a change in what it should have is applied by a restart). */
+    this.startedWithMcp = false;
     /** { id, model } of the device provider it starts with, or a function giving it; null: pi's own models. */
     this.provider = provider;
     this.cwd = cwd;
@@ -142,6 +147,9 @@ export class Dispatcher {
 
     // --no-extensions plus -e: load exactly one extension, whatever the user
     // installed globally. --no-mcp avoids loading a project's MCP servers.
+    // With servers to give it, the built-in MCP client and the bridge are loaded and nothing else: the same way an executor on pi gets its servers.
+    const servers = piMcpServers((typeof this.mcpServers === 'function' ? this.mcpServers() : this.mcpServers) ?? []);
+    this.startedWithMcp = Object.keys(servers).length > 0;
     const args = [
       piCli(),
       '--mode',
@@ -149,7 +157,7 @@ export class Dispatcher {
       '--no-extensions',
       '-e',
       EXTENSION,
-      '--no-mcp',
+      ...(this.startedWithMcp ? ['-e', 'builtin:mcp', '-e', MCP_BRIDGE] : ['--no-mcp']),
       '--session-dir',
       this.sessionDir,
     ];
@@ -162,7 +170,7 @@ export class Dispatcher {
     this.startedAt = Date.now();
     log(`spawning pi rpc (spawn #${this.spawnCount}, cwd=${this.cwd})`);
 
-    const env = { ...process.env };
+    const env = { ...process.env, AGENTD_MCP_SERVERS: this.startedWithMcp ? JSON.stringify(servers) : '' };
     if (this.project) env.AGENTD_PROJECT = this.project;
     else delete env.AGENTD_PROJECT;
     const choice = typeof this.provider === 'function' ? this.provider() : this.provider;
