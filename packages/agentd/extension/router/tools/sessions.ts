@@ -152,8 +152,13 @@ export const newSessionTool = defineTool({
 		if (sessions.some((s: any) => (s.label ?? "").trim().toLowerCase() === label.toLowerCase())) {
 			throw new Error(`${params.agent} already has a conversation named "${label}"; switch to it with agent_session_use`);
 		}
-		const r = await c.call("new", { agent: params.agent });
-		await c.call("rename", { agent: params.agent, sessionId: r.sessionId, label });
+		const r = await c.call("new", { agent: params.agent, label });
+		if (r.queued) {
+			return {
+				content: [{ type: "text", text: `${params.agent} is working: the new conversation "${label}" will be opened as soon as it is done, and a run sent to it now goes to that conversation` }],
+				details: { agent: params.agent, label, queued: true },
+			};
+		}
 		return {
 			content: [{ type: "text", text: `${params.agent}: new conversation "${label}" (${r.sessionId}); it is the active one now` }],
 			details: { agent: params.agent, sessionId: r.sessionId, label },
@@ -174,10 +179,11 @@ export const useSessionTool = defineTool({
 	async execute(_id, params) {
 		const c = await daemon();
 		const s = await findSession(c, params.agent, params.session);
-		await c.call("use", { agent: params.agent, sessionId: s.sessionId });
+		const r = await c.call("use", { agent: params.agent, sessionId: s.sessionId });
+		const later = r?.queued ? " (it is working: the switch happens when it is done, and a run sent now goes to that conversation)" : "";
 		return {
-			content: [{ type: "text", text: `${params.agent}: now in "${s.label || s.title || s.sessionId}" (${s.sessionId})` }],
-			details: { agent: params.agent, sessionId: s.sessionId, label: s.label ?? null },
+			content: [{ type: "text", text: `${params.agent}: now in "${s.label || s.title || s.sessionId}" (${s.sessionId})${later}` }],
+			details: { agent: params.agent, sessionId: s.sessionId, label: s.label ?? null, queued: Boolean(r?.queued) },
 		};
 	},
 });

@@ -37,7 +37,9 @@ export const runTool = defineTool({
 
 	async execute(_toolCallId, params, signal, onUpdate) {
 		const c = await daemon();
-		const agent = params.agent ?? "mcode";
+		const agent = String(params.agent ?? "").trim();
+		// A malformed call (the model dropped the argument) must not go to some other executor: say what is missing and what exists.
+		if (!agent) throw new Error("agent is required: name the executor to send this to, as listed in the roster / agent_instances. Nothing was sent.");
 		const timeoutMs = parseDuration(params.timeout ?? "10m");
 		if (!params.wait) {
 			// The daemon keeps the task and delivers the answer to this dispatcher when it ends (daemon/reports.mjs).
@@ -142,7 +144,7 @@ export const runTool = defineTool({
 	},
 
 	renderCall(args, theme) {
-		return theme.text(`${theme.bold("agent_run")} ${args.agent ?? "mcode"}  ${args.prompt.slice(0, 60)}`);
+		return theme.text(`${theme.bold("agent_run")} ${args.agent ?? "(no agent)"}  ${args.prompt.slice(0, 60)}`);
 	},
 
 	renderResult(result, opts, theme) {

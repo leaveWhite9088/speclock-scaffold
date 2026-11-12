@@ -648,6 +648,17 @@ export class AcpClient {
     return Boolean(this.run);
   }
 
+  /** Working, or with tasks waiting: a change of conversation has to queue behind them. */
+  get inUse() {
+    return this.busy || this.waitingJobs().length > 0;
+  }
+
+  /** The name of the conversation it is in (or comes back to when started), if it has one. */
+  currentSessionLabel() {
+    const id = this.sessionId ?? this.preferSession;
+    return id ? (saved(this.name, id)?.label ?? null) : null;
+  }
+
   async shutdown() {
     if (!this.child) return;
     this.stopping = true;

@@ -19,6 +19,15 @@ export function runOps(ctx) {
       sock,
     ) => {
       const a = getAgent(agent);
+      // A task for a module goes to that module's conversation. When the executor is idle the dispatcher has already switched it,
+      // so a different name means it forgot; refused here, with what to do. (While it works a switch may be waiting in line: trusted.)
+      const forModule = caller === 'dispatcher' ? /(?:待办|工作项)\s*\**\s*#\d+\s*[（(]\s*模块「([^」]+)」/.exec(String(prompt ?? ''))?.[1]?.trim() : null;
+      if (forModule && !a.inUse && (a.currentSessionLabel() ?? '').trim() !== forModule) {
+        throw new Error(
+          `${a.name} is in the conversation "${a.currentSessionLabel() ?? '(no name)'}", but this task is for the module "${forModule}". ` +
+            `One conversation is for one module: switch with agent_session_use "${forModule}" (or open it with agent_session_new, named "${forModule}"), then send the task again.`,
+        );
+      }
       // Which task is this an attempt at? Refused here when the task has used up its attempts.
       const plan = planRun({ agent: a.name, prompt, retryOf, counted: caller === 'dispatcher' });
       const task = { taskId: plan.taskId, attempt: plan.attempt, retryOf: plan.retryOf, maxAttempts: plan.maxAttempts };

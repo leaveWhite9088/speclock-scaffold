@@ -275,7 +275,8 @@ export class Sessions {
     let remote = [];
     let remoteError = null;
     try {
-      const res = await this.request('session/list', {}, { timeoutMs: 60_000 });
+      // While it works the CLI may answer late (or not at all until the run ends): ask briefly, and fall back to what is known.
+      const res = await this.request('session/list', {}, { timeoutMs: this.agent.busy ? 5_000 : 60_000 });
       remote = res?.sessions ?? (Array.isArray(res) ? res : []);
     } catch (err) {
       remoteError = err.message;

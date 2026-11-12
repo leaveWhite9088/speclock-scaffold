@@ -12,6 +12,8 @@ import { viewRows } from '../guard.mjs';
 import { withInterrupted } from '../startup.mjs';
 
 /** @param {{ protocol: number, startedAt: string, idleInstanceMs: number }} ctx */
+const inUse = (a) => a.inUse;
+
 export function executorOps(ctx) {
   return {
     /** Every executor in the pool (all of them belong to a project). */
@@ -60,7 +62,9 @@ export function executorOps(ctx) {
 
     status: ({ agent }) => getAgent(agent).status(),
 
-    sessions: async ({ agent }) => getAgent(agent).serialized(() => getAgent(agent).listSessions()),
+    // Not in line behind the running task: listing only reads, and a person (or the dispatcher) must be able to see
+    // the conversations while one is working. While it works the CLI is asked with a short deadline and the rest comes from what agentd knows.
+    sessions: async ({ agent }) => getAgent(agent).listSessions(),
 
     /** Start the process now (manual retry after a failed start). */
     start: async ({ agent }) => {
@@ -69,12 +73,28 @@ export function executorOps(ctx) {
       return a.status();
     },
 
-    use: async ({ agent, sessionId, cwd }) => getAgent(agent).useSession(sessionId, cwd),
-
-    new: async ({ agent, cwd }) => {
+    // Switching or opening a conversation has to happen between runs. While the executor is working it is put in line
+    // (so the next run, which queues after it, lands in the right conversation) and the caller is not kept waiting for
+    // the whole run: the dispatcher would otherwise hang on the tool call until the executor finished.
+    use: async ({ agent, sessionId, cwd }) => {
       const a = getAgent(agent);
-      const sessionId = await a.newSession(cwd);
-      return { agent: a.name, sessionId, cwd: a.cwd };
+      if (!inUse(a)) return a.useSession(sessionId, cwd);
+      a.useSession(sessionId, cwd).catch((err) => process.stderr.write(`[${a.name}] queued switch to ${sessionId} failed: ${err.message}
+`));
+      return { agent: a.name, sessionId, queued: true };
+    },
+
+    new: async ({ agent, cwd, label }) => {
+      const a = getAgent(agent);
+      const make = async () => {
+        const sessionId = await a.newSession(cwd);
+        if (label) a.renameSession(sessionId, label);
+        return sessionId;
+      };
+      if (!inUse(a)) return { agent: a.name, sessionId: await make(), cwd: a.cwd, label: label ?? null };
+      make().catch((err) => process.stderr.write(`[${a.name}] queued new conversation failed: ${err.message}
+`));
+      return { agent: a.name, queued: true, label: label ?? null };
     },
 
     deleteSession: ({ agent, sessionId }) => getAgent(agent).deleteSession(sessionId),
