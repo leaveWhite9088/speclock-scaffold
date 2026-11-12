@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, X } from 'lucide-react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { toast } from '@/components/ui/toast';
 import { api, enc, pq } from '@/lib/api';
 import { useSelectedMember } from '@/hooks/queries';
@@ -51,6 +51,7 @@ export function Chat() {
   const { project, sel, member, isDispatcher } = useSelectedMember();
   const { items, loading, send, turn } = useConversation(project?.id ?? '', sel, member, Boolean(project?.dispatcher?.busy));
   const scroller = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const [away, setAway] = useState(false); // scrolled up: offer the way back down
 
@@ -59,6 +60,18 @@ export function Chat() {
     const s = scroller.current;
     if (s && stick.current) s.scrollTop = s.scrollHeight;
   }, [items]);
+  // Not only new messages change the height: a queued message, the "thinking" line and the tool groups opening and closing do too.
+  // Watching the content's own height keeps the end in view whatever changed it.
+  useEffect(() => {
+    const el = content.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      const s = scroller.current;
+      if (s && stick.current) s.scrollTop = s.scrollHeight;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   useLayoutEffect(() => {
     stick.current = true; // a different conversation starts at its end
   }, [sel, project?.id]);
@@ -113,17 +126,18 @@ export function Chat() {
     <>
       <div className="relative flex min-h-0 min-w-0 flex-1">
       <div ref={scroller} onScroll={onScroll} tabIndex={-1} aria-live="polite" className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto pt-1">
+        <div ref={content}>
         {list.length === 0 ? (
           loading ? null : <Empty hasProject={Boolean(project)} isDispatcher={isDispatcher} hasMembers={Boolean(project?.instances.length)} />
         ) : (
-          <div className="mx-auto grid max-w-[740px] grid-cols-[minmax(0,1fr)] gap-3.5 px-6 pt-1.5 pb-16 *:min-w-0">
+          <div className="mx-auto grid max-w-[740px] grid-cols-[minmax(0,1fr)] gap-3.5 px-6 pt-1.5 pb-3 *:min-w-0">
             {list.map((b) =>
               b.kind === 'say' ? <Message key={b.item.id} item={b.item} /> : b.kind === 'dispatch' ? <DispatchLine key={b.item.id} item={b.item} queued={queued.has(b.item.id)} onCancel={queued.get(b.item.id)?.jobId ? () => void cancelJob(queued.get(b.item.id)!.agent, queued.get(b.item.id)!.jobId!) : undefined} /> : b.kind === 'thought' ? <ThoughtBlock key={b.item.id} item={b.item} /> : b.kind === 'report' ? <ReportLine key={b.item.id} item={b.item} /> : <ToolGroup key={b.id} tools={b.tools} />,
             )}
           </div>
         )}
         {waitingMsgs.length ? (
-          <div className="mx-auto grid max-w-[740px] gap-2 px-6 pb-16">
+          <div className="mx-auto grid max-w-[740px] gap-2 px-6 pb-3">
             {waitingMsgs.map((m, i) => (
               <div key={`${i}-${m.slice(0, 20)}`} className="flex items-center justify-end gap-2 text-[12.5px] text-muted">
                 <span className="shrink-0">排队中</span>
@@ -136,7 +150,7 @@ export function Chat() {
           </div>
         ) : null}
         {waitingJobs.length ? (
-          <div className="mx-auto grid max-w-[740px] gap-2 px-6 pb-16">
+          <div className="mx-auto grid max-w-[740px] gap-2 px-6 pb-3">
             {waitingJobs.map((j) => (
               <div key={j.jobId} className="flex items-center justify-end gap-2 text-[12.5px] text-muted">
                 <span className="shrink-0">排队中</span>
@@ -149,6 +163,8 @@ export function Chat() {
           </div>
         ) : null}
         {turn ? <TurnStatus turn={turn} /> : null}
+        <div aria-hidden className="h-12" />
+        </div>
       </div>
       {away ? (
         <button
