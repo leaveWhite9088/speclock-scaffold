@@ -7,6 +7,7 @@
 
 import { CONFIG, flattenOptions, log, normPath } from '../config.mjs';
 import { acpMcpServers } from '../mcp.mjs';
+import { effortOf, isEffortOption } from '../effort.mjs';
 import { defaultModelFor } from '../registry.mjs';
 import { entry, noteSession, saveStore, saved, savedAll } from '../store.mjs';
 
@@ -36,6 +37,8 @@ export class Sessions {
     this.preferSession = spec.sessionId ?? null;
     /** Model this instance should use (config value); applied to sessions that have no choice of their own. */
     this.preferModel = spec.model ?? CONFIG?.defaultModels?.[spec.type ?? agent.name] ?? null;
+    /** The reasoning level this instance should use (the CLI's own value, e.g. "high"); null: the CLI's default. */
+    this.preferEffort = spec.effort ?? null;
     /** The model was changed in the settings while it worked: applied before the next prompt. */
     this.modelDirty = false;
     this.models = null;
@@ -124,6 +127,40 @@ export class Sessions {
     }
   }
 
+  /** Give a session the instance's reasoning level, unless it has a choice of its own or the CLI has no such level. */
+  async applyPreferredEffort() {
+    const want = this.preferEffort;
+    const opt = this.configOptions?.find(isEffortOption);
+    if (!want || !opt || opt.currentValue === want || !this.sessionId) return;
+    if (!effortOf(this.configOptions)?.options.some((o) => o.value === want)) return; // a level this CLI does not have
+    if (saved(this.agent.name, this.sessionId)?.config?.[opt.id]) return;
+    try {
+      const r = await this.request('session/set_config_option', { sessionId: this.sessionId, configId: opt.id, value: want });
+      this.captureConfig(r);
+      const meta = entry(this.agent.name, this.sessionId);
+      meta.config = { ...(meta.config ?? {}), [opt.id]: want };
+      if (!meta.cwd) meta.cwd = this.cwd;
+      saveStore(this.agent.name);
+      log(`[${this.agent.name}] applied reasoning level ${want}`);
+    } catch (err) {
+      log(`[${this.agent.name}] could not apply reasoning level ${want}: ${err.message}`);
+    }
+  }
+
+  /** The instance's level was changed: it replaces the session's own choice and applies to the session it is in. */
+  async chooseEffort(value) {
+    this.preferEffort = value || null;
+    const opt = this.configOptions?.find(isEffortOption);
+    const sid = this.sessionId ?? this.preferSession;
+    const cfg = sid && opt ? saved(this.agent.name, sid)?.config : null;
+    if (cfg?.[opt.id]) {
+      delete cfg[opt.id];
+      saveStore(this.agent.name);
+    }
+    if (!this.agent.child || !this.sessionId || this.agent.busy) return;
+    if (this.preferEffort) await this.applyPreferredEffort();
+  }
+
   async chooseModel(value) {
     this.preferModel = value ?? defaultModelFor(this.agent.type);
     const sid = this.sessionId ?? this.preferSession;
@@ -164,6 +201,7 @@ export class Sessions {
     noteSession(this.agent.name, this.sessionId, { cwd: wantCwd, updatedAt: new Date().toISOString() });
     log(`[${this.agent.name}] new session ${this.sessionId} in ${Date.now() - t0}ms`);
     await this.applyPreferredModel();
+    await this.applyPreferredEffort();
     this.noteActive();
     return this.sessionId;
   }
@@ -171,6 +209,7 @@ export class Sessions {
   async attach(sessionId, cwd) {
     const res = await this.attachRaw(sessionId, cwd);
     await this.applyPreferredModel();
+    await this.applyPreferredEffort();
     this.noteActive();
     return res;
   }

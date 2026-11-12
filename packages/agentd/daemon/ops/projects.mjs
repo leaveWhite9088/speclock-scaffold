@@ -69,10 +69,10 @@ export function projectOps(ctx) {
     },
 
     /** `spec`: the role in SpecLock Core (requirements, executor, tester, scanner), or none. It gets a key bound to the project. */
-    'project.addInstance': async ({ project, id, type, dir, role, model, sessionId, compactAt, template, mcpServers, provider, spec }) => {
+    'project.addInstance': async ({ project, id, type, dir, role, model, effort, sessionId, compactAt, template, mcpServers, provider, spec }) => {
       // The request decides ('none' for no role); when it says nothing, the template's suggestion applies.
       const picked = specs.roleOf(spec !== undefined ? spec : template ? getTemplate(template)?.spec : null); // a bad role is refused before anything is made
-      let r = projects.addInstance(project, { id, type, dir, role, model, sessionId, compactAt, template, mcpServers, provider });
+      let r = projects.addInstance(project, { id, type, dir, role, model, effort, sessionId, compactAt, template, mcpServers, provider });
       if (picked) {
         let issued = null;
         try {
@@ -90,13 +90,16 @@ export function projectOps(ctx) {
     },
 
     /** Models a CLI type offers (cached per type). */
+    /** The reasoning levels of one model of a CLI (which levels there are depends on the model). */
+    'project.effort': ({ type, model, refresh }) => projects.probeEffort(type, model, { refresh: refresh === true }),
+
     'project.models': ({ type, refresh }) => projects.probeModels(type, { refresh: refresh === true }),
 
     /** Existing sessions of a CLI type in a project directory, to pick from when creating an instance. */
     'project.sessions': ({ project, type, dir }) => projects.probeSessions(project, type, dir),
 
     /** Edit an instance: role and preferred model. A running instance with a session switches model now. */
-    'project.updateInstance': async ({ project, id, role, model, name, dir, compactAt, template, mcpServers, provider, spec }) => {
+    'project.updateInstance': async ({ project, id, role, model, effort, name, dir, compactAt, template, mcpServers, provider, spec }) => {
       // The SpecLock role first: a new one means a new key, the old one is taken away (Core names key files by label, so the old goes before the new comes).
       let nextSpec;
       if (spec !== undefined) {
@@ -113,7 +116,7 @@ export function projectOps(ctx) {
           }
         }
       }
-      const r = await projects.updateInstance(project, id, { role, model, name, dir, compactAt, template, mcpServers, provider, spec: nextSpec });
+      const r = await projects.updateInstance(project, id, { role, model, effort, name, dir, compactAt, template, mcpServers, provider, spec: nextSpec });
       if (nextSpec) await refreshDispatcher(project);
       const agent = pool.get(r.key);
       wireAgent(agent);

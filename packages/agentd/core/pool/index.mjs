@@ -6,6 +6,7 @@
 
 export { checkEndpoint } from './endpoint.mjs';
 export { canCompact, compactIfNeeded } from './compaction.mjs';
+export { effortOf } from './effort.mjs';
 export { AGENTS, CONFIG, IDLE_RUN_MS, driverOf, flattenOptions } from './config.mjs';
 export { nodeBin, piPaths } from './install.mjs';
 export { buildInstance, listInstances } from './instances.mjs';

@@ -81,7 +81,7 @@ export default {
     scope: 'process',
     apply({ provider, endpoint, model, dir }) {
       // `contextWindow` is the provider's figure when it has one; left out, pi assumes 128K whatever the model really takes.
-      const models = (provider.models?.length ? provider.models : [model]).filter(Boolean).map((id) => ({ id, ...(provider.contexts?.[id] ? { contextWindow: provider.contexts[id] } : {}) }));
+      const models = (provider.models?.length ? provider.models : [model]).filter(Boolean).map((id) => ({ id, ...(provider.contexts?.[id] ? { contextWindow: provider.contexts[id] } : {}), ...(provider.reasonings?.includes(id) ? { reasoning: true } : {}) }));
       const modelsJson = { providers: { [provider.id]: { baseUrl: endpoint, api: 'openai-completions', apiKey: '$SCAFFOLD_PROVIDER_KEY', models } } };
       const settings = { defaultProvider: provider.id, ...(model ? { defaultModel: model } : {}) };
       return {

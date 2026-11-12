@@ -27,7 +27,7 @@ import { fileURLToPath } from 'node:url';
 import { GLOBAL_DIR, PROJECT_SEP, projectDir, projectIdsOnDisk } from '../base/index.mjs';
 import { forgetProject as forgetRecords } from '../records/index.mjs';
 import { executorRulesFor, getTemplate } from '../prompts/index.mjs';
-import { AGENTS, buildInstance, driverOf, cleanInstanceProvider, cleanMcpServers, defaultModelFor, describeMcpServers, forgetProject as forgetSessions, listInstances, pool } from '../pool/index.mjs';
+import { AGENTS, buildInstance, driverOf, cleanInstanceProvider, cleanMcpServers, defaultModelFor, describeMcpServers, effortOf, forgetProject as forgetSessions, listInstances, pool } from '../pool/index.mjs';
 
 export const SEP = PROJECT_SEP;
 
@@ -142,6 +142,7 @@ function register(project, inst) {
     shortId: inst.id,
     role: inst.role ?? null,
     model: inst.model ?? null,
+    effort: inst.effort ?? null,
     sessionId: inst.sessionId ?? null,
     compactAt: inst.compactAt ?? null,
     // A function, like the rules: an edit applies the next time a session starts or resumes.
@@ -259,6 +260,12 @@ function cleanCompactAt(v) {
 }
 
 /** What an executor keeps of its place in SpecLock Core: `{ role, keyId, keyFile, mcp }` (the key is in Core's folder, not here). */
+/** A reasoning level as the CLI names it ("high", "medium", …), or null for the CLI's own default. */
+function cleanEffort(v) {
+  const s = String(v ?? '').trim();
+  return s && s !== 'default' ? s.slice(0, 40) : null;
+}
+
 function cleanSpec(v) {
   if (!v) return null;
   if (typeof v !== 'object' || typeof v.role !== 'string') throw new Error('spec must be { role, keyId, keyFile, mcp }');
@@ -281,6 +288,7 @@ export function addInstance(projectId, spec, { persist = true } = {}) {
   const dir = spec.dir || tpl?.dir || '.';
   const role = spec.role || tpl?.role || null;
   const model = spec.model || tpl?.model || null;
+  const effort = cleanEffort(spec.effort);
   const { sessionId = null, compactAt = null } = spec;
   const specRecord = cleanSpec(spec.spec);
   const mcpServers = cleanMcpServers(spec.mcpServers);
@@ -297,6 +305,7 @@ export function addInstance(projectId, spec, { persist = true } = {}) {
     dir: rel,
     role: role ? String(role).slice(0, 500) : null,
     model: model ? String(model).slice(0, 200) : null,
+    ...(effort ? { effort } : {}),
     // "new" (or nothing) means: start a fresh session on first use.
     sessionId: sessionId && sessionId !== 'new' ? String(sessionId).slice(0, 200) : null,
     compactAt: cleanCompactAt(compactAt),
@@ -308,7 +317,7 @@ export function addInstance(projectId, spec, { persist = true } = {}) {
   project.instances.push(inst);
   const agent = register(project, inst);
   if (persist) save();
-  return { key: agent.name, id, type, dir: rel, cwd: abs, role: inst.role, model: inst.model, sessionId: inst.sessionId, compactAt: inst.compactAt, template: inst.template, mcp: describeMcpServers(inst.mcpServers), provider: inst.provider ?? null, spec: inst.spec?.role ?? null };
+  return { key: agent.name, id, type, dir: rel, cwd: abs, role: inst.role, model: inst.model, effort: inst.effort ?? null, sessionId: inst.sessionId, compactAt: inst.compactAt, template: inst.template, mcp: describeMcpServers(inst.mcpServers), provider: inst.provider ?? null, spec: inst.spec?.role ?? null };
 }
 
 /** Executors (in any project) made from a template: [{ project, id }]. */
@@ -335,8 +344,32 @@ export async function probeModels(type, { refresh = false } = {}) {
       current: opt?.currentValue ?? null,
       default: defaultModelFor(type),
       models: (opt?.options ?? []).map((o) => ({ value: o.value, name: o.name ?? o.value })),
+      // The CLI's own reasoning level, when it has one: { id, current, options: [{ value, name }] }
+      effort: effortOf(d.configOptions),
     };
     modelCache.set(type, out);
+    return out;
+  } finally {
+    await tmp.shutdown().catch(() => {});
+  }
+}
+
+const effortCache = new Map();
+
+/**
+ * The reasoning levels a CLI offers for one model. Some CLIs (opencode, mcode) only show the option once a model that
+ * reasons is the one in use, so the probe session is moved to that model first. Null when that model has none.
+ */
+export async function probeEffort(type, model, { refresh = false } = {}) {
+  if (!AGENTS[type]) throw new Error(`unknown type "${type}"; available: ${Object.keys(AGENTS).join(', ')}`);
+  const key = `${type}|${model ?? ''}`;
+  if (effortCache.has(key) && !refresh) return effortCache.get(key);
+  mkdirSync(PROBE_DIR, { recursive: true });
+  const tmp = buildInstance({ id: `probe-${type}-e`, type, cwd: PROBE_DIR });
+  try {
+    if (model) await tmp.setConfigOption('model', model);
+    const out = effortOf((await tmp.describeModels()).configOptions);
+    effortCache.set(key, out);
     return out;
   } finally {
     await tmp.shutdown().catch(() => {});
@@ -404,7 +437,7 @@ export function setDispatcherCompactAt(projectId, value) {
   return project.dispatcherCompactAt;
 }
 
-export async function updateInstance(projectId, id, { role, model, name, dir, compactAt, template, mcpServers, provider, spec }) {
+export async function updateInstance(projectId, id, { role, model, effort, name, dir, compactAt, template, mcpServers, provider, spec }) {
   const project = find(projectId);
   const inst = project.instances.find((i) => i.id === id);
   if (!inst) throw new Error(`unknown instance "${id}" in project "${projectId}"`);
@@ -463,8 +496,14 @@ export async function updateInstance(projectId, id, { role, model, name, dir, co
     inst.model = model ? String(model).slice(0, 200) : null;
     await agent.chooseModel(inst.model);
   }
+  if (effort !== undefined) {
+    const next = cleanEffort(effort);
+    if (next) inst.effort = next;
+    else delete inst.effort;
+    await agent.chooseEffort(next);
+  }
   save();
-  return { key: agent.name, id, role: inst.role, model: inst.model, dir: inst.dir, compactAt: inst.compactAt, template: inst.template ?? null, provider: inst.provider ?? null, spec: inst.spec?.role ?? null };
+  return { key: agent.name, id, role: inst.role, model: inst.model, effort: inst.effort ?? null, dir: inst.dir, compactAt: inst.compactAt, template: inst.template ?? null, provider: inst.provider ?? null, spec: inst.spec?.role ?? null };
 }
 
 function busyOf(agents) {

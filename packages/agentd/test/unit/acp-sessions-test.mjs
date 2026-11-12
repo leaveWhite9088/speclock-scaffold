@@ -166,5 +166,25 @@ try {
   check('an id is required', /sessionId is required/.test(e.message));
 }
 
+// 8: the instance's reasoning level
+{
+  calls.length = 0;
+  const e = make({ spec: { defaultCwd: 'C:/work/e', effort: 'high' } });
+  await e.ensureReady();
+  check("the instance's reasoning level is applied to a new session (the CLI's default differed)", calls.some((c) => c.method === 'session/set_config_option' && c.params.configId === 'effort' && c.params.value === 'high'));
+  calls.length = 0;
+  const bad = make({ spec: { defaultCwd: 'C:/work/f', effort: 'turbo' } });
+  await bad.ensureReady();
+  check('a level the CLI does not have is not sent', !calls.some((c) => c.params?.configId === 'effort'));
+  calls.length = 0;
+  const none = make({ spec: { defaultCwd: 'C:/work/g' } });
+  await none.ensureReady();
+  check('no level chosen: the CLI keeps its own', !calls.some((c) => c.params?.configId === 'effort'));
+  calls.length = 0;
+  await none.chooseEffort('low'); // already low: nothing to send
+  await none.chooseEffort('high');
+  check('changing it applies to the session it is in', calls.filter((c) => c.params?.configId === 'effort').map((c) => c.params.value).join() === 'high');
+}
+
 console.log(process.exitCode ? '\n=> ✗ SESSIONS BROKEN' : '\n=> ✓ SESSIONS OK');
 process.exit(process.exitCode ?? 0);

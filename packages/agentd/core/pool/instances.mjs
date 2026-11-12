@@ -11,7 +11,7 @@ import { AGENTS } from './config.mjs';
 import { pool } from './registry.mjs';
 import { saved, savedAll } from './store.mjs';
 
-export function buildInstance({ id, type, cwd, project = null, shortId = id, role = null, model = null, sessionId = null, onSession = null, compactAt = null, systemPrompt = null, mcpServers = [], provider = null }) {
+export function buildInstance({ id, type, cwd, project = null, shortId = id, role = null, model = null, effort = null, sessionId = null, onSession = null, compactAt = null, systemPrompt = null, mcpServers = [], provider = null }) {
   const base = AGENTS[type];
   if (!base) throw new Error(`unknown type "${type}"; available: ${Object.keys(AGENTS).join(', ')}`);
   if (!cwd || typeof cwd !== 'string') throw new Error('an instance needs a directory (cwd)');
@@ -19,6 +19,7 @@ export function buildInstance({ id, type, cwd, project = null, shortId = id, rol
     ...base,
     type,
     model,
+    effort,
     sessionId,
     onSession,
     compactAt,
@@ -46,6 +47,7 @@ export function listInstances() {
     shortId: a.shortId,
     role: a.role,
     preferModel: a.preferModel,
+    preferEffort: a.preferEffort,
     preferSession: a.preferSession,
     lastActive: a.lastActive,
     type: a.type,

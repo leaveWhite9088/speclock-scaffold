@@ -106,6 +106,7 @@ const routes = [
   ['POST', '/api/projects', ({ body }) => call('project.create', body)],
   ['DELETE', '/api/projects/:id', ({ params, query }) => call('project.remove', { project: params.id, force: query.force === '1' })],
   ['POST', '/api/projects/:id/stop', ({ params, body }) => call('project.stop', { project: params.id, force: body.force === true })],
+  ['GET', '/api/effort', ({ query }) => call('project.effort', { type: query.type, model: query.model || undefined, refresh: query.refresh === '1' })],
   ['GET', '/api/models', ({ query }) => call('project.models', { type: query.type, refresh: query.refresh === '1' })],
   [
     'GET',
@@ -117,7 +118,7 @@ const routes = [
   [
     'PATCH',
     '/api/projects/:id/instances/:iid',
-    ({ params, body }) => call('project.updateInstance', { project: params.id, id: params.iid, role: body.role, model: body.model, name: body.name, dir: body.dir, compactAt: body.compactAt, template: body.template, mcpServers: body.mcpServers, provider: body.provider, spec: body.spec }),
+    ({ params, body }) => call('project.updateInstance', { project: params.id, id: params.iid, role: body.role, model: body.model, name: body.name, dir: body.dir, compactAt: body.compactAt, template: body.template, mcpServers: body.mcpServers, provider: body.provider, spec: body.spec, effort: body.effort }),
   ],
   ['GET', '/api/handoffs', ({ query }) => call('handoff.list', { project: query.project })],
   ['POST', '/api/handoffs/:id/generate', ({ params }) => call('handoff.generate', { id: params.id })],

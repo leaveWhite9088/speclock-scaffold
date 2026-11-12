@@ -333,6 +333,12 @@ export class AcpClient {
   currentModel() {
     return this.sessions.currentModel();
   }
+  chooseEffort(value) {
+    return this.sessions.chooseEffort(value);
+  }
+  get preferEffort() {
+    return this.sessions.preferEffort;
+  }
   chooseModel(value) {
     return this.sessions.chooseModel(value);
   }
