@@ -42,7 +42,7 @@ check('no templates to begin with', T.listTemplates().length === 0);
 const saved = T.saveTemplate({ id: 'spec-x', name: 'spec-x', role: 'writes specs\nand contracts', dir: '', type: 'pi', model: '', prompt: '## Rules\n\n1. be exact\n\n<!-- a note for editors -->\n2. keep: colons: fine' });
 check('it is saved and read back', saved.id === 'spec-x' && saved.role === 'writes specs and contracts' && saved.type === 'pi' && saved.dir === '.', JSON.stringify(saved).slice(0, 120));
 const file = readFileSync(join(tmp, 'templates', 'spec-x.md'), 'utf8');
-check('as a markdown file with a header', file.startsWith('---\nname: spec-x\nrole: writes specs and contracts\ndir: .\ntype: pi\nmodel: \n---\n') && file.includes('2. keep: colons: fine'));
+check('as a markdown file with a header', file.startsWith('---\nname: spec-x\nrole: writes specs and contracts\ndir: .\ntype: pi\nmodel: \nspec: \n---\n') && file.includes('2. keep: colons: fine'));
 check('the prompt keeps its colons and comments when read back for editing', T.getTemplate('spec-x').prompt.includes('<!-- a note for editors -->') && T.getTemplate('spec-x').prompt.includes('keep: colons: fine'));
 fails(() => T.saveTemplate({ id: '../../evil', prompt: 'x' }), /template id/, 'an id that is not a plain name is refused');
 fails(() => T.saveTemplate({ id: 'a b', prompt: 'x' }), /template id/, 'an id with a space is refused');
@@ -107,7 +107,7 @@ try {
   s.close();
 }
 const s2 = await Scheduler.open();
-check('the test template is gone from the daemon, the real ones are still there', (await s2.c.call('template.list')).templates.every((x) => !x.id.startsWith('zz-test-')) && existsSync(join(process.cwd(), 'contexts', 'templates', 'spec-agent.md')));
+check('the test template is gone from the daemon, the real ones are still there', (await s2.c.call('template.list')).templates.every((x) => !x.id.startsWith('zz-test-')) && existsSync(join(process.cwd(), 'contexts', 'templates', 'tester.md')));
 s2.close();
 
 console.log(process.exitCode ? '\n=> ✗ TEMPLATES BROKEN' : '\n=> ✓ TEMPLATES OK');
