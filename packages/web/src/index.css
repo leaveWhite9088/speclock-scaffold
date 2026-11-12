@@ -18,14 +18,26 @@
   --ok: #3f8f5b;
   --bubble: #f0eee6;
   --code: #f0eee6;
-  --mcode: #6d56e0;
-  --dsh: #2a74e8;
-  --pi: #1f9255;
-  --opencode: #0e8a8a;
-  --claude: #c2570c;
-  --codex: #4b5563;
-  --other: #707887;
-  --chip-ink: #ffffff;
+  /* Tinted blocks: a quiet green for what worked, a quiet red for what did not (code blocks, tool output, errors). */
+  --ok-bg: #e7efe2;
+  --ok-line: #d0e0c8;
+  --bad-bg: #f5e4de;
+  --bad-line: #ebcdc3;
+  /* The CLI chips: one macaron per CLI, a pale fill with a deeper tone of the same colour for the letters. */
+  --mcode-bg: #e5ddf3;
+  --mcode-ink: #5d4b8c;
+  --dsh-bg: #dae7f4;
+  --dsh-ink: #3c618c;
+  --pi-bg: #dbe9d5;
+  --pi-ink: #4b7549;
+  --opencode-bg: #d4e9e4;
+  --opencode-ink: #3d706a;
+  --claude-bg: #f6e0cf;
+  --claude-ink: #9a5b34;
+  --codex-bg: #e6e3da;
+  --codex-ink: #5e5c54;
+  --other-bg: #e9e6dc;
+  --other-ink: #6b6960;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -44,14 +56,24 @@
     --ok: #6cc08b;
     --bubble: #30302e;
     --code: #30302e;
-    --mcode: #a99bff;
-    --dsh: #78adff;
-    --pi: #62d394;
-    --opencode: #5fd3d0;
-    --claude: #f0a070;
-    --codex: #aeb6c4;
-    --other: #98a0ad;
-    --chip-ink: #101216;
+    --ok-bg: #2c372d;
+    --ok-line: #3a4a3b;
+    --bad-bg: #3c2d2a;
+    --bad-line: #523f3a;
+    --mcode-bg: #3b3450;
+    --mcode-ink: #cdc1ee;
+    --dsh-bg: #2f3d50;
+    --dsh-ink: #aac7e8;
+    --pi-bg: #33432f;
+    --pi-ink: #bad9b2;
+    --opencode-bg: #2c4441;
+    --opencode-ink: #a9d4cd;
+    --claude-bg: #4b392c;
+    --claude-ink: #f0c5a7;
+    --codex-bg: #3a3935;
+    --codex-ink: #cac7bc;
+    --other-bg: #3a3936;
+    --other-ink: #b1aea4;
   }
 }
 
@@ -85,14 +107,10 @@
   --color-ok: var(--ok);
   --color-bubble: var(--bubble);
   --color-code: var(--code);
-  --color-mcode: var(--mcode);
-  --color-dsh: var(--dsh);
-  --color-pi: var(--pi);
-  --color-opencode: var(--opencode);
-  --color-claude: var(--claude);
-  --color-codex: var(--codex);
-  --color-other: var(--other);
-  --color-chip-ink: var(--chip-ink);
+  --color-ok-bg: var(--ok-bg);
+  --color-ok-line: var(--ok-line);
+  --color-bad-bg: var(--bad-bg);
+  --color-bad-line: var(--bad-line);
   --font-sans: 'Segoe UI Variable Text', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei UI', system-ui, sans-serif;
   --font-mono: 'Cascadia Code', 'Cascadia Mono', 'SF Mono', Consolas, monospace;
   --radius-sm: 6px;
@@ -121,6 +139,19 @@
   .surface { @apply rounded-lg border border-line bg-raised shadow-pop; }
   /* A bordered block on the page: a list entry, a provider, a template. */
   .card { @apply rounded-md border border-line bg-raised; }
+  /* The CLI chip's name half: the CLI's macaron, set by data-cli. */
+  .cli-chip { background: var(--other-bg); color: var(--other-ink); }
+  .cli-chip[data-cli='mcode'] { background: var(--mcode-bg); color: var(--mcode-ink); }
+  .cli-chip[data-cli='dsh'] { background: var(--dsh-bg); color: var(--dsh-ink); }
+  .cli-chip[data-cli='pi'] { background: var(--pi-bg); color: var(--pi-ink); }
+  .cli-chip[data-cli='opencode'] { background: var(--opencode-bg); color: var(--opencode-ink); }
+  .cli-chip[data-cli='claude'] { background: var(--claude-bg); color: var(--claude-ink); }
+  .cli-chip[data-cli='codex'] { background: var(--codex-bg); color: var(--codex-ink); }
+  /* A block of text or code set off from the page, like the code blocks of the old Claude desktop: neutral by default, tinted
+     green (.ok) or red (.bad) when it is a result that worked or one that did not. The letters stay dark: only the ground changes. */
+  .tint-block { @apply m-0 max-h-64 overflow-auto rounded-md border border-line bg-code px-3 py-2 font-mono text-xs leading-[1.55] wrap-anywhere whitespace-pre-wrap text-ink-2; }
+  .tint-block.ok { @apply border-ok-line bg-ok-bg; }
+  .tint-block.bad { @apply border-bad-line bg-bad-bg; }
   .menu-item { @apply flex w-full flex-col items-start rounded-sm px-2.5 py-1.5 text-left hover:bg-hover aria-selected:bg-hover aria-selected:font-semibold; }
 }
 
@@ -139,7 +170,7 @@
 .md li::marker { color: var(--muted); }
 .md a { color: var(--accent); text-underline-offset: 3px; text-decoration-line: underline; text-decoration-thickness: 1px; }
 .md code { font-family: var(--font-mono); background: var(--code); padding: 1px 5px; border-radius: var(--radius-sm); font-size: 0.86em; }
-.md pre { margin: 0 0 0.65em; background: var(--code); border-radius: var(--radius-md); padding: 9px 13px; overflow-x: auto; font-size: 12.5px; line-height: 1.55; }
+.md pre { margin: 0 0 0.65em; background: var(--code); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 9px 13px; overflow-x: auto; font-size: 12.5px; line-height: 1.55; }
 .md pre code { background: none; padding: 0; font-size: inherit; }
 .md blockquote { margin: 0 0 0.55em; padding: 0 0 0 12px; border-left: 2px solid var(--line-2); color: var(--muted); }
 .md hr { border: 0; border-top: 1px solid var(--line); margin: 0.9em 0; }

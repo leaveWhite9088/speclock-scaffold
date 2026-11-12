@@ -71,7 +71,7 @@ function ToolLine({ tool }: { tool: Tool }) {
           <ChevronRight className="size-2.5 shrink-0 translate-y-px group-open/line:rotate-90" />
           {head}
         </summary>
-        <pre className="mt-0.5 mr-0 mb-1.5 ml-4 max-h-64 overflow-auto rounded-md bg-code px-3 py-2 font-mono text-xs leading-[1.55] wrap-anywhere whitespace-pre-wrap text-ink-2">{tool.detail}</pre>
+        <pre className={cn('tint-block mt-0.5 mb-1.5 ml-4', tool.state === 'fail' ? 'bad' : tool.state === 'done' && tool.result !== false ? 'ok' : '')}>{tool.detail}</pre>
       </details>
     </li>
   );

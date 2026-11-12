@@ -88,7 +88,7 @@ export function DispatchLine({ item, queued = false, onCancel }: { item: Dispatc
       <div className="mt-0.5 ml-4 grid gap-1.5 border-l border-line-2 pl-2.5">
         <div>
           <div className="text-[11.5px]">任务</div>
-          <pre className="m-0 max-h-40 overflow-auto rounded-md bg-code px-3 py-2 font-mono text-xs leading-[1.55] wrap-anywhere whitespace-pre-wrap text-ink-2">{item.prompt}</pre>
+          <pre className="tint-block max-h-40">{item.prompt}</pre>
         </div>
         {lost ? (
           <div className="text-danger">服务中途停止了，这个任务没有返回结果。执行者可能已经做了一部分，请先检查文件，再决定要不要重发。</div>
@@ -96,7 +96,7 @@ export function DispatchLine({ item, queued = false, onCancel }: { item: Dispatc
         {item.reply ? (
           <div>
             <div className="text-[11.5px]">{item.state === 'fail' ? '失败原因' : '回复'}</div>
-            <pre className={cn('m-0 max-h-64 overflow-auto rounded-md bg-code px-3 py-2 font-mono text-xs leading-[1.55] wrap-anywhere whitespace-pre-wrap text-ink-2', item.state === 'fail' && 'text-danger')}>{item.reply}</pre>
+            <pre className={cn('tint-block', item.state === 'fail' ? 'bad' : 'ok')}>{item.reply}</pre>
           </div>
         ) : null}
       </div>
