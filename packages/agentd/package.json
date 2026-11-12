@@ -67,7 +67,10 @@
     "test:block-sessions": "node test/live/block-sessions-test.mjs",
     "test:executors-live": "node test/live/executors-live-test.mjs",
     "test:dispatcher-live": "node test/live/dispatcher-live-test.mjs",
-    "test:stop-guard": "node test/live/stop-guard-test.mjs"
+    "test:stop-guard": "node test/live/stop-guard-test.mjs",
+    "test:reports": "node test/unit/reports-test.mjs",
+    "test:dispatcher-report": "node test/live/dispatcher-test.mjs --prompt",
+    "test:reports-live": "node test/live/reports-live-test.mjs",
   },
   "dependencies": {
     "@speclock-scaffold/drivers": "*"

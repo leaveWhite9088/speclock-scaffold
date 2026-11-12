@@ -10,7 +10,8 @@
  *   3. setModel round trip with a model pi lists
  *   4. an invalid model value is rejected
  *   5. dispatcher.customModels masks keys
- *   6. (--prompt) a prompt reaches agent_run and finishes
+ *   6. (--prompt) a prompt reaches agent_run and finishes; the task is sent without waiting, so its answer comes back later
+ *      as a report message that starts a turn of its own, and the dispatcher answers it
  *
  * Usage: node test/live/dispatcher-test.mjs [--prompt]
  */
@@ -77,6 +78,18 @@ if (WITH_PROMPT) {
   off();
   check('dispatcher finished the turn', Boolean(done));
   check('dispatcher called agent_run', tools.includes('agent_run'), tools.join(', '));
+  // Sent without waiting: the executor's answer arrives as a message of its own (daemon/reports.mjs).
+  const textOf = (c) => (typeof c === 'string' ? c : (c ?? []).map((x) => x.text ?? '').join('\n'));
+  let report = null;
+  for (let i = 0; i < 90 && !report; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    report = (await call('dispatcher.messages')).messages.find((m) => m.role === 'user' && textOf(m.content).startsWith('【执行者回报】'));
+  }
+  check('the answer came back as a report message', Boolean(report), report ? textOf(report.content).slice(0, 80).replace(/\s+/g, ' ') : 'none within 3 min');
+  check('the report carries what the executor said', /DISPATCHED/i.test(textOf(report?.content)));
+  for (let i = 0; i < 60 && (await call('dispatcher.state')).isStreaming; i++) await new Promise((r) => setTimeout(r, 2000));
+  const after = (await call('dispatcher.messages')).messages;
+  check('the dispatcher answered the report', after.at(-1)?.role === 'assistant', after.at(-1)?.role);
   const msgs = await call('dispatcher.messages');
   check('history is readable', msgs.messages.length >= 2, `${msgs.messages.length} messages`);
   const st2 = await call('dispatcher.state');

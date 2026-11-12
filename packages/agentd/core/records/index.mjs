@@ -3,4 +3,5 @@
 export { forgetProject } from './forget.mjs';
 export { clearInterrupted, interruptedOf, journalEnd, journalStart, reconcileJournal } from './journal.mjs';
 export { endRun, planRun, recordRun } from './tasks.mjs';
+export { fitReply } from './reply.mjs';
 export { appendEntry, findJobSession, readTranscript } from './transcripts.mjs';

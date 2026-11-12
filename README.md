@@ -115,7 +115,7 @@ daemon 由客户端按需拉起，不需要手动起服务。
 
 | 工具 | 用途 | 关键参数 |
 | --- | --- | --- |
-| `agent_run` | 发 prompt 给某个 agent | `agent`、`prompt`、`sessionId`、`model`、`reset`、`timeout` |
+| `agent_run` | 发 prompt 给某个 agent。默认不等结果：立刻返回，答案之后以「【执行者回报】」消息回到调度器；`wait: true` 才在本轮里等 | `agent`、`prompt`、`wait`、`model`、`timeout`、`retry_of` |
 | `agent_sessions` | 列会话（标签 / 标题 / cwd / 时间），`*` 标活跃 | `agent`、`limit` |
 | `agent_session_new` | 给一个执行者开新会话并命名（一个会话对应一个模块 block），随即成为活跃会话 | `agent`、`label` |
 | `agent_session_use` | 切到已有会话，按名字（模块名）或会话 id | `agent`、`session` |

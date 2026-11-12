@@ -485,6 +485,17 @@ function compact(rec) {
     return { type: 'message_update', kind: ev?.type ?? null };
   }
   const size = JSON.stringify(rec).length;
-  if (size > MAX_EVENT_BYTES) return { type: rec.type, truncated: true, bytes: size };
+  if (size > MAX_EVENT_BYTES) {
+    // A tool's end is how a page learns that a task came back: keep who, whether it failed and the start of the text,
+    // so a long reply does not leave the dispatch showing "in progress" until the whole turn is over.
+    if (rec.type === 'tool_execution_end') {
+      const parts = Array.isArray(rec.result?.content) ? rec.result.content : [];
+      const text = parts.map((c) => (c?.type === 'text' ? String(c.text ?? '') : '')).join('\n').slice(0, 6000);
+      const d = rec.result?.details;
+      const details = d && typeof d === 'object' ? Object.fromEntries(Object.entries(d).filter(([, v]) => typeof v !== 'object' && String(v).length < 300)) : undefined;
+      return { type: rec.type, toolCallId: rec.toolCallId, toolName: rec.toolName, isError: rec.isError, truncated: true, bytes: size, result: { content: [{ type: 'text', text }], details } };
+    }
+    return { type: rec.type, truncated: true, bytes: size };
+  }
   return rec;
 }

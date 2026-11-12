@@ -12,6 +12,7 @@ import { createHandoffs } from '../core/projects/index.mjs';
 import * as projects from '../core/projects/index.mjs';
 import { allocEvent, publish, publishEphemeral, publishLive } from './events.mjs';
 
+import { dispatcherSettled, wireReports } from './reports.mjs';
 const log = (...a) => process.stderr.write(`[agentd] ${a.join(' ')}\n`);
 
 // ---------------------------------------------------------------------------
@@ -50,7 +51,10 @@ export function getDispatcher(project) {
     cwd: projects.projectRoot(project),
     project,
     sessionDir: projectPath(project, 'dispatcher-sessions'),
-    onEvent: (ev) => publishLive('dispatcher.event', { project, data: ev }),
+    onEvent: (ev) => {
+      publishLive('dispatcher.event', { project, data: ev });
+      if (ev.type === 'agent_settled') dispatcherSettled(project); // reports that ended meanwhile are delivered now
+    },
     compactAt: projects.dispatcherCompactAt(project),
     provider: () => projects.dispatcherProvider(project),
   });
@@ -78,6 +82,8 @@ export function getDispatcher(project) {
 export const anyDispatcherBusy = () => [...dispatchers.values()].some((d) => d.busy);
 
 /** Dispatchers that are running now get a restart after models.json changed. */
+wireReports(getDispatcher);
+
 export async function restartRunningDispatchers() {
   const out = [];
   for (const [key, d] of dispatchers) {

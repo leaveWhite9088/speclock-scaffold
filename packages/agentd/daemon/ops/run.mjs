@@ -9,12 +9,13 @@ import { endRun, planRun, recordRun } from '../../core/records/index.mjs';
 import { noteRunOutcome } from '../dispatchers.mjs';
 import { allocEvent, publish, subscribe } from '../events.mjs';
 import { appendReceipt } from '../receipts.mjs';
+import { expectReport, settleReport } from '../reports.mjs';
 
 /** @param {{ protocol: number, startedAt: string, idleInstanceMs: number }} ctx */
 export function runOps(ctx) {
   return {
     run: async (
-      { agent, prompt, cwd, timeoutMs, reset, sessionId, model, async: isAsync, subscribe: wantSub, retryOf, caller },
+      { agent, prompt, cwd, timeoutMs, reset, sessionId, model, async: isAsync, subscribe: wantSub, retryOf, caller, report },
       sock,
     ) => {
       const a = getAgent(agent);
@@ -29,6 +30,10 @@ export function runOps(ctx) {
       // between the caller receiving the jobId and its separate subscribe call,
       // and the `done` event would be broadcast to nobody.
       if (wantSub && sock) subscribe(sock, started.jobId);
+
+      // Sent without waiting: the answer goes to the dispatcher as a message of its own when it comes (reports.mjs).
+      const reporting = Boolean(report) && caller === 'dispatcher' && Boolean(a.project);
+      if (reporting) expectReport({ project: a.project, jobId: started.jobId, agent: a.name, prompt, ...task });
 
       task.queued = started.ahead > 0;
       task.ahead = started.ahead;
@@ -66,6 +71,21 @@ export function runOps(ctx) {
         publish(ev);
         const failed = (!!error || !!result?.metrics?.error) && error?.metrics?.outcome !== 'cancelled';
         noteRunOutcome(a, failed, error?.message ?? result?.metrics?.error ?? '');
+        if (reporting) {
+          const m = error ? error.metrics : result?.metrics;
+          const cancelled = m?.outcome === 'cancelled' || result?.stopReason === 'cancelled';
+          const message = error?.message ?? result?.metrics?.error ?? null;
+          settleReport({
+            project: a.project,
+            jobId: started.jobId,
+            outcome: cancelled ? 'cancelled' : message ? 'failed' : 'done',
+            text: result?.text ?? '',
+            error: message,
+            source: m?.failureSource ?? null,
+            tookMs: m?.durationMs ?? m?.totalMs ?? null,
+            sessionId: result?.sessionId ?? error?.sessionId ?? null,
+          });
+        }
         return ev;
       };
 

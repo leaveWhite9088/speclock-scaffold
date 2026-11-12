@@ -150,6 +150,7 @@ packages/agentd/
 | `events.mjs` | 事件身份（epoch/seq）、环形缓冲、投递 |
 | `guard.mjs` | 谁能调哪些操作（调度器的限制）、项目内名字解析 |
 | `receipts.mjs` | 回执（每个项目一份 `receipts.jsonl`） |
+| `reports.mjs` | 回报：调度器不等结果派出的任务，结束后把答案作为一条「【执行者回报】」消息交给调度器（落盘在 `projects/<项目>/reports.json`，同时结束的合成一条，调度器正在一轮里时不插队，重启后补发，在途的报为被中断） |
 | `data-layout.mjs` | 启动时把旧的平铺数据目录移进下面的四个文件夹 |
 
 ### 扩展与适配器
@@ -399,6 +400,7 @@ slow_run                                           → info
 回执在任务**结束**时才写，所以守护进程在任务运行中被重启或崩溃，原本不会留下任何痕迹。
 做法是先记下来，重启后对账（思路同预写日志）：
 
+- **派活默认异步**：`agent_run` 不带 `wait` 时，扩展只调 `run`（`async: true, report: true`）就返回，调度器这一轮可以结束；任务由 agentd 跟着，结束时 `daemon/reports.mjs` 把答案作为一条用户消息交给调度器，开新的一轮。带 `wait: true` 才在本轮里等。人取消的任务只列在下一条回报里，不单独叫醒调度器。
 - `core/records/journal.mjs` 把每个任务交出去时记一条 `start`，结束时记一条 `end`（`data/projects/<项目>/journal.jsonl`，追加式）。
 - 守护进程启动时读一遍：有 `start` 没有 `end` 的就是上一个进程没做完的（排队中或运行中），
   补写一条 `interrupted` 回执，发 `job.interrupted` 事件，然后清空日志，每个任务只报一次。

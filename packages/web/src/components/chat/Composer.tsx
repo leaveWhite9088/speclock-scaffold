@@ -1,6 +1,7 @@
 import { ArrowUp, Square } from 'lucide-react';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { toast } from '@/components/ui/toast';
 import { api, enc, pq } from '@/lib/api';
 import { DISPATCHER, useUi } from '@/store';
@@ -13,6 +14,7 @@ interface Props {
 
 export function Composer({ placeholder, busy, onSend }: Props) {
   const [text, setText] = useState('');
+  const [stopping, setStopping] = useState(false);
   const box = useRef<HTMLTextAreaElement>(null);
   const project = useUi((s) => s.project);
   const sel = useUi((s) => s.sel);
@@ -37,10 +39,14 @@ export function Composer({ placeholder, busy, onSend }: Props) {
   };
 
   const abort = async () => {
+    if (stopping) return;
+    setStopping(true);
     try {
       await (sel === DISPATCHER ? api('POST', `/api/dispatcher/abort${pq(project)}`) : api('POST', `/api/agents/${enc(sel)}/cancel`));
     } catch (e) {
       toast((e as Error).message);
+    } finally {
+      setStopping(false);
     }
   };
 
@@ -68,8 +74,8 @@ export function Composer({ placeholder, busy, onSend }: Props) {
         className="max-h-[220px] min-h-8 flex-1 resize-none bg-transparent py-1.5 leading-[1.55] outline-none placeholder:text-muted"
       />
       {busy ? (
-        <Button size="none" className="size-8 bg-line text-ink hover:bg-line-2" title="中断" aria-label="中断" onClick={() => void abort()}>
-          <Square className="size-3.5 fill-current" />
+        <Button size="none" className="size-8 bg-line text-ink hover:bg-line-2" title="中断" aria-label="中断" disabled={stopping} onClick={() => void abort()}>
+          {stopping ? <Spinner /> : <Square className="size-3.5 fill-current" />}
         </Button>
       ) : null}
       <Button type="submit" variant="primary" size="none" className="size-8 disabled:opacity-20" title="发送" aria-label="发送" disabled={!text.trim()}>

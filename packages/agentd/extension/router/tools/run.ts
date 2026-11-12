@@ -1,4 +1,4 @@
-/** `agent_run`: give an executor a task and wait for its answer. */
+/** `agent_run`: give an executor a task. By default it is sent and the turn goes on; the answer comes back later as a report message. With `wait` it waits for the answer. */
 
 import { Type } from "@earendil-works/pi-ai";
 import { defineTool } from "@earendil-works/pi-coding-agent";
@@ -12,13 +12,16 @@ export const runTool = defineTool({
 	name: "agent_run",
 	label: "Agent run",
 	description:
-		"Send a prompt to a resident coding agent (mcode, dsh, pi, opencode, claude or codex) and get its answer. " +
+		"Send a prompt to a resident coding agent (mcode, dsh, pi, opencode, claude or codex). " +
+		"By default the task is sent and this call returns at once: the agent works in the background, and its answer arrives later as a new message starting with 【执行者回报】, which you then check and report on. Do not wait, poll or invent a result in the meantime; tell the user the task was sent and end your turn. Send several tasks to different agents in one turn when they do not depend on each other. " +
+		"Only when you cannot go on without the answer inside this turn (it is short, and the next step needs it), set wait to true. " +
 		"Call agent_instances first: each instance has a role that says what it is for. " +
 		"The agent process stays alive between calls; follow-ups reuse the conversation the agent is in now: switch or open the right one first with agent_session_use / agent_session_new. The directory of an executor is fixed by the user. " +
 		"Progress streams into the transcript while it runs. A long reply comes back as its start and end, with the path of a file holding the full text.",
 	parameters: Type.Object({
 		prompt: Type.String({ description: "Task or question for the agent." }),
 		agent: agentParam,
+		wait: Type.Optional(Type.Boolean({ description: "Wait for the answer in this turn instead of getting it later as a report. Default false." })),
 		model: Type.Optional(
 			Type.String({ description: "Model value from agent_models to apply first." }),
 		),
@@ -36,6 +39,15 @@ export const runTool = defineTool({
 		const c = await daemon();
 		const agent = params.agent ?? "mcode";
 		const timeoutMs = parseDuration(params.timeout ?? "5m");
+		if (!params.wait) {
+			// The daemon keeps the task and delivers the answer to this dispatcher when it ends (daemon/reports.mjs).
+			const sent = await c.call("run", { agent, prompt: params.prompt, model: params.model, timeoutMs, retryOf: params.retry_of, async: true, report: true });
+			const where = sent.queued ? ` It waits behind ${sent.ahead} other task(s) of that agent.` : "";
+			return {
+				content: [{ type: "text", text: `Sent to ${agent}; it works in the background.${where} The answer will arrive as a message starting with 【执行者回报】. Tell the user it was sent and end your turn; do not wait or guess the result.\n${taskTag(sent)}` }],
+				details: { agent, background: true, jobId: sent.jobId, taskId: sent.taskId, attempt: sent.attempt, maxAttempts: sent.maxAttempts, queued: Boolean(sent.queued), ahead: sent.ahead ?? 0 },
+			};
+		}
 		const started = await c.call("run", {
 			agent,
 			prompt: params.prompt,
@@ -79,9 +91,16 @@ export const runTool = defineTool({
 			const deadline = Date.now() + 3 * 60 * 60_000;
 			while (!result) {
 				let ev: any = null;
+				// Stopped by the person: leave at once. The cancel to the executor was sent by onAbort and finishes on its own
+				// (up to the grace period); waiting for it here kept the stop button hanging that long.
+				if (signal?.aborted) throw new Error(`stopped: ${agent} was asked to cancel this task`);
 				try {
-					ev = await c.waitFor("job.done", (e: any) => e.jobId === started.jobId, 15_000);
+					ev = await Promise.race([
+						c.waitFor("job.done", (e: any) => e.jobId === started.jobId, 15_000),
+						new Promise<never>((_, reject) => signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true })),
+					]);
 				} catch {
+					if (signal?.aborted) throw new Error(`stopped: ${agent} was asked to cancel this task`);
 					const snap = await c.call("tail", { agent, jobId: started.jobId }).catch(() => null);
 					if (snap && !snap.running) {
 						if (snap.metrics?.error) throw failure(snap.metrics.error, snap.metrics.failureSource);

@@ -204,5 +204,7 @@ export type Item =
   /** The reasoning an executor wrote before answering. */
   | { id: string; kind: 'thought'; text: string; chars?: number; live?: boolean }
   /** A task the dispatcher handed to an executor (its agent_run call and result as one line). */
-  | { id: string; kind: 'dispatch'; agent: string; prompt: string; state: 'run' | 'done' | 'fail'; toolCallId?: string; attempt?: number; maxAttempts?: number; reply?: string; startedAt?: number; tookMs?: number; queued?: boolean; ahead?: number }
+  | { id: string; kind: 'dispatch'; agent: string; prompt: string; state: 'run' | 'done' | 'fail'; /** sent without waiting: its answer comes later, as a report */ bg?: boolean; jobId?: string; cancelled?: boolean; toolCallId?: string; attempt?: number; maxAttempts?: number; reply?: string; startedAt?: number; tookMs?: number; queued?: boolean; ahead?: number }
+  /** The answers of tasks sent without waiting, which reached the dispatcher as a message of their own. */
+  | { id: string; kind: 'report'; text: string; heads: string[]; at?: number }
   | { id: string; kind: 'tool'; name: string; detail: string; result: boolean; toolCallId?: string; state?: 'run' | 'done' | 'fail'; startedAt?: number; endedAt?: number };

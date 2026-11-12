@@ -1,4 +1,6 @@
 import { ChevronRight, X } from 'lucide-react';
+import { toast } from '@/components/ui/toast';
+import { api, enc } from '@/lib/api';
 import { useProject } from '@/hooks/queries';
 import { runLabel, useActivity } from '@/hooks/useActivity';
 import { useUi } from '@/store';
@@ -18,10 +20,22 @@ export function DispatchLine({ item, queued = false, onCancel }: { item: Dispatc
   const dispatcher = useProject()?.dispatcher;
   // A dispatch waits for its result only while the dispatcher is in a turn. If the dispatcher is idle and there is
   // still no result, the daemon stopped meanwhile and the result will never come.
-  const lost = item.state === 'run' && dispatcher != null && !dispatcher.busy;
+  // A task sent without waiting is not tied to a turn: it ends with the executor, and its answer is taken by the dispatcher when that is free.
+  const executor = useProject()?.instances.find((m) => m.id === item.agent);
+  const bg = Boolean(item.bg);
+  const lost = !bg && item.state === 'run' && dispatcher != null && !dispatcher.busy;
   const waiting = item.state === 'run' && (queued || Boolean(item.queued)) && !lost;
   const live = useActivity(item.state === 'run' && !lost && !waiting ? `${project}~${item.agent}` : undefined);
-  const status = live ? runLabel(live) : '进行中…';
+  const finished = bg && item.state === 'run' && executor != null && !executor.busy && !(executor.waiting ?? 0);
+  const status = finished ? '已结束，等调度器接收' : live ? runLabel(live) : '进行中…';
+  const stop = async (e: { preventDefault: () => void }) => {
+    e.preventDefault();
+    try {
+      await api('POST', `/api/agents/${enc(`${project}~${item.agent}`)}/cancel`, { jobId: item.jobId });
+    } catch (err) {
+      toast((err as Error).message);
+    }
+  };
   return (
     <details className="group -my-1 text-[12.5px] text-muted">
       <summary className="flex w-full min-w-0 cursor-pointer list-none items-center gap-1.5 py-0.5 hover:text-ink [&::-webkit-details-marker]:hidden">
@@ -55,7 +69,16 @@ export function DispatchLine({ item, queued = false, onCancel }: { item: Dispatc
             ) : null}
           </>
         ) : item.state === 'run' ? (
-          <span className="shrink-0 text-accent">{status}</span>
+          <>
+            <span className="shrink-0 text-accent">{status}</span>
+            {bg && item.jobId && !finished ? (
+              <button type="button" aria-label="取消这个任务" title="取消这个任务" className="shrink-0 rounded p-0.5 hover:bg-hover hover:text-ink" onClick={(e) => void stop(e)}>
+                <X className="size-3" />
+              </button>
+            ) : null}
+          </>
+        ) : item.cancelled ? (
+          <span className="shrink-0">已取消</span>
         ) : item.state === 'fail' ? (
           <span className="shrink-0 text-danger">失败{item.tookMs != null ? ` · 用时 ${took(item.tookMs)}` : ''}</span>
         ) : item.tookMs != null ? (

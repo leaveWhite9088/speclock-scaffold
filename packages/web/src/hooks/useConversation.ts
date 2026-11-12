@@ -29,9 +29,37 @@ const argOf = (a: unknown) => (a ?? {}) as { agent?: string; prompt?: string };
 /** The task tag the dispatcher tool prints after every result and error: "[task t-1, attempt 2 of 3, job j]". */
 const TAG = /\[task [^,\]]+, attempt (\d+) of (\d+)/;
 
+/** The first line of the message that brings back the answers of tasks sent without waiting (agentd/daemon/reports.mjs). */
+const REPORT_TAG = '【执行者回报】';
+
+const tookOf = (s: string): number | undefined => {
+  const m = /用时 (?:(\d+) 分 )?(\d+) 秒/.exec(s);
+  return m ? (Number(m[1] ?? 0) * 60 + Number(m[2])) * 1000 : undefined;
+};
+
+/** The tasks a report message answers: which job, how it ended, what came back. */
+function parseReport(text: string) {
+  return text
+    .split(/^### /m)
+    .slice(1)
+    .map((sec) => {
+      const lines = sec.split('\n');
+      const head = lines[0] ?? '';
+      const tagAt = lines.findIndex((l) => /^\[task [^\]]*job [^\]]+\]/.test(l));
+      const job = /job ([^\],\s]+)\]/.exec(sec)?.[1];
+      const state: 'done' | 'fail' = head.includes('· 完成') ? 'done' : 'fail';
+      return { job, head, state, cancelled: head.includes('取消'), reply: lines.slice(2, tagAt > 1 ? tagAt : undefined).join('\n').trim(), tookMs: tookOf(head) };
+    })
+    .filter((r) => r.job);
+}
+
 /** A dispatch line once its result is in. */
-function settle(it: Dispatch, text: string, isError: boolean, details?: { attempt?: number; maxAttempts?: number; durationMs?: number }, durationMs?: number): Dispatch {
+function settle(it: Dispatch, text: string, isError: boolean, details?: { attempt?: number; maxAttempts?: number; durationMs?: number; background?: boolean; jobId?: string; queued?: boolean; ahead?: number }, durationMs?: number): Dispatch {
   const tag = TAG.exec(text);
+  // Sent without waiting: the tool only says it went. The line stays open until the answer comes (a live event or the report).
+  if (details?.background && !isError) {
+    return { ...it, bg: true, jobId: details.jobId, attempt: details.attempt ?? it.attempt, maxAttempts: details.maxAttempts ?? it.maxAttempts, queued: details.queued, ahead: details.ahead };
+  }
   return {
     ...it,
     state: isError ? 'fail' : 'done',
@@ -56,8 +84,20 @@ function fromPi(messages: PiMessage[], turns: { at: number; tookMs: number }[], 
   for (const msg of messages) {
     if (msg.role === 'user') {
       closeTurn();
+      const said = textOf(msg.content);
+      if (said.startsWith(REPORT_TAG)) {
+        // Not something the person wrote: the answers of tasks sent earlier. They settle those lines; the dispatcher's turn on them is its own.
+        const rows = parseReport(said);
+        for (const r of rows) {
+          const at = out.findIndex((i) => i.kind === 'dispatch' && i.jobId === r.job);
+          if (at >= 0) out[at] = { ...(out[at] as Dispatch), state: r.state, cancelled: r.cancelled, reply: r.reply.slice(0, 4000), tookMs: r.tookMs ?? (out[at] as Dispatch).tookMs };
+        }
+        out.push({ id: next(), kind: 'report', text: said.slice(REPORT_TAG.length).trim(), heads: rows.map((r) => r.head), at: msg.timestamp });
+        turnTook = turns.find((t) => t.at === msg.timestamp)?.tookMs;
+        continue;
+      }
       turnTook = turns.find((t) => t.at === msg.timestamp)?.tookMs;
-      out.push({ id: next(), kind: 'user', text: textOf(msg.content), at: msg.timestamp });
+      out.push({ id: next(), kind: 'user', text: said, at: msg.timestamp });
     } else if (msg.role === 'assistant') {
       // The model could not answer (wrong address, bad key, quota): say so, with where to look.
       if (msg.stopReason === 'error' && msg.errorMessage) {
@@ -81,7 +121,7 @@ function fromPi(messages: PiMessage[], turns: { at: number; tookMs: number }[], 
   closeTurn();
   // A dispatch with no result that the conversation has moved past never came back (the daemon stopped meanwhile).
   out.forEach((it, i) => {
-    if (it.kind === 'dispatch' && it.state === 'run' && out.slice(i + 1).some((x) => x.kind === 'user')) out[i] = { ...it, state: 'fail', reply: '没有收到结果：执行过程被中断了。' };
+    if (it.kind === 'dispatch' && it.state === 'run' && !it.bg && out.slice(i + 1).some((x) => x.kind === 'user')) out[i] = { ...it, state: 'fail', reply: '没有收到结果：执行过程被中断了。' };
   });
   return out;
 }
@@ -275,6 +315,17 @@ export function useConversation(project: string, sel: string, member: Member | u
         if ((ev.name === 'job.done' || ev.name === 'job.interrupted') && ev.agent === sel && !isDispatcher) {
           putTurn(null);
           return void pull().catch(() => {});
+        }
+        if (ev.name === 'job.done' && isDispatcher && ev.jobId) {
+          // A task sent without waiting came back: its line settles now, before the dispatcher has taken the report.
+          const at = itemsRef.current.findIndex((i) => i.kind === 'dispatch' && i.bg && i.jobId === ev.jobId);
+          if (at >= 0) {
+            const was = itemsRef.current[at] as Dispatch;
+            const outcome = ev.metrics?.outcome ?? ev.result?.metrics?.outcome;
+            itemsRef.current[at] = { ...was, state: ev.error ? 'fail' : 'done', cancelled: outcome === 'cancelled', reply: (ev.error ?? ev.result?.text ?? '').slice(0, 4000), tookMs: ev.result?.metrics?.durationMs ?? ev.metrics?.durationMs ?? was.tookMs, queued: false };
+            commit();
+          }
+          return;
         }
         if (ev.name === 'job.started' && isDispatcher && ev.attempt && ev.agent?.startsWith(`${project}~`)) {
           // The attempt number is known as soon as the run starts: put it on the line that is waiting for it.

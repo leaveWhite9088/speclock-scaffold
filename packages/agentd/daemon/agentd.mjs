@@ -43,6 +43,7 @@ import { readReceipts } from './receipts.mjs';
 import { startServer } from './server.mjs';
 import { recordInterruptedJobs } from './startup.mjs';
 
+import { interruptReports, resumeReports } from './reports.mjs';
 const PIPE_NAME = process.env.AGENTD_PIPE || '\\\\.\\pipe\\pi-agentd';
 const PORT = process.env.AGENTD_PORT ? Number(process.env.AGENTD_PORT) : null;
 const ENDPOINT_FILE = join(DATA_DIR, 'agentd.endpoint.json');
@@ -57,6 +58,7 @@ const startedAt = new Date().toISOString();
 // Tasks the last daemon never finished: record them now, announce them once the socket is up.
 const lostJobs = recordInterruptedJobs();
 
+interruptReports(lostJobs); // a task sent without waiting is reported to its dispatcher as interrupted
 let lifecycle; // started below; the operations only use it after the daemon is up
 const OPS = buildOps({ protocol: PROTOCOL, startedAt, idleInstanceMs: IDLE_INSTANCE_MS, shutdown: (code) => lifecycle.shutdown(code) });
 
@@ -73,6 +75,9 @@ const { stats } = startServer({
     if (lostJobs.length) log(`interrupted by the last shutdown: ${lostJobs.map((j) => `${j.agent}/${j.jobId}`).join(', ')}`);
     log(`listening on ${endpoint} (pid ${process.pid})`);
     log(`executors: ${[...pool.keys()].join(', ') || '(none yet: nothing works until a project has one)'}`);
+    // SpecLock Core serves the executors' MCP tools: bring it up when it has been set up before (not asked for until a person picks a role)
+    if (specs.isSetUp()) specs.ensureRunning().then((url) => log(`SpecLock Core at ${url}`), (err) => log(`SpecLock Core did not start: ${err.message}`));
+    resumeReports(); // answers that came, or were lost, while no one was there to take them
   },
   log,
 });

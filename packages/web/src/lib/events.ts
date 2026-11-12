@@ -16,6 +16,11 @@ export interface LiveEvent {
   /** job.started: it waits behind other prompts of the same executor */
   queued?: boolean;
   ahead?: number;
+  /** job.*: the run, and how it ended */
+  jobId?: string;
+  result?: { text?: string; metrics?: { outcome?: string; durationMs?: number } };
+  error?: string;
+  metrics?: { outcome?: string; durationMs?: number };
   /** job.*: which attempt at its task this run is */
   attempt?: number;
   maxAttempts?: number;
