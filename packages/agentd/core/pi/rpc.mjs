@@ -168,16 +168,16 @@ export class PiRpc {
     });
   }
 
-  /** Resolves at the next `agent_settled`. Rejects after `timeoutMs`, or when pi exits first. */
+  /** Resolves at the next `agent_settled`. Rejects after `timeoutMs` (0: never), or when pi exits first. */
   waitSettled(timeoutMs = 600_000) {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
+      const timer = !timeoutMs ? null : setTimeout(() => {
         const i = this.settledWaiters.indexOf(done);
         if (i >= 0) this.settledWaiters.splice(i, 1);
         reject(new Error(`${this.label} run did not settle within ${timeoutMs}ms`));
       }, timeoutMs);
       const done = (settled) => {
-        clearTimeout(timer);
+        if (timer) clearTimeout(timer);
         if (settled === false) reject(new Error(`${this.label} pi rpc exited before the run settled`));
         else resolve();
       };

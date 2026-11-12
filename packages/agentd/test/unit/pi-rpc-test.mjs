@@ -122,10 +122,17 @@ const sent = (await import('node:fs')).readFileSync(join(dir, 'seen.txt'), 'utf8
 check('the named commands send the right names', ['compact', 'abort', 'new_session', 'switch_session', 'set_model', 'set_thinking_level', 'get_available_models', 'get_available_thinking_levels', 'get_messages'].every((n) => sent.includes(n)), sent.slice(-9).join());
 
 // 6
+// waitSettled(0) has no deadline of its own: it stays pending, and still fails when pi exits
+let open = 'pending';
+const noDeadline = pi.waitSettled(0).then(() => (open = 'settled'), (e) => (open = e.message));
+await new Promise((r) => setTimeout(r, 150));
+check('a wait with no deadline stays pending', open === 'pending', open);
 const waiter = pi.waitSettled(5000).then(() => 'settled', (e) => e.message);
 const pend = pi.command('die', {}, 5000).then(() => 'answered', (e) => e.message);
 check('a command pending when pi exits fails', /pi rpc exited/.test(await pend));
 check('a waiter pending when pi exits fails too', /exited before the run settled/.test(await waiter));
+await noDeadline;
+check('so does one with no deadline', /exited before the run settled/.test(open), open);
 await new Promise((r) => setTimeout(r, 100));
 check('onClose was called with the exit code', closed.join() === '3', closed.join());
 check('and it no longer reports running', pi.running === false && pi.streaming === false);

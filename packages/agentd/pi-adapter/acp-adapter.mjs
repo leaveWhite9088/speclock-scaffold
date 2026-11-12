@@ -410,7 +410,9 @@ async function handle(method, params, id) {
       rpc.eventListeners.push(onEvent);
 
       try {
-        const settled = rpc.waitSettled();
+        // No deadline of its own: how long a task may run is agentd's call (it waits while the agent is active, gives up
+        // after a quiet spell or the overall ceiling, and then sends session/cancel). A fixed 10 minutes here cut off long, busy work.
+        const settled = rpc.waitSettled(0);
         settled.catch(() => {}); // if pi dies before the command is answered, the failure surfaces there, not as an unhandled rejection
         const r = await rpc.command('prompt', { message: text });
         if (r?.disposition !== 'handled') await settled;

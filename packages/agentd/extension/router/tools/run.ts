@@ -25,7 +25,7 @@ export const runTool = defineTool({
 		model: Type.Optional(
 			Type.String({ description: "Model value from agent_models to apply first." }),
 		),
-		timeout: Type.Optional(Type.String({ description: 'Give up after this much silence from the agent, e.g. "30s", "5m". Default "5m". A running tool call (build, long command) is not silence, and the agent keeps going as long as it reports progress.' })),
+		timeout: Type.Optional(Type.String({ description: 'Give up after this much silence from the agent, e.g. "30s", "10m". Default "10m". A running tool call (build, long command) is not silence, and the agent keeps going as long as it reports progress.' })),
 		retry_of: Type.Optional(
 			Type.String({
 				description:
@@ -38,7 +38,7 @@ export const runTool = defineTool({
 	async execute(_toolCallId, params, signal, onUpdate) {
 		const c = await daemon();
 		const agent = params.agent ?? "mcode";
-		const timeoutMs = parseDuration(params.timeout ?? "5m");
+		const timeoutMs = parseDuration(params.timeout ?? "10m");
 		if (!params.wait) {
 			// The daemon keeps the task and delivers the answer to this dispatcher when it ends (daemon/reports.mjs).
 			const sent = await c.call("run", { agent, prompt: params.prompt, model: params.model, timeoutMs, retryOf: params.retry_of, async: true, report: true });
