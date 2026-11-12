@@ -118,6 +118,9 @@ export async function revokeKey(keyId) {
 }
 
 /** For the screen. Never starts anything. */
+/** The project's id inside Core (what Core's own page takes as `?project=`), or null while it has none there yet. Never the key. */
+export const coreProjectId = (projectId) => readProject(projectId).coreProjectId ?? null;
+
 export async function status() {
   const s = installState();
   const up = await health();

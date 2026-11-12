@@ -101,7 +101,7 @@ const routes = [
 
   // Projects. Everything belongs to one: the dispatcher routes need `?project=<id>`, and executors are created under
   // `/api/projects/:id/instances`.
-  ['GET', '/api/specs', () => call('specs.status')],
+  ['GET', '/api/specs', ({ query }) => call('specs.status', { project: query.project })],
   ['GET', '/api/projects', () => call('projects')],
   ['POST', '/api/projects', ({ body }) => call('project.create', body)],
   ['DELETE', '/api/projects/:id', ({ params, query }) => call('project.remove', { project: params.id, force: query.force === '1' })],

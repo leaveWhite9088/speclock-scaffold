@@ -8,7 +8,7 @@ import * as specs from '../../core/specs/index.mjs';
 /** @param {{ protocol: number, startedAt: string, idleInstanceMs: number }} ctx */
 export function specOps(ctx) {
   return {
-    /** Installed, set up, running, version: never starts anything. */
-    'specs.status': () => specs.status(),
+    /** Installed, set up, running, version: never starts anything. With `project`, also that project's id inside Core. */
+    'specs.status': async ({ project } = {}) => ({ ...(await specs.status()), coreProjectId: project ? specs.coreProjectId(project) : null }),
   };
 }
