@@ -1,7 +1,7 @@
 # SpecLock Scaffold
 
 SpecLock 的调度脚手架：在一台机器上调度多个 CLI agent。**一切都依托项目**：先有项目，项目里才有执行者和调度器；没有项目，什么都不工作。
-规格本身（版本、审核单、权限）由独立的 [SpecLock Core](https://github.com/leaveWhite9088/speclock) 负责，本仓库不含 Core 代码。
+规格本身（版本、审核单、权限）由独立的 [SpecLock Core](https://github.com/leaveWhite9088/speclock-core) 负责，本仓库不含 Core 代码。
 
 ```
 看板 ──► 项目的调度器（pi + 扩展） ──►  agentd（常驻单例）  ──ACP──►  项目里的执行者：mcode / dsh / opencode / claude / codex / pi
@@ -90,6 +90,26 @@ backend 只监听 `127.0.0.1`，并拒绝非本机的 Host / 跨站 Origin：它
 
 前置条件：`node` 在 PATH 上；要用的 CLI 已安装；要用规格库的话再需要 `git` 和 `uv`，然后运行一次 `npm run preflight -- core --yes` 下载 Core（脚手架不会自己联网下载）。`npm run preflight` 会告诉你本机装了哪些、版本对不对（见下面「驱动与预检」）。
 daemon 由客户端按需拉起，不需要手动起服务。
+
+### 启动：要开几个服务
+
+日常只手动开两个，各占一个终端：
+
+```powershell
+npm run backend        # 网关；第一次请求时自动拉起 agentd（调度守护进程）
+npm run web            # 看板，浏览器打开 http://127.0.0.1:5234
+```
+
+agentd 和规格库（Core）都不用自己起：agentd 由 backend 拉起；Core 由 agentd 管，第一次给执行者选了「规格角色」时自动初始化并启动（端口 47821，`AGENTD_SPECLOCK_PORT` 可改），之后每次 agentd 启动会自己带起来，agentd 退出时一并停掉。
+Core 自带网页，直接打开 http://127.0.0.1:47821（需要 preflight 建好过网页）。Core 的数据在 `packages/agentd/data/global/.speclock/`，日志 `data/global/specs.log`。
+
+要用规格库，只需一次性准备（装了 `git` 和 `uv` 之后）：
+
+```powershell
+npm run preflight -- core --yes    # 下载 Core，建好它的 Python 环境和网页
+```
+
+不用规格库就什么都不用做，执行者的规格角色选「不接入」即可。
 
 ---
 
@@ -264,7 +284,7 @@ npm run preflight -- install --yes         # 真的装：只装缺的，装进 d
 npm run preflight -- install --yes --pin   # 连版本不一样的也装验证过的那个（脚手架自己的那份优先于全局的）
 npm run preflight -- --type claude,pi      # 只看 / 只装这几个；加 --json 输出机器可读结果，--strict 缺了就退出码 1
 npm run preflight -- core                # 规格库（SpecLock Core）：显示会下载什么，不执行；检查报告里也有它的一行
-npm run preflight -- core --yes          # 真的下载：把验证过的那个提交（公开仓库，不用登录）取到 data/global/tools/speclock-core，再建好它的 Python 环境；需要本机有 git 和 uv
+npm run preflight -- core --yes          # 真的下载：把验证过的那个提交（公开仓库，不用登录）取到 data/global/tools/speclock-core，再建好它的 Python 环境和它的网页（`apps/web/dist`，Core 自己托管）；需要本机有 git、uv 和 npm
 ```
 
 - 安装是**可选**的，而且**从不自己发生**：不加 `--yes` 什么都不做。装的是验证过的固定版本，装进脚手架自己的目录

@@ -166,24 +166,29 @@ check('summarize carries the behaviour per CLI', summarize(drivers, d, {}, rec).
   check('a tool that cannot run counts as missing', haveTool('git', () => ({ status: 0 })) === true && haveTool('uv', () => ({ status: null, error: new Error('ENOENT') })) === false);
 
   // fetching: only the scaffold's own folder, by the commit, then the environment
-  const plan = corePlan({ status: 'missing', dir: null, tools: { git: true, uv: true } });
+  const plan = corePlan({ status: 'missing', dir: null, tools: { git: true, uv: true, npm: true } });
   const fetch = plan.steps.find((s) => s.args.includes('fetch'));
   check('fetching goes into the scaffold’s own folder', plan.dir === ownDir() && plan.dir.endsWith(join('tools', 'speclock-core')));
   check('it fetches the verified commit from the Core repository, shallow', fetch.args.includes(CORE.commit) && fetch.args.includes(CORE.repo) && fetch.args.includes('--depth'));
   const word = (s) => s.args.find((a) => ['init', 'fetch', 'checkout', 'sync'].includes(a));
-  check('it makes the folder, fetches, checks out, then builds the environment', plan.steps.map((s) => `${s.cmd} ${word(s)}`).join(', ') === 'git init, git fetch, git checkout, uv sync', plan.steps.map(word).join());
-  check('a missing tool is named before anything runs', corePlan({ status: 'missing', dir: null, tools: { git: false, uv: true } }).missingTools.join() === 'git');
-  const elsewhere = corePlan({ status: 'ok', dir: named, from: 'next to the repository', tools: { git: true, uv: true } });
-  check('with a Core elsewhere the own copy is still fetched, only into its own folder, and the note says which is used from then on', elsewhere.steps.length === 4 && elsewhere.steps.every((s) => s.args.some((a) => String(a).startsWith(ownDir()))) && /instead of/.test(elsewhere.note) && /left as it is/.test(elsewhere.note));
+  check('it makes the folder, fetches, checks out, then builds the environment', plan.steps.map((s) => `${s.cmd} ${word(s)}`).join(', ') === 'git init, git fetch, git checkout, uv sync, npm undefined, npm undefined', plan.steps.map(word).join());
+  check('and then builds the web page Core serves, in its apps/web folder', plan.steps.slice(-2).map((s) => s.args.join(' ')).join() === 'install --no-audit --no-fund,run build' && plan.steps.slice(-2).every((s) => s.cwd === join(ownDir(), 'apps', 'web')));
+  check('a missing npm is named too', corePlan({ status: 'missing', dir: null, tools: { git: true, uv: true, npm: false } }).missingTools.join() === 'npm');
+  check('a missing tool is named before anything runs', corePlan({ status: 'missing', dir: null, tools: { git: false, uv: true, npm: true } }).missingTools.join() === 'git');
+  const elsewhere = corePlan({ status: 'ok', dir: named, from: 'next to the repository', tools: { git: true, uv: true, npm: true } });
+  check('with a Core elsewhere the own copy is still fetched, only into its own folder, and the note says which is used from then on', elsewhere.steps.length === 6 && elsewhere.steps.every((s) => s.args.some((a) => String(a).startsWith(ownDir())) || String(s.cwd).startsWith(ownDir())) && /instead of/.test(elsewhere.note) && /left as it is/.test(elsewhere.note));
   check('a Core named by AGENTD_SPECLOCK_DIR is said to win over the fetched copy', /AGENTD_SPECLOCK_DIR is set/.test(corePlan({ ...ok, from: 'AGENTD_SPECLOCK_DIR' }).note ?? ''));
   fakeCore(ownDir(), CORE.version, { built: false });
-  check('the scaffold’s own copy without an environment gets only the build', corePlan({ status: 'unbuilt', dir: ownDir(), from: 'scaffold', tools: { git: true, uv: true } }).steps.map((s) => s.cmd).join() === 'uv');
+  check('the scaffold’s own copy without an environment gets the environment and the web page', corePlan({ status: 'unbuilt', dir: ownDir(), from: 'scaffold', tools: { git: true, uv: true, npm: true } }).steps.map((s) => s.cmd).join() === 'uv,npm,npm');
   fakeCore(ownDir(), CORE.version);
-  check('with its own copy built there is nothing to do', corePlan({ status: 'ok', dir: ownDir(), from: 'scaffold', tools: { git: true, uv: true } }).steps.length === 0);
+  check('a built environment without the web page gets only the web build', corePlan({ status: 'ok', dir: ownDir(), from: 'scaffold', tools: { git: true, uv: true, npm: true } }).steps.map((s) => s.cmd).join() === 'npm,npm');
+  mkdirSync(join(ownDir(), 'apps', 'web', 'dist'), { recursive: true });
+  writeFileSync(join(ownDir(), 'apps', 'web', 'dist', 'index.html'), '');
+  check('with its own copy built there is nothing to do', corePlan({ status: 'ok', dir: ownDir(), from: 'scaffold', tools: { git: true, uv: true, npm: true } }).steps.length === 0);
 
   const ran = [];
   const good = runCorePlan(plan, { spawn: (c) => (ran.push(c), { status: 0 }) });
-  check('the steps run in order', good.ok && ran.join() === 'git,git,git,uv');
+  check('the steps run in order', good.ok && ran.join() === 'git,git,git,uv,npm,npm');
   const stopped = [];
   const bad = runCorePlan(plan, { spawn: (c, a) => (stopped.push(c), { status: a.includes('fetch') ? 128 : 0 }) });
   check('a failing step stops the rest and says which', !bad.ok && bad.failed.args.includes('fetch') && stopped.length === 2);

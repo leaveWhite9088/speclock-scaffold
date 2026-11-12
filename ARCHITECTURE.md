@@ -638,7 +638,7 @@ harness 自己能做好的，我们不做。每项状态都必须对应某个 ha
 
 Core 是一个独立的服务，agentd 不改它的代码，只通过它的 REST 和 MCP 用它。**所有项目共用一个 Core 实例**，项目之间由 Core 自己隔离（每把 key 绑定一个 Core 项目）。
 
-- **位置**：Core 的数据在 `data/global/.speclock/`（Core 自己的目录名），超级管理员 key 在 `data/global/specs.json`，只有 agentd 读；每个项目在 Core 里的 id 和项目管理员 key 在 `data/projects/<id>/specs.json`。Core 的代码按这个顺序找，第一个存在的就用：`AGENTD_SPECLOCK_DIR` 或 `agentd.config.json` 的 `speclock.dir`；`npm run preflight -- core --yes` 下载到 `data/global/tools/speclock-core` 的那份（固定在验证过的提交，Core 目前没有发布标签）；仓库旁边的 `speclock-core/`（开发 Core 的人自己的目录）。每次用到时重新找，所以下载完不用重启。下载是显式命令，需要 `git` 和 `uv`，脚手架不会自己联网；只对自己下载的那份建环境，别处的目录从不动。找不到时报错会写明去哪里找过、怎么下载。它用自己的 `.venv`（缺则 `uv sync` 建好）。
+- **位置**：Core 的数据在 `data/global/.speclock/`（Core 自己的目录名），超级管理员 key 在 `data/global/specs.json`，只有 agentd 读；每个项目在 Core 里的 id 和项目管理员 key 在 `data/projects/<id>/specs.json`。Core 的代码按这个顺序找，第一个存在的就用：`AGENTD_SPECLOCK_DIR` 或 `agentd.config.json` 的 `speclock.dir`；`npm run preflight -- core --yes` 下载到 `data/global/tools/speclock-core` 的那份（固定在验证过的提交，Core 目前没有发布标签）；仓库旁边的 `speclock-core/`（开发 Core 的人自己的目录）。每次用到时重新找，所以下载完不用重启。下载是显式命令，需要 `git` 和 `uv`，脚手架不会自己联网；只对自己下载的那份建环境，别处的目录从不动。找不到时报错会写明去哪里找过、怎么下载。它用自己的 `.venv`（缺则 `uv sync` 建好）。Core 的网页由它自己托管，要先构建（`apps/web/dist`）；`preflight core --yes` 下载时一并构建，已下载但缺网页时再运行同一条命令只补网页（需要 npm）。Core 在启动时才看有没有网页，构建完要重启一次 Core（重启 agentd）才生效。
 - **生命周期**：第一次有人给执行者选了规格角色时才初始化、启动；之后每次 daemon 启动自动带起，daemon 退出时一起停。端口默认 47821（`AGENTD_SPECLOCK_PORT`）。
 - **角色**：执行者创建或编辑时单独选「规格角色」（需求 / 执行 / 测试 / 扫描 / 不接入），和模板无关：模板决定它怎么干活，角色决定它在规格库里能做什么。选了之后 agentd 用超级管理员 key 在 Core 里（需要时先建项目）给它建一把**绑定本项目**的 key，Core 把 key 存成自己目录里的文件；执行者拿到的 MCP 配置里只有文件名，不经过任何模型。换角色换 key，删执行者吊销 key。
 - **提示词**：`contexts/spec/` 里是脚手架自己写的规格库提示词（通用部分 + 四个角色），拼在执行者的规则后面。它们是按脚手架的环境写的，不是 Core 的 `roles/` 原样搬来。

@@ -66,7 +66,7 @@ export function haveTool(name, spawn = spawnSync) {
 export function inspectCore({ env = process.env, spawn = spawnSync } = {}) {
   const list = candidates(env);
   const used = list.find((c) => c.found) ?? null;
-  const base = { wanted: CORE, candidates: list, tools: { git: haveTool('git', spawn), uv: haveTool('uv', spawn) } };
+  const base = { wanted: CORE, candidates: list, tools: { git: haveTool('git', spawn), uv: haveTool('uv', spawn), npm: haveTool('npm', spawn) } };
   if (!used) return { ...base, status: 'missing', dir: null };
   const version = versionOf(used.dir);
   const commit = commitOf(used.dir, spawn);
@@ -84,15 +84,23 @@ export function corePlan(info) {
   const dir = ownDir();
   const steps = [];
   const build = { cmd: 'uv', args: ['sync', '--project', dir], note: 'build its Python environment (about a minute)' };
+  // Core serves its web page itself, but only once it has been built (apps/web/dist); that needs node's npm
+  const web = join(dir, 'apps', 'web');
+  const webSteps = [
+    { cmd: 'npm', args: ['install', '--no-audit', '--no-fund'], cwd: web, note: 'install the web page’s packages (needs the network)' },
+    { cmd: 'npm', args: ['run', 'build'], cwd: web, note: 'build the web page Core serves' },
+  ];
   if (!isCore(dir)) {
     steps.push(
       { cmd: 'git', args: ['init', '--quiet', dir], note: `create ${dir}` },
       { cmd: 'git', args: ['-C', dir, 'fetch', '--quiet', '--depth', '1', CORE.repo, CORE.commit], note: `fetch the verified commit ${CORE.commit.slice(0, 7)} (${CORE.version})` },
       { cmd: 'git', args: ['-C', dir, 'checkout', '--quiet', '--detach', 'FETCH_HEAD'], note: 'check it out' },
       build,
+      ...webSteps,
     );
-  } else if (!existsSync(venvPython(dir))) {
-    steps.push(build);
+  } else {
+    if (!existsSync(venvPython(dir))) steps.push(build);
+    if (!existsSync(join(web, 'dist', 'index.html'))) steps.push(...webSteps);
   }
   const need = [...new Set(steps.map((s) => s.cmd))].filter((t) => !info.tools[t]);
   // The scaffold's own copy comes before one next to the repository, so fetching it changes which Core is used.
@@ -108,7 +116,8 @@ export function runCorePlan(plan, { spawn = spawnSync, log = () => {} } = {}) {
   mkdirSync(dirname(plan.dir), { recursive: true });
   for (const s of plan.steps) {
     log(`  ${s.cmd} ${s.args.join(' ')}`);
-    const r = spawn(s.cmd, s.args, { stdio: 'inherit', windowsHide: true });
+    // npm is a .cmd on Windows, which only runs through a shell
+    const r = spawn(s.cmd, s.args, { stdio: 'inherit', windowsHide: true, cwd: s.cwd, shell: s.cmd === 'npm' && process.platform === 'win32' });
     if (r.status !== 0) return { ok: false, failed: s };
   }
   return { ok: true };
