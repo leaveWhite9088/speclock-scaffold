@@ -11,7 +11,7 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const { compactIfNeeded } = await import('../../core/pool/compaction.mjs');
+const { compactIfNeeded, contextOf } = await import('../../core/pool/compaction.mjs');
 const { check } = await import('../lib/scheduler.mjs');
 
 console.log('\n=== compaction rule ===\n');

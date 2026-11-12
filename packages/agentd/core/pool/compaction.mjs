@@ -14,8 +14,11 @@ export const canCompact = (type) => Boolean(COMPACT_PROMPT[type]);
 
 /** How full the conversation is: the live figure while running, else the last one saved for the session. */
 export function contextOf(a) {
-  const live = a.child && a.lastUsage?.percent != null ? a.lastUsage : null;
-  const c = live ?? saved(a.name, a.sessionId ?? a.preferSession)?.context ?? null;
+  // The live figure is for the conversation that reported it. After a switch the new one has no figure of its own until it
+  // reports, so what is shown comes from what was saved for it, not from the one just left.
+  const now = a.sessionId ?? a.preferSession;
+  const live = a.child && a.lastUsage?.percent != null && (!a.lastUsage.sessionId || a.lastUsage.sessionId === now) ? a.lastUsage : null;
+  const c = live ?? saved(a.name, now)?.context ?? null;
   return c && c.percent != null ? { used: c.used, size: c.size, percent: c.percent } : null;
 }
 

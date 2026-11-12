@@ -83,7 +83,8 @@ export class RunTracker {
         if (u.cost) run.cost = u.cost;
         if (u.tokens) run.tokens = u.tokens;
       }
-      this.lastUsage = { ...ctx, cost: u.cost ?? null, tokens: u.tokens ?? null };
+      // Kept with its conversation: the process serves several, and a figure from one is not how full another is.
+      this.lastUsage = { ...ctx, cost: u.cost ?? null, tokens: u.tokens ?? null, sessionId: sessionId ?? run?.sessionId ?? null };
       return;
     }
     if (run?.sessionId && isTool) this._tool(run, u);

@@ -187,7 +187,7 @@ export class AcpClient {
     const u = msg.params?.update;
     if (!u) return;
     if (u.sessionUpdate === 'config_option_update' && Array.isArray(u.configOptions)) this.configOptions = u.configOptions;
-    this.tracker.onUpdate(u);
+    this.tracker.onUpdate(u, msg.params?.sessionId ?? null);
   }
 
   _write(obj) {
