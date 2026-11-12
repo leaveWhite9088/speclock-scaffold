@@ -1,4 +1,5 @@
 import { ChevronRight, X } from 'lucide-react';
+import { CopyButton } from '@/components/ui/copy-button';
 import { toast } from '@/components/ui/toast';
 import { api, enc } from '@/lib/api';
 import { useProject } from '@/hooks/queries';
@@ -87,7 +88,10 @@ export function DispatchLine({ item, queued = false, onCancel }: { item: Dispatc
       </summary>
       <div className="mt-0.5 ml-4 grid gap-1.5 border-l border-line-2 pl-2.5">
         <div>
-          <div className="text-[11.5px]">任务</div>
+          <div className="flex items-center gap-1 text-[11.5px]">
+            任务
+            <CopyButton text={item.prompt} label="复制任务" />
+          </div>
           <pre className="tint-block max-h-40">{item.prompt}</pre>
         </div>
         {lost ? (
@@ -95,7 +99,10 @@ export function DispatchLine({ item, queued = false, onCancel }: { item: Dispatc
         ) : null}
         {item.reply ? (
           <div>
-            <div className="text-[11.5px]">{item.state === 'fail' ? '失败原因' : '回复'}</div>
+            <div className="flex items-center gap-1 text-[11.5px]">
+              {item.state === 'fail' ? '失败原因' : '回复'}
+              <CopyButton text={item.reply} label="复制回复" />
+            </div>
             <pre className={cn('tint-block', item.state === 'fail' ? 'bad' : 'ok')}>{item.reply}</pre>
           </div>
         ) : null}

@@ -1,3 +1,4 @@
+import { CopyButton } from '@/components/ui/copy-button';
 import { clock, took } from '@/lib/format';
 import type { Item } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -9,7 +10,7 @@ export function Message({ item }: { item: Say }) {
   const user = item.kind === 'user';
   const error = item.kind === 'error';
   return (
-    <div className={cn('grid gap-[3px]', user && 'justify-items-end')}>
+    <div className={cn('group grid gap-[3px]', user && 'justify-items-end')}>
       {!user && (item.who || item.at) ? (
         <div className="flex items-baseline gap-2 text-[11.5px] text-muted">
           {item.who ? <span className={cn(error && 'text-danger')}>{item.who}</span> : null}
@@ -25,14 +26,19 @@ export function Message({ item }: { item: Say }) {
       >
         {item.kind === 'assistant' ? <Markdown text={item.text} /> : item.text}
       </div>
-      {item.kind === 'user' && (item.at || item.ack || item.note) ? (
-        <div className="flex items-baseline gap-2 text-[11.5px] text-muted">
+      {item.kind === 'user' ? (
+        <div className="flex items-center gap-2 text-[11.5px] text-muted">
+          <CopyButton text={item.text} className="opacity-0 group-hover:opacity-100" />
           {item.note ? <span className="text-warn">{item.note}</span> : null}
           {item.ack ? <span>已收到</span> : null}
           {item.at ? <span title="发送的时刻">{clock(item.at)}</span> : null}
         </div>
-      ) : null}
-      {item.kind !== 'user' && item.tookMs != null ? <div className="text-[11.5px] text-muted">{item.tookLabel ?? '用时'} {took(item.tookMs)}</div> : null}
+      ) : (
+        <div className="flex items-center gap-2 text-[11.5px] text-muted">
+          <CopyButton text={item.text} className="-ml-1 opacity-0 group-hover:opacity-100" />
+          {item.tookMs != null ? <span>{item.tookLabel ?? '用时'} {took(item.tookMs)}</span> : null}
+        </div>
+      )}
     </div>
   );
 }

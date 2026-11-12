@@ -1,4 +1,5 @@
 import { ChevronRight } from 'lucide-react';
+import { CopyButton } from '@/components/ui/copy-button';
 import { clock } from '@/lib/format';
 import type { Item } from '@/lib/types';
 
@@ -27,7 +28,10 @@ export function ReportLine({ item }: { item: Report }) {
         </span>
         {item.at ? <span className="shrink-0">{clock(item.at)}</span> : null}
       </summary>
-      <pre className="tint-block mt-0.5 ml-4">{item.text}</pre>
+      <div className="mt-0.5 ml-4 grid gap-0.5">
+        <CopyButton text={item.text} label="复制回报" />
+        <pre className="tint-block">{item.text}</pre>
+      </div>
     </details>
   );
 }
