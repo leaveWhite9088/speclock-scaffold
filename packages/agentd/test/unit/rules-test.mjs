@@ -13,10 +13,14 @@ const e = executorRules();
 const d = dispatcherRules();
 check('the executor rules are there and have no editor comments', e.length > 300 && !e.includes('<!--'));
 check('they cover scope, limits and reporting', ['## 范围', '## 约束', '## 回报'].every((h) => e.includes(h)));
-check('they say not to run a command that never exits in the foreground', e.includes('## 不会自己结束的命令') && /npm run dev/.test(e) && /放到后台运行/.test(e));
-check('they say how to put it in the background, and how to leave it to the user', /Start-Process/.test(e) && /nohup/.test(e) && /用户自己/.test(e));
+check('executors are told not to start servers themselves, and what to do instead', e.includes('## 不要自己启动服务') && /npm run dev/.test(e) && /不由你启动|由调度器负责/.test(e) && /会退出的命令/.test(e));
+check('they say to ask for the service in the report, and to use the address the dispatcher gives', /调度器启动/.test(e) && /服务地址/.test(e));
 check('the dispatcher rules are there too, and say a failure goes to the person', d.length > 300 && /等用户决定/.test(d));
-check('the dispatcher is not told the executor-only rules', !d.includes('## 不会自己结束的命令'));
+check('the dispatcher is not told the executor-only rules', !d.includes('## 不要自己启动服务'));
+check('the dispatcher is told to start the services, in the background, and to give the address', d.includes('## 运行中的服务') && /Start-Process/.test(d) && /放到后台/.test(d) && /服务的地址/.test(d));
+check('the dispatcher is told to send everything that can run together, and to check the conversation before every task', /多任务并行/.test(d) && /每一次派活前都要对一遍会话/.test(d));
+check('the dispatcher is told to delete conversations nobody needs', /agent_session_delete/.test(d) && /（已交接）/.test(d));
+check('contracts written in the spec are not relayed between executors', /规格里已经写明的，不转/.test(d));
 
 // how a module is shared out: one owner claims and submits, the others only read and report
 const ex = specRules('executor');
