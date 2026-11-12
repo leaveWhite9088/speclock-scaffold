@@ -82,6 +82,25 @@ run = newRun();
 t.onUpdate({ sessionUpdate: 'usage_update', used: 25_000, size: 100_000, cost: { amount: 0.1 } });
 check('context figures are on the run and are the latest figures', run.context.percent === 25 && t.lastUsage.used === 25_000 && t.lastUsage.cost.amount === 0.1, JSON.stringify(t.lastUsage));
 
+// the figure is kept with the conversation that reported it
+t.onUpdate({ sessionUpdate: 'usage_update', used: 10, size: 100 }, 'S-other');
+check('a context figure says which conversation it is for', t.lastUsage.sessionId === 'S-other');
+
+// an answer with no stop reason is not the end while the agent is still active
+{
+  const { AcpClient } = await import('../../core/pool/acp/client.mjs');
+  const r = { cancelRequested: false };
+  let calls = 0;
+  const fake = { child: {}, run: r, tracker: { quiet: () => ({ forMs: ++calls < 2 ? 100 : 30_000, waitingOnTool: false }) } };
+  const t0 = Date.now();
+  await AcpClient.prototype._untilQuiet.call(fake, r, 600_000);
+  check('it waits while updates are still coming, then lets go once quiet', calls >= 2 && Date.now() - t0 >= 900, `${calls} checks, ${Date.now() - t0}ms`);
+  const gone = { child: {}, run: r, tracker: { quiet: () => ({ forMs: 0, waitingOnTool: false }) } };
+  r.cancelRequested = true;
+  await AcpClient.prototype._untilQuiet.call(gone, r, 600_000);
+  check('and stops waiting at once when the run was cancelled', true);
+}
+
 // no run: updates must not throw
 run = null;
 let threw = false;

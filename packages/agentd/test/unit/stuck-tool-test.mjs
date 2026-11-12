@@ -45,6 +45,7 @@ process.stdin.on('data', async (d) => {
         update({ sessionUpdate: 'tool_call', toolCallId: 't1', title: 'build', status: 'in_progress' });
         await wait(800);
         update({ sessionUpdate: 'tool_call_update', toolCallId: 't1', status: 'completed' });
+        update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'built' } }); // a turn ends with a message, or it is asked to go on
         send({ id: m.id, result: { stopReason: 'end_turn' } });
       } else {
         update({ sessionUpdate: 'tool_call', toolCallId: 't2', title: 'bash', status: 'in_progress', rawInput: { command: 'npm run dev' } });

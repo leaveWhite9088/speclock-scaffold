@@ -21,6 +21,14 @@ import { RunLog, refusedRun } from './runs.mjs';
 import { Sessions } from './sessions.mjs';
 import { AcpTransport } from './transport.mjs';
 
+/** How many times a turn that stopped halfway is asked to go on, per run. */
+const MAX_NUDGES = 2;
+const NUDGE = {
+  no_final: '【系统提示】你的上一轮停在了中途，没有给出结果。任务还没做完就继续做下去；已经做完，请直接给出报告（第一句话先说结果）。',
+  tool_as_text:
+    '【系统提示】你上一条回复把工具调用写成了普通文字（出现了 <｜DSML｜、<function=…> 或 <parameter=…> 这样的标记），这样不会真正执行。请直接发起真正的工具调用，文字保持简短，接着做刚才没做完的事。',
+};
+
 export class AcpClient {
   constructor(name, spec) {
     /** Instance id: `<project>~<id>`. */
@@ -482,6 +490,8 @@ export class AcpClient {
       await this.sessions.applyPreferredModel();
     }
     this.tracker.streamedText = '';
+    this.tracker.lastKind = null;
+    this.tracker.textMark = 0;
     run.sessionId = this.sessionId;
     run.model = this.currentModel();
     // Spawning is expected here; only a restart after this point is abnormal.
@@ -497,11 +507,46 @@ export class AcpClient {
       text: display ?? text,
       model: run.model,
     });
-    return this._request(
+    let res = await this._request(
       'session/prompt',
       { sessionId: this.sessionId, prompt: [{ type: 'text', text: this._withRules(text) }] },
       { timeoutMs: MAX_RUN_MS, idleMs: timeoutMs },
     );
+    // An answer without a stop reason is not "the turn ended": some CLIs (seen with opencode) answer while the model is still
+    // calling tools. Wait until it has gone quiet before calling the run over, so the reply is what it finally said.
+    if (!res?.stopReason) await this._untilQuiet(run, timeoutMs);
+    // A turn that ended on a thought or a tool result, or on a tool call written out as text, is not finished: cheap models do
+    // this halfway through a task (they answer with nothing, or with the call as text). Ask it to go on, a couple of times.
+    // not for a command (a compaction ends without saying anything, and that is right)
+    const nudgeable = text !== COMPACT_PROMPT[this.type] && !String(text).trim().startsWith('/');
+    for (let n = 0; n < MAX_NUDGES; n += 1) {
+      const why = nudgeable && this.child && this.run === run && !run.cancelRequested && res?.stopReason !== 'cancelled' ? this.tracker.unfinished() : null;
+      if (!why) break;
+      run.nudges = n + 1;
+      log(`[${this.name}] the turn ended without a result (${why}); asking it to go on (${n + 1}/${MAX_NUDGES})`);
+      appendEntry(this.name, this.sessionId, { role: 'user', jobId: run.jobId, ...meta, text: `（自动提醒）${NUDGE[why].replace(/^【系统提示】/, '')}`, model: run.model });
+      this.tracker.lastKind = null;
+      this.tracker.textMark = this.tracker.streamedText.length;
+      res = await this._request(
+        'session/prompt',
+        { sessionId: this.sessionId, prompt: [{ type: 'text', text: this._withRules(NUDGE[why]) }] },
+        { timeoutMs: MAX_RUN_MS, idleMs: timeoutMs },
+      );
+      if (!res?.stopReason) await this._untilQuiet(run, timeoutMs);
+    }
+    run.unfinished = nudgeable && this.child && this.run === run && res?.stopReason !== 'cancelled' ? this.tracker.unfinished() : null;
+    return res;
+  }
+
+  /** After an answer with no stop reason: wait while the agent is still active (updates keep coming, or a tool call is open). */
+  async _untilQuiet(run, idleMs) {
+    const QUIET_MS = 20_000;
+    const started = Date.now();
+    while (this.child && this.run === run && !run.cancelRequested && Date.now() - started < MAX_RUN_MS) {
+      const q = this.tracker.quiet();
+      if (q.forMs >= (q.waitingOnTool ? idleMs : QUIET_MS)) return;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
   }
 
   /** The turn ended well: what is left after the last tool call goes into the transcript, and the caller gets its answer. */

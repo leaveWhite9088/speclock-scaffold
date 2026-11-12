@@ -83,6 +83,18 @@ function deriveAttention(agent, run, m) {
   if (m.stopReason === 'refusal') add('refused', 'error', 'agent refused the task');
   if (m.stopReason === 'cancelled') add('cancelled', 'warn', 'run was cancelled before finishing');
 
+  if (run.unfinished) {
+    add('ended_without_result', 'warn', run.unfinished === 'tool_as_text'
+      ? `the agent ended on a tool call written out as text (nothing ran)${run.nudges ? `, even after being asked ${run.nudges} time(s) to make the call`: ''}: the task is probably unfinished`
+      : `the agent stopped on a thought or a tool result without giving a result${run.nudges ? `, even after being asked ${run.nudges} time(s) to go on` : ''}: the task is probably unfinished`);
+  } else if (run.nudges) {
+    add('auto_continued', 'warn', `the agent stopped halfway ${run.nudges} time(s); agentd asked it to go on and it did`);
+  }
+
+  if (!run.error && !run.stopReason) {
+    add('no_stop_reason', 'warn', 'the CLI ended the run without saying why (no stop reason): it may not have finished, so check the files rather than the reply');
+  }
+
   if (!run.error && run.stopReason !== 'cancelled' && !run.text.trim()) {
     add(
       'empty_output',

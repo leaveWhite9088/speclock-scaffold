@@ -88,7 +88,11 @@ export function runOps(ctx) {
             project: a.project,
             jobId: started.jobId,
             outcome: cancelled ? 'cancelled' : message ? 'failed' : 'done',
-            text: result?.text ?? '',
+            // A run the CLI ended without saying why may be unfinished: the dispatcher is told so, not left to take the reply for a conclusion.
+            text: m?.attention?.some((x) => x.code === 'no_stop_reason' || x.code === 'ended_without_result')
+              ? `（注意：执行者这次运行没有正常收尾（CLI 没说为什么结束，或停在了一半、没给出结果），可能没做完。下面只是它中途说过的话，不是正式结论；是否完成请以文件和规格库里的实际结果为准，必要时让它接着做。）
+${result?.text ?? ''}`
+              : (result?.text ?? ''),
             error: message,
             source: m?.failureSource ?? null,
             tookMs: m?.durationMs ?? m?.totalMs ?? null,

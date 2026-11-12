@@ -5,6 +5,7 @@
  */
 
 import { appendFileSync } from 'node:fs';
+import { TOOL_CALL_AS_TEXT } from '../../base/index.mjs';
 import { appendEntry } from '../../records/index.mjs';
 import { inputText, outputText } from '../tool-text.mjs';
 
@@ -23,7 +24,11 @@ export class RunTracker {
     this.lastProgressAt = 0;
     /** What the agent said in the current prompt, as the caller gets it back. */
     this.streamedText = '';
-    /** The latest context figures the agent reported. */
+    /** What the agent did last in this prompt: 'text' (it said something), 'thought', or 'tool'. A turn that ends on a thought or a tool result never gave its answer. */
+    this.lastKind = null;
+    /** Where in the text the last request for it to go on was made: what it said before is not judged again. */
+    this.textMark = 0;
+    /** The latest context figures the agent reported, and the conversation they are for. */
     this.lastUsage = null;
   }
 
@@ -49,9 +54,22 @@ export class RunTracker {
       .join('; ');
   }
 
-  /** One `session/update`. */
-  onUpdate(u) {
+  /**
+   * Whether the turn that just ended is really over: null when it is, else why not. `no_final`: it ended on a thought or a tool
+   * result, with no message after it (some models answer with nothing at all after a tool, or after thinking). `tool_as_text`: its
+   * last message is a tool call written out as text, which runs nothing.
+   */
+  unfinished() {
+    if (this.lastKind === 'text') return TOOL_CALL_AS_TEXT.test(this.streamedText.slice(Math.max(this.textMark, this.streamedText.length - 600))) ? 'tool_as_text' : null;
+    return 'no_final';
+  }
+
+  /** One `session/update`; `sessionId` is the conversation it belongs to. */
+  onUpdate(u, sessionId = null) {
     this._noteSignal(u);
+    if (u.sessionUpdate === 'agent_message_chunk' && u.content?.text) this.lastKind = 'text';
+    else if (u.sessionUpdate === 'agent_thought_chunk' && u.content?.text) this.lastKind = 'thought';
+    else if (u.sessionUpdate === 'tool_call' || u.sessionUpdate === 'tool_call_update') this.lastKind = 'tool';
     const run = this.getRun();
     const isTool = u.sessionUpdate === 'tool_call' || u.sessionUpdate === 'tool_call_update';
     if (run && isTool) {

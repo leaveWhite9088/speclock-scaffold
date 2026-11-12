@@ -45,6 +45,7 @@ process.stdin.on('data', async (d) => {
         update({ sessionUpdate: 'tool_call', toolCallId: 't1', title: 'build', status: 'in_progress' });
         await wait(3000);
         update({ sessionUpdate: 'tool_call_update', toolCallId: 't1', status: 'completed' });
+        update({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'built' } });
         send({ id: m.id, result: { stopReason: 'end_turn' } });
       } else silentId = m.id;
     }
