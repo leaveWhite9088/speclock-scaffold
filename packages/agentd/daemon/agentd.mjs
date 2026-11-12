@@ -83,5 +83,6 @@ const { stats } = startServer({
   log,
 });
 
+projects.setSpecMcpResolver((entry) => ({ ...entry, command: specs.corePython() })); // executors use the Core that is current, not the one that was when their key was made
 process.on('exit', () => specs.stop()); // the service this daemon started goes with it
 lifecycle = startLifecycle({ endpointFile: ENDPOINT_FILE, pool, dispatchers, sweepIdle: projects.sweepIdle, stats, idleMs: IDLE_MS, idleInstanceMs: IDLE_INSTANCE_MS, log });

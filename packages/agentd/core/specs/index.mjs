@@ -3,3 +3,4 @@
 export { CoreError } from './client.mjs';
 export { ROLES, dispatcherServer, ensureProject, issueExecutorKey, projectAdmin, revokeKey, roleOf, status } from './provision.mjs';
 export { ensureRunning, isSetUp, stop } from './service.mjs';
+export { venvPython as corePython } from './config.mjs';

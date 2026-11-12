@@ -66,6 +66,12 @@ try {
   const keyText = readFileSync(join(keysDir, 'executor-agent--shop-backend.key'), 'utf8').trim();
   check('the executor carries the SpecLock MCP server', Boolean(entry) && entry.args.includes('--key-file') && entry.args.includes('executor-agent--shop-backend.key'), JSON.stringify(entry));
   check('the entry holds no key', !JSON.stringify(servers).includes(keyText));
+  const { setSpecMcpResolver } = await import('../../core/projects/index.mjs');
+  setSpecMcpResolver((e) => ({ ...e, command: 'the-current-python' }));
+  check('the daemon can make executors follow the Core that is current, not the one their key was made under', agent.spec.mcpServers().find((m) => m.name === 'speclock').command === 'the-current-python');
+  setSpecMcpResolver(null);
+  check('without it the entry is used as saved', agent.spec.mcpServers().find((m) => m.name === 'speclock').command === entry.command);
+  check('the status says which Python Core runs on', up.python === specs.corePython());
   check('its prompt has the SpecLock rules for its role', /规格库里的角色：执行/.test(agent.spec.systemPrompt()) && /自己找 key/.test(agent.spec.systemPrompt()));
   check('the saved executor file holds no key either', !readFileSync(projectPath('shop', 'project.json'), 'utf8').includes(keyText));
   const shown = (await ops.projects()).projects.find((p) => p.id === 'shop').instances.find((i) => i.id === 'backend');

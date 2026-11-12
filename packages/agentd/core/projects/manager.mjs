@@ -40,6 +40,16 @@ const log = (...a) => process.stderr.write(`[projects] ${a.join(' ')}\n`);
 /** @type {Array<{id: string, name: string, root: string, createdAt: string, instances: Array<{id: string, type: string, dir: string, role: string|null}>}>} */
 let projects = [];
 
+/**
+ * The SpecLock server an executor is given is saved with the command that ran it when the key was made. Core can move (a copy
+ * fetched later is used instead of one next to the repository), so the daemon sets a function that gives the current command
+ * and it is applied each time the server list is read. By default the entry is used as saved.
+ */
+let specMcp = (entry) => entry;
+export function setSpecMcpResolver(fn) {
+  specMcp = typeof fn === 'function' ? fn : (entry) => entry;
+}
+
 const keyOf = (project, id) => `${project}${SEP}${id}`;
 
 function save() {
@@ -135,7 +145,7 @@ function register(project, inst) {
     sessionId: inst.sessionId ?? null,
     compactAt: inst.compactAt ?? null,
     // A function, like the rules: an edit applies the next time a session starts or resumes.
-    mcpServers: () => [...(inst.mcpServers ?? []), ...(inst.spec?.mcp ? [inst.spec.mcp] : [])],
+    mcpServers: () => [...(inst.mcpServers ?? []), ...(inst.spec?.mcp ? [specMcp(inst.spec.mcp)] : [])],
     // Same for the provider: a change applies the next time the process starts.
     provider: () => inst.provider ?? null,
     // A function: the rules are read again whenever the agent starts, so an edited template applies at once.
