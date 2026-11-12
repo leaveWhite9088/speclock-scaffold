@@ -34,6 +34,9 @@ export interface LiveEvent {
     isError?: boolean;
     result?: { content?: unknown; details?: { attempt?: number; maxAttempts?: number } };
     code?: number;
+    /** pi's own message events: the message itself (role, content, timestamp), or `truncated` when it was too big to carry */
+    message?: { role?: string; content?: unknown; timestamp?: number };
+    truncated?: boolean;
   };
 }
 

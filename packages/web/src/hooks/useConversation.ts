@@ -41,17 +41,27 @@ const tookOf = (s: string): number | undefined => {
 function parseReport(text: string) {
   return text
     // only a heading that is a report's own head starts a section: the reply itself may contain "### " headings
-    .split(/^### (?=[^\n]* · (?:完成|失败|被用户取消|被中断)(?: · |\n|$))/m)
+    .split(/^### (?=[^\n]* · (?:完成|失败|被用户取消|被中断|已交接)(?: · |\n|$))/m)
     .slice(1)
     .map((sec) => {
       const lines = sec.split('\n');
       const head = lines[0] ?? '';
       const tagAt = lines.findIndex((l) => /^\[task [^\]]*job [^\]]+\]/.test(l));
       const job = /job ([^\],\s]+)\]/.exec(sec)?.[1];
-      const state: 'done' | 'fail' = head.includes('· 完成') ? 'done' : 'fail';
+      const state: 'done' | 'fail' = head.includes('· 完成') || head.includes('· 已交接') ? 'done' : 'fail';
       return { job, head, state, cancelled: head.includes('取消'), reply: lines.slice(2, tagAt > 1 ? tagAt : undefined).join('\n').trim(), tookMs: tookOf(head) };
     })
     .filter((r) => r.job);
+}
+
+/** A report message arrived: it settles the dispatch lines it answers, and is shown as a line of its own. */
+function applyReport(out: Item[], said: string, at: number | undefined, next: () => string) {
+  const rows = parseReport(said);
+  for (const r of rows) {
+    const i = out.findIndex((x) => x.kind === 'dispatch' && x.jobId === r.job);
+    if (i >= 0) out[i] = { ...(out[i] as Dispatch), state: r.state, cancelled: r.cancelled, reply: r.reply.slice(0, 4000), tookMs: r.tookMs ?? (out[i] as Dispatch).tookMs };
+  }
+  out.push({ id: next(), kind: 'report', text: said.slice(REPORT_TAG.length).trim(), heads: rows.map((r) => r.head), at });
 }
 
 /** A dispatch line once its result is in. */
@@ -88,12 +98,7 @@ function fromPi(messages: PiMessage[], turns: { at: number; tookMs: number }[], 
       const said = textOf(msg.content);
       if (said.startsWith(REPORT_TAG)) {
         // Not something the person wrote: the answers of tasks sent earlier. They settle those lines; the dispatcher's turn on them is its own.
-        const rows = parseReport(said);
-        for (const r of rows) {
-          const at = out.findIndex((i) => i.kind === 'dispatch' && i.jobId === r.job);
-          if (at >= 0) out[at] = { ...(out[at] as Dispatch), state: r.state, cancelled: r.cancelled, reply: r.reply.slice(0, 4000), tookMs: r.tookMs ?? (out[at] as Dispatch).tookMs };
-        }
-        out.push({ id: next(), kind: 'report', text: said.slice(REPORT_TAG.length).trim(), heads: rows.map((r) => r.head), at: msg.timestamp });
+        applyReport(out, said, msg.timestamp, next);
         turnTook = turns.find((t) => t.at === msg.timestamp)?.tookMs;
         continue;
       }
@@ -111,7 +116,7 @@ function fromPi(messages: PiMessage[], turns: { at: number; tookMs: number }[], 
           lastSay = out.length - 1;
         } else if (c.type === 'toolCall' && c.name === 'agent_run') {
           const a = argOf(c.arguments);
-          out.push({ id: next(), kind: 'dispatch', agent: a.agent ?? '默认执行者', prompt: a.prompt ?? '', state: 'run', toolCallId: c.id });
+          out.push({ id: next(), kind: 'dispatch', agent: a.agent ?? '（没写执行者）', prompt: a.prompt ?? '', state: 'run', toolCallId: c.id });
         } else if (c.type === 'toolCall') out.push({ id: next(), kind: 'tool', name: c.name ?? 'tool', detail: JSON.stringify(c.arguments ?? {}, null, 2), result: false });
       }
     } else if (msg.role === 'toolResult' && msg.toolName === 'agent_run') {
@@ -388,7 +393,7 @@ export function useConversation(project: string, sel: string, member: Member | u
           if (last?.kind === 'assistant') itemsRef.current[itemsRef.current.length - 1] = { ...last, live: false };
           if (d.toolName === 'agent_run') {
             const a = argOf(d.args);
-            itemsRef.current.push({ id: next(), kind: 'dispatch', agent: a.agent ?? '默认执行者', prompt: a.prompt ?? '', state: 'run', toolCallId: d.toolCallId, startedAt: Date.now() });
+            itemsRef.current.push({ id: next(), kind: 'dispatch', agent: a.agent ?? '（没写执行者）', prompt: a.prompt ?? '', state: 'run', toolCallId: d.toolCallId, startedAt: Date.now() });
           } else itemsRef.current.push({ id: next(), kind: 'tool', name: d.toolName ?? 'tool', detail: JSON.stringify(d.args ?? {}, null, 2), result: false });
         } else if (d.type === 'tool_execution_end' && d.result && d.toolName === 'agent_run') {
           const text = textOf(d.result.content ?? d.result);

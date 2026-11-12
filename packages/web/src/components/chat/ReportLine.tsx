@@ -10,7 +10,7 @@ type Report = Extract<Item, { kind: 'report' }>;
  */
 /** How a report head ended, as the colour of its chip: green done, red failed or interrupted, grey cancelled. */
 const chipOf = (head: string) =>
-  head.includes('· 完成') ? 'border-ok-line bg-ok-bg text-ok' : head.includes('取消') ? 'border-line bg-code text-muted' : 'border-bad-line bg-bad-bg text-danger';
+  head.includes('· 完成') || head.includes('· 已交接') ? 'border-ok-line bg-ok-bg text-ok' : head.includes('取消') ? 'border-line bg-code text-muted' : 'border-bad-line bg-bad-bg text-danger';
 
 export function ReportLine({ item }: { item: Report }) {
   return (
