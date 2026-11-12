@@ -40,7 +40,8 @@ const tookOf = (s: string): number | undefined => {
 /** The tasks a report message answers: which job, how it ended, what came back. */
 function parseReport(text: string) {
   return text
-    .split(/^### /m)
+    // only a heading that is a report's own head starts a section: the reply itself may contain "### " headings
+    .split(/^### (?=[^\n]* · (?:完成|失败|被用户取消|被中断)(?: · |\n|$))/m)
     .slice(1)
     .map((sec) => {
       const lines = sec.split('\n');
