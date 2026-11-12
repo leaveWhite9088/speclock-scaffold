@@ -35,5 +35,11 @@ check('a spec check is started by the user’s words and its advice goes on as t
 check('an executor reads the diff, changes what is affected, claims again and keeps the evidence that still holds', /get_diff/.test(ex) && /重新提交全部验收条件/.test(ex) && /沿用之前的证据/.test(ex) && /重新领取会清空之前的结果/.test(ex));
 check('the tester stops when the item is replaced', /规格已更新/.test(specRules('tester')));
 check('executors are told how to read a message of several parts', /一条消息可以有几段/.test(e) && /【转自】那一段是依据/.test(e));
+// how the business is divided: small businesses are cheap and modules are not, an outline is agreed before a new area, structure comes with the first change request
+check('the requirements agent knows small businesses are cheap and modules are expensive', /小业务便宜，模块贵/.test(specRules('requirements')) && /新模块是新的身份/.test(specRules('requirements')));
+check('a new area gets an outline for the user to confirm first, and the structure is built with the first change request', /先在回复里给轮廓，用户认可后才写审核单/.test(specRules('requirements')) && /结构不单独开审核单/.test(specRules('requirements')));
+check('modules are judged by cohesion, with the counts only as a warning line, and no dependency field', /大小以内聚为主，数量只当警戒线/.test(specRules('requirements')) && /五到十五条验收条件/.test(specRules('requirements')) && /不设依赖字段/.test(specRules('requirements')));
+check('a new need is placed in a fixed order, leaning to an existing small business', /拿不准放哪里，倾向放进已有的小业务/.test(specRules('requirements')) && /共用的东西，单独做成一个小业务/.test(specRules('requirements')));
+check('the dispatcher holds back the change request until the outline is confirmed, and keeps session names in step', /不要让它写审核单/.test(d) && /用户认可或调整之后/.test(d) && /需求回报小业务改了名/.test(d));
 console.log(process.exitCode ? '\n=> ✗ RULES BROKEN' : '\n=> ✓ RULES OK');
 process.exit(process.exitCode ?? 0);
