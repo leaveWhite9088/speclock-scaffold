@@ -209,3 +209,25 @@ export const renameSessionTool = defineTool({
 		};
 	},
 });
+
+export const deleteSessionTool = defineTool({
+	name: "agent_session_delete",
+	label: "Agent session delete",
+	description:
+		"Delete a conversation of one executor that is not needed any more: the old one left behind by a handoff (named \"（已交接）…\"), the conversation of a block that is finished, or a stray one nobody can tell the purpose of. " +
+		"The conversation is hidden from the lists (nothing in the project's files is touched). The one the executor is in now cannot be deleted: switch it elsewhere first. " +
+		"Do not delete a conversation whose block is still being worked on.",
+	parameters: Type.Object({
+		agent: Type.String({ description: "The executor, as named in the roster." }),
+		session: Type.String({ description: "The conversation's name, or its session id from agent_sessions." }),
+	}),
+	async execute(_id, params) {
+		const c = await daemon();
+		const s = await findSession(c, params.agent, params.session);
+		await c.call("deleteSession", { agent: params.agent, sessionId: s.sessionId });
+		return {
+			content: [{ type: "text", text: `${params.agent}: deleted "${s.label || s.title || s.sessionId}" (${s.sessionId})` }],
+			details: { agent: params.agent, sessionId: s.sessionId, label: s.label ?? null },
+		};
+	},
+});

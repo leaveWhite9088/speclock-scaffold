@@ -162,7 +162,9 @@ try {
   check('old name is gone, new one lists', !after.some((i) => i.id === 'tmp') && after.some((i) => i.id === 'tmp2'));
   await fails(call('project.updateInstance', { project: A, id: 'tmp2', name: 'srv' }), /already exists/, 'renaming onto an existing name is rejected');
   await fails(call('project.updateInstance', { project: A, id: 'tmp2', dir: '..' }), /outside|cannot be changed/, 'moving outside the root is rejected');
-  await fails(call('deleteSession', { agent: 'tmp2', sessionId: 'x', project: A, caller: 'dispatcher' }), /dispatcher cannot/, 'the dispatcher cannot delete sessions');
+  const gone = await call('deleteSession', { agent: 'tmp2', sessionId: 'x', project: A, caller: 'dispatcher' }).then(() => '', (e) => e.message);
+  check('the dispatcher may clear away conversations (the guard does not stop it)', !/dispatcher cannot/.test(gone), gone);
+  await fails(call('agent.recover', { agent: 'tmp2', project: A, caller: 'dispatcher' }), /dispatcher cannot/, 'the dispatcher still cannot recover an unstable executor');
   await fails(call('run', { agent: 'tmp2', project: A, prompt: 'x', reset: true, caller: 'dispatcher' }), /dispatcher cannot/, 'the dispatcher cannot reset a session through run');
   const prop = await call('handoff.propose', { agent: 'tmp2', project: A, reason: 'test', evidence: 'e', caller: 'dispatcher' });
   check('the dispatcher can propose a handoff', prop.status === 'pending' && prop.agent === 'tmp2', JSON.stringify(prop));

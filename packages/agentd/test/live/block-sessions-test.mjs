@@ -38,8 +38,11 @@ try {
   const r = await call('rename', { label: 'login-v2' });
   check('renaming without an id renames the active one', r.sessionId === a.sessionId && r.label === 'login-v2');
 
-  const err = await call('deleteSession', { sessionId: b.sessionId }).then(() => '', (e) => e.message);
-  check('deleting a conversation is still refused', /dispatcher cannot/.test(err), err.slice(0, 80));
+  const errActive = await call('deleteSession', { sessionId: a.sessionId }).then(() => '', (e) => e.message);
+  check('the conversation it is in cannot be deleted', /active session/.test(errActive), errActive.slice(0, 80));
+  await call('deleteSession', { sessionId: b.sessionId });
+  const left = (await call('sessions')).sessions.map((x) => x.sessionId);
+  check('the dispatcher can delete one it no longer needs, and it leaves the list', !left.includes(b.sessionId) && left.includes(a.sessionId), left.join());
   const err2 = await call('run', { prompt: 'x', reset: true }).then(() => '', (e) => e.message);
   check('resetting through run is still refused', /dispatcher cannot/.test(err2), err2.slice(0, 80));
 } finally {
