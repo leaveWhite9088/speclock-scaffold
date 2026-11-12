@@ -4,4 +4,5 @@ export { defaultRoots, detectPackages, manifestPath, ownPrefix } from './detect.
 export { installPlan, runInstall } from './install.mjs';
 export { buildManifest, writeManifest } from './manifest.mjs';
 export { readProbes, runProbes } from './probe.mjs';
+export { CORE, corePlan, formatCore, inspectCore, runCorePlan } from './speclock.mjs';
 export { formatReport, summarize } from './report.mjs';

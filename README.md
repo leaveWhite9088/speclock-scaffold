@@ -88,7 +88,7 @@ backend 只监听 `127.0.0.1`，并拒绝非本机的 Host / 跨站 Origin：它
 不需要把扩展装进 pi：agentd 启动一个项目的调度器时，会用 `pi -e` 自己加载 agent-router 扩展，只在那个调度器进程里生效。
 没有 `AGENTD_PROJECT`（也就是不是 agentd 为某个项目启动的 pi）时，这个扩展什么都不注册。
 
-前置条件：`node` 在 PATH 上；要用的 CLI 已安装。`npm run preflight` 会告诉你本机装了哪些、版本对不对（见下面「驱动与预检」）。
+前置条件：`node` 在 PATH 上；要用的 CLI 已安装；要用规格库的话再需要 `git` 和 `uv`，然后运行一次 `npm run preflight -- core --yes` 下载 Core（脚手架不会自己联网下载）。`npm run preflight` 会告诉你本机装了哪些、版本对不对（见下面「驱动与预检」）。
 daemon 由客户端按需拉起，不需要手动起服务。
 
 ---
@@ -263,6 +263,8 @@ npm run preflight -- install               # 只显示会装什么（缺的包�
 npm run preflight -- install --yes         # 真的装：只装缺的，装进 data/global/tools（不装全局），然后写清单
 npm run preflight -- install --yes --pin   # 连版本不一样的也装验证过的那个（脚手架自己的那份优先于全局的）
 npm run preflight -- --type claude,pi      # 只看 / 只装这几个；加 --json 输出机器可读结果，--strict 缺了就退出码 1
+npm run preflight -- core                # 规格库（SpecLock Core）：显示会下载什么，不执行；检查报告里也有它的一行
+npm run preflight -- core --yes          # 真的下载：把验证过的那个提交（公开仓库，不用登录）取到 data/global/tools/speclock-core，再建好它的 Python 环境；需要本机有 git 和 uv
 ```
 
 - 安装是**可选**的，而且**从不自己发生**：不加 `--yes` 什么都不做。装的是验证过的固定版本，装进脚手架自己的目录

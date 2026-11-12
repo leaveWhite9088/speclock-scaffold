@@ -8,8 +8,10 @@
  *                                a few short prompts per CLI, one to two minutes, all CLIs at once. Never run by anything else.
  *   preflight install [--yes]    without --yes: show what would be installed; with it: install the verified versions
  *                                of what is missing into the scaffold's own folder (data/global/tools), then write the manifest
+ *   preflight core [--yes]       SpecLock Core (the spec library): without --yes: show what would be fetched; with it: fetch the
+ *                                verified commit into data/global/tools/speclock-core and build its environment (needs git and uv)
  *
- *   --pin          install also the packages found at another version (the scaffold's copy then takes precedence)
+ *   --pin         install also the packages found at another version (the scaffold's copy then takes precedence)
  *   --type a,b     only for these CLIs
  *   --json         machine-readable output
  *   --strict       exit 1 when a CLI is missing
@@ -19,14 +21,19 @@
 import { existsSync } from 'node:fs';
 import { drivers, wantedPackages } from '@speclock-scaffold/drivers';
 import {
+  CORE,
   buildManifest,
+  corePlan,
   defaultRoots,
   detectPackages,
+  formatCore,
   formatReport,
+  inspectCore,
   installPlan,
   manifestPath,
   ownPrefix,
   readProbes,
+  runCorePlan,
   runInstall,
   runProbes,
   summarize,
@@ -41,9 +48,38 @@ const value = (n) => {
 };
 const command = args.find((a) => !a.startsWith('--') && a !== value('type')) ?? 'check';
 
-if (flag('help') || flag('h') || !['check', 'write', 'install', 'probe'].includes(command)) {
+if (flag('help') || flag('h') || !['check', 'write', 'install', 'probe', 'core'].includes(command)) {
   console.log(readHelp());
   process.exit(flag('help') || flag('h') ? 0 : 2);
+}
+
+if (command === 'core') {
+  let info = inspectCore();
+  console.log(formatCore(info).join('\n') + '\n');
+  const plan = corePlan(info);
+  if (!plan.steps.length) {
+    console.log('nothing to fetch or build');
+    process.exit(0);
+  }
+  if (plan.note) console.log(`note: ${plan.note}\n`);
+  console.log('would run:');
+  for (const s of plan.steps) console.log(`  ${s.cmd} ${s.args.join(' ')}    # ${s.note}`);
+  if (plan.missingTools.length) {
+    console.error(`\n${plan.missingTools.join(' and ')} not found on the PATH: install ${plan.missingTools.length > 1 ? 'them' : 'it'} first (preflight does not install them)`);
+    process.exit(1);
+  }
+  if (!flag('yes')) {
+    console.log(`\nthis changes nothing without --yes: it downloads ${CORE.repo} (public, no login) into ${plan.dir}.`);
+    process.exit(0);
+  }
+  const done = runCorePlan(plan, { log: (l) => console.log(l) });
+  if (!done.ok) {
+    console.error(`\nfailed at: ${done.failed.cmd} ${done.failed.args.join(' ')}`);
+    process.exit(1);
+  }
+  info = inspectCore();
+  console.log('\n' + formatCore(info).join('\n'));
+  process.exit(info.status === 'ok' ? 0 : 1);
 }
 
 const types = value('type') ? value('type').split(',').map((s) => s.trim()).filter(Boolean) : null;
@@ -99,6 +135,7 @@ if (command === 'probe') {
 }
 
 const rows = summarize(drivers, detected, process.env, readProbes());
+const core = inspectCore();
 
 if (command === 'write' || command === 'install') {
   const file = writeManifest(manifestPath(), buildManifest({ node, detected }));
@@ -106,9 +143,10 @@ if (command === 'write' || command === 'install') {
 }
 
 if (flag('json')) {
-  console.log(JSON.stringify({ node, roots, rows }, null, 2));
+  console.log(JSON.stringify({ node, roots, rows, core }, null, 2));
 } else {
   console.log((command === 'check' ? '' : '\n') + formatReport({ node, roots, rows }));
+  console.log('\n' + formatCore(core).join('\n'));
   if (rows.some((r) => r.status === 'missing') && command === 'check') {
     console.log('\nmissing CLIs can be installed at their verified versions: preflight install --yes   (only into data/global/tools, not globally)');
   }
@@ -118,10 +156,11 @@ process.exit(flag('strict') && rows.some((r) => r.status === 'missing') ? 1 : pr
 
 function readHelp() {
   return [
-    'preflight [check|write|probe|install] [--yes] [--pin] [--type a,b] [--json] [--strict]',
+    'preflight [check|write|probe|install|core] [--yes] [--pin] [--type a,b] [--json] [--strict]',
     '  check    report only (default)',
     '  write    report, and write the manifest the daemon reads',
     '  probe    run the behaviour probes (real models; opt-in)',
     '  install  show what would be installed; with --yes install the verified versions of what is missing into data/global/tools',
+    '  core     SpecLock Core (the spec library): show what would be fetched; with --yes fetch the verified commit into data/global/tools/speclock-core',
   ].join('\n');
 }

@@ -5,7 +5,7 @@
 
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { drivers, wantedPackages } from '@speclock-scaffold/drivers';
 import { detectPackages, readPackage } from '../src/detect.mjs';
 import { installPlan, runInstall, windowsCommandLine } from '../src/install.mjs';
@@ -13,6 +13,7 @@ import { buildManifest, writeManifest } from '../src/manifest.mjs';
 import { behaviourOf, readProbes, runProbes } from '../src/probe.mjs';
 import { describeBehaviour, summarize, worst } from '../src/report.mjs';
 import { compareVersions } from '../src/version.mjs';
+import { CORE, corePlan, formatCore, haveTool, inspectCore, ownDir, runCorePlan } from '../src/speclock.mjs';
 
 let failed = 0;
 const check = (name, ok, extra = '') => {
@@ -133,6 +134,63 @@ const lines = [
 check('the report says it in words', /verified/.test(lines[0]) && /FAILED.*rules\.new/.test(lines[1]) && /other versions/.test(lines[2]) && /never probed/.test(lines[3]));
 check('summarize carries the behaviour per CLI', summarize(drivers, d, {}, rec).find((r) => r.type === 'mcode').behaviour.state === 'verified');
 
+
+// SpecLock Core: where it is, whether it is the verified one, and what fetching would run
+{
+  const root = mkdtempSync(join(tmpdir(), 'pf-core-'));
+  process.env.AGENTD_DATA_DIR = join(root, 'data');
+  const tools = { status: 0, stdout: 'ok' };
+  const fakeSpawn = (cmd, args) => (cmd === 'git' && args.includes('rev-parse') ? { status: 0, stdout: `${CORE.commit}\n` } : tools);
+  const python = process.platform === 'win32' ? join('Scripts', 'python.exe') : join('bin', 'python');
+  const fakeCore = (dir, version, { built = true } = {}) => {
+    mkdirSync(join(dir, 'packages', 'config', 'src', 'speclock_config'), { recursive: true });
+    writeFileSync(join(dir, 'pyproject.toml'), '[project]\nname = "x"\n');
+    writeFileSync(join(dir, 'packages', 'config', 'src', 'speclock_config', '__init__.py'), `__version__ = "${version}"\n`);
+    if (built) {
+      mkdirSync(join(dir, '.venv', dirname(python)), { recursive: true });
+      writeFileSync(join(dir, '.venv', python), '');
+    }
+  };
+
+  const named = join(root, 'named');
+  fakeCore(named, CORE.version);
+  const ok = inspectCore({ env: { AGENTD_SPECLOCK_DIR: named }, spawn: fakeSpawn });
+  check('a Core named by AGENTD_SPECLOCK_DIR is found, at the verified commit, built', ok.status === 'ok' && ok.dir === named && ok.version === CORE.version && ok.built, JSON.stringify([ok.status, ok.dir]));
+  const other = inspectCore({ env: { AGENTD_SPECLOCK_DIR: named }, spawn: (c, a) => (a.includes('rev-parse') ? { status: 0, stdout: 'abc123\n' } : tools) });
+  check('another commit is reported as such, not as ok', other.status === 'other');
+  const unbuilt = join(root, 'unbuilt');
+  fakeCore(unbuilt, CORE.version, { built: false });
+  check('one without its environment is reported as unbuilt', inspectCore({ env: { AGENTD_SPECLOCK_DIR: unbuilt }, spawn: fakeSpawn }).status === 'unbuilt');
+  const noGit = inspectCore({ env: { AGENTD_SPECLOCK_DIR: named }, spawn: (c) => (c === 'git' ? { status: 1 } : tools) });
+  check('without git the version still says which it is, and the missing tool is told apart', noGit.status === 'ok' && noGit.tools.git === false && noGit.tools.uv === true);
+  check('a tool that cannot run counts as missing', haveTool('git', () => ({ status: 0 })) === true && haveTool('uv', () => ({ status: null, error: new Error('ENOENT') })) === false);
+
+  // fetching: only the scaffold's own folder, by the commit, then the environment
+  const plan = corePlan({ status: 'missing', dir: null, tools: { git: true, uv: true } });
+  const fetch = plan.steps.find((s) => s.args.includes('fetch'));
+  check('fetching goes into the scaffold’s own folder', plan.dir === ownDir() && plan.dir.endsWith(join('tools', 'speclock-core')));
+  check('it fetches the verified commit from the Core repository, shallow', fetch.args.includes(CORE.commit) && fetch.args.includes(CORE.repo) && fetch.args.includes('--depth'));
+  const word = (s) => s.args.find((a) => ['init', 'fetch', 'checkout', 'sync'].includes(a));
+  check('it makes the folder, fetches, checks out, then builds the environment', plan.steps.map((s) => `${s.cmd} ${word(s)}`).join(', ') === 'git init, git fetch, git checkout, uv sync', plan.steps.map(word).join());
+  check('a missing tool is named before anything runs', corePlan({ status: 'missing', dir: null, tools: { git: false, uv: true } }).missingTools.join() === 'git');
+  const elsewhere = corePlan({ status: 'ok', dir: named, from: 'next to the repository', tools: { git: true, uv: true } });
+  check('with a Core elsewhere the own copy is still fetched, only into its own folder, and the note says which is used from then on', elsewhere.steps.length === 4 && elsewhere.steps.every((s) => s.args.some((a) => String(a).startsWith(ownDir()))) && /instead of/.test(elsewhere.note) && /left as it is/.test(elsewhere.note));
+  check('a Core named by AGENTD_SPECLOCK_DIR is said to win over the fetched copy', /AGENTD_SPECLOCK_DIR is set/.test(corePlan({ ...ok, from: 'AGENTD_SPECLOCK_DIR' }).note ?? ''));
+  fakeCore(ownDir(), CORE.version, { built: false });
+  check('the scaffold’s own copy without an environment gets only the build', corePlan({ status: 'unbuilt', dir: ownDir(), from: 'scaffold', tools: { git: true, uv: true } }).steps.map((s) => s.cmd).join() === 'uv');
+  fakeCore(ownDir(), CORE.version);
+  check('with its own copy built there is nothing to do', corePlan({ status: 'ok', dir: ownDir(), from: 'scaffold', tools: { git: true, uv: true } }).steps.length === 0);
+
+  const ran = [];
+  const good = runCorePlan(plan, { spawn: (c) => (ran.push(c), { status: 0 }) });
+  check('the steps run in order', good.ok && ran.join() === 'git,git,git,uv');
+  const stopped = [];
+  const bad = runCorePlan(plan, { spawn: (c, a) => (stopped.push(c), { status: a.includes('fetch') ? 128 : 0 }) });
+  check('a failing step stops the rest and says which', !bad.ok && bad.failed.args.includes('fetch') && stopped.length === 2);
+  const missing = formatCore({ status: 'missing', tools: { git: true, uv: false } }).join(' ');
+  check('the report says what is wrong and how to fix it', /not installed/.test(missing) && /preflight core --yes/.test(missing) && /uv \[not found\]/.test(missing));
+  delete process.env.AGENTD_DATA_DIR;
+}
 
 console.log(failed ? `\n=> ✗ ${failed} FAILED` : '\n=> ✓ PREFLIGHT OK');
 process.exit(failed ? 1 : 0);
