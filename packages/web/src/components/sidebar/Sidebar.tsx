@@ -1,9 +1,10 @@
 import { Settings } from 'lucide-react';
 import { useState } from 'react';
 import { IconButton } from '@/components/ui/icon-button';
+import { Resizer } from '@/components/ui/resizer';
 import { Dot } from '@/components/ui/dot';
 import { useProjectsQuery } from '@/hooks/queries';
-import { useUi } from '@/store';
+import { WIDTH_LIMITS, useUi } from '@/store';
 import { NewMemberDialog } from '../member/NewMemberDialog';
 import { SettingsDialog } from '../settings/SettingsDialog';
 import { MemberList } from './MemberList';
@@ -30,8 +31,11 @@ function StatusBar() {
 export function Sidebar() {
   const [creating, setCreating] = useState(false);
   const [settings, setSettings] = useState(false);
+  const width = useUi((s) => s.widths.side);
+  const setWidth = useUi((s) => s.setWidth);
   return (
-    <aside className="flex min-h-0 flex-col bg-side max-[620px]:max-h-[34vh]">
+    <aside className="relative flex min-h-0 flex-col bg-side max-[620px]:max-h-[34vh]">
+      <Resizer edge="right" label="调整左侧栏宽度" value={width} min={WIDTH_LIMITS.side[0]} max={WIDTH_LIMITS.side[1]} onChange={(v) => setWidth('side', v)} onReset={() => setWidth('side', null)} />
       <ProjectBar />
       <MemberList onNew={() => setCreating(true)} />
       <div className="mt-auto flex min-w-0 items-center gap-1.5 border-t border-line px-3 py-2">

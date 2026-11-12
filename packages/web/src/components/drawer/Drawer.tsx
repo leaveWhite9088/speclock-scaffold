@@ -1,7 +1,8 @@
 import { Settings, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Resizer } from '@/components/ui/resizer';
 import { useSelectedMember } from '@/hooks/queries';
-import { useUi } from '@/store';
+import { WIDTH_LIMITS, useUi } from '@/store';
 import { DispatcherSettings } from './DispatcherSettings';
 import { ExecutorSettings } from './ExecutorSettings';
 
@@ -9,14 +10,18 @@ import { ExecutorSettings } from './ExecutorSettings';
 export function Drawer() {
   const open = useUi((s) => s.drawer);
   const setDrawer = useUi((s) => s.setDrawer);
+  const width = useUi((s) => s.widths.settings);
+  const setWidth = useUi((s) => s.setWidth);
   const { project, member, isDispatcher } = useSelectedMember();
   if (!open || !project) return null;
   return (
     <aside
       aria-label="设置"
       onKeyDown={(e) => e.key === 'Escape' && setDrawer(false)}
-      className="surface m-2 ml-0 flex min-h-0 w-[330px] flex-col max-[900px]:fixed max-[900px]:inset-y-0 max-[900px]:right-0 max-[900px]:z-10 max-[900px]:ml-2 max-[900px]:max-w-[92vw]"
+      style={{ width }}
+      className="surface relative m-2 ml-0 flex min-h-0 flex-col max-[900px]:fixed max-[900px]:inset-y-0 max-[900px]:right-0 max-[900px]:z-10 max-[900px]:ml-2 max-[900px]:max-w-[92vw]"
     >
+      <Resizer edge="left" label="调整设置栏宽度" value={width} min={WIDTH_LIMITS.settings[0]} max={WIDTH_LIMITS.settings[1]} onChange={(v) => setWidth('settings', v)} onReset={() => setWidth('settings', null)} />
       <div className="flex min-h-[52px] items-center justify-between py-2.5 pr-3.5 pl-5">
         <h2 className="m-0 flex items-center gap-2 text-[15px] font-semibold">
           <Settings className="size-4 text-muted" />

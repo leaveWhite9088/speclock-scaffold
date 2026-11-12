@@ -8,7 +8,32 @@ export interface Activity {
   startedAt: number;
 }
 
+/** The three panes' widths in px (the middle one takes the rest): the project list, the settings drawer, the spec library drawer. */
+export interface Widths {
+  side: number;
+  settings: number;
+  core: number;
+}
+export const DEFAULT_WIDTHS: Widths = { side: 256, settings: 330, core: 620 };
+export const WIDTH_LIMITS: Record<keyof Widths, [number, number]> = { side: [180, 420], settings: [280, 640], core: [360, 1100] };
+
+function loadWidths(): Widths {
+  try {
+    const saved = JSON.parse(localStorage.getItem('widths') ?? '{}') as Partial<Widths>;
+    const w = { ...DEFAULT_WIDTHS };
+    for (const k of Object.keys(w) as (keyof Widths)[]) {
+      const v = Number(saved[k]);
+      if (Number.isFinite(v) && v >= WIDTH_LIMITS[k][0] && v <= WIDTH_LIMITS[k][1]) w[k] = v;
+    }
+    return w;
+  } catch {
+    return { ...DEFAULT_WIDTHS };
+  }
+}
+
 interface UiState {
+  widths: Widths;
+  setWidth: (k: keyof Widths, v: number | null) => void;
   /** Running executors, by key ("project~id"). */
   activity: Record<string, Activity>;
   setActivity: (key: string, a: Activity | null) => void;
@@ -27,6 +52,13 @@ interface UiState {
 }
 
 export const useUi = create<UiState>((set) => ({
+  widths: loadWidths(),
+  setWidth: (k, v) =>
+    set((s) => {
+      const widths = { ...s.widths, [k]: v ?? DEFAULT_WIDTHS[k] };
+      localStorage.setItem('widths', JSON.stringify(widths));
+      return { widths };
+    }),
   activity: {},
   setActivity: (key, a) =>
     set((s) => {
