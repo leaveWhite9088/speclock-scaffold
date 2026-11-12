@@ -18,7 +18,7 @@ import { ownPrefix } from './detect.mjs';
 /** What the scaffold was verified with. Core has no release tags yet, so a commit is what is fetched. */
 export const CORE = {
   repo: 'https://github.com/leaveWhite9088/speclock-core.git',
-  commit: '87cc6e8a3e67150947f13f6c2f3fed76feaa7ef3',
+  commit: 'd2561526fe8d5bacdf86c8703817d6688ffd165e',
   version: '0.3.0',
   verified: '2026-11-12',
 };
