@@ -93,5 +93,37 @@ check('a message that cannot be sent does not block the ones behind it', sent.sl
 await settle();
 check('the context figure comes from pi statistics', d.context?.percent === 12.3 && d.context?.used === 1234 && d.context?.size === 10000, JSON.stringify(d.context));
 
+// 7: a tool call written out as text is stopped, and the model is told (twice at most)
+{
+  const aborted = [];
+  const realCommand = d.command;
+  d.command = async (type, params) => (type === 'abort' ? (aborted.push(1), {}) : realCommand(type, params));
+  const delta = (t) => d._onRecord({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: t } });
+  await d.prompt('派活');
+  d._onRecord({ type: 'message_start', message: { role: 'assistant' } });
+  delta('好的，现在派发：\n<｜DSML｜hos=agent_run>');
+  delta('<parameter=agent>x</parameter>');
+  check('a tool call written as text stops the turn at once (once)', aborted.length === 1, String(aborted.length));
+  const before = sent.length;
+  await settle();
+  check('and the model is told to make a real call', sent.length === before + 1 && /真正的工具调用/.test(sent.at(-1)) && sent.at(-1).startsWith('【系统提示】'), sent.at(-1)?.slice(0, 40));
+  check('the page is told too', events.some((e) => e.type === 'dispatcher_notice' && e.kind === 'tool_call_as_text'));
+  // it does it again, and again: told twice, then left alone
+  for (let i = 0; i < 2; i++) {
+    d._onRecord({ type: 'message_start', message: { role: 'assistant' } });
+    delta('<function=agent_run>');
+    await settle();
+  }
+  const corrections = sent.filter((m) => m.startsWith('【系统提示】')).length;
+  check('it is asked twice at most, then given up on', corrections === 2 && events.some((e) => e.type === 'dispatcher_notice' && e.kind === 'tool_call_as_text_gave_up'), String(corrections));
+  // a normal turn is left alone
+  d._onRecord({ type: 'message_start', message: { role: 'assistant' } });
+  delta('已派发。');
+  const n = aborted.length;
+  await settle();
+  check('normal text is left alone', aborted.length === n);
+  d.command = realCommand;
+}
+
 console.log(process.exitCode ? '\n=> ✗ DISPATCHER QUEUE BROKEN' : '\n=> ✓ DISPATCHER QUEUE OK');
 process.exit(process.exitCode ?? 0);

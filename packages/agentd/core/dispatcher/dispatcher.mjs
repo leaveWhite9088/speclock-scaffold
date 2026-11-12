@@ -22,7 +22,7 @@ import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { agentDir, usablePiProviders } from '../pi/index.mjs';
 import { fileURLToPath } from 'node:url';
-import { projectPath } from '../base/index.mjs';
+import { TOOL_CALL_AS_TEXT, projectPath } from '../base/index.mjs';
 import { ContextTracker } from './context.mjs';
 import { SessionStore } from './sessions.mjs';
 import { TurnQueue } from './turn-queue.mjs';
@@ -39,6 +39,11 @@ const piCli = () => {
 const EXTENSION = process.env.DISPATCHER_EXTENSION || join(ROOT, 'extension', 'agent-router.ts');
 const MCP_BRIDGE = join(ROOT, 'pi-adapter', 'mcp-bridge.ts');
 const SESSION_DIR = process.env.DISPATCHER_SESSION_DIR || null;
+
+const MAX_LEAK_RETRIES = 2;
+const LEAK_CORRECTION =
+  '【系统提示】你上一条回复把工具调用写成了普通文字（出现了 <｜DSML｜、<function=…> 或 <parameter=…> 这样的标记），这样不会真正执行，那一轮已被中断。' +
+  '请直接发起真正的工具调用，不要把调用写在文字里；文字部分保持简短，不要写分析和草稿。接着做刚才没做完的事。';
 
 const log = (...a) => process.stderr.write(`[dispatcher] ${a.join(' ')}\n`);
 
@@ -202,12 +207,50 @@ export class Dispatcher {
     }
 
     if (rec.type === 'agent_start') this.turns.began();
+    this._watchForLeak(rec);
     if (rec.type === 'agent_settled') {
       this.ctx.refresh();
       this.turns.settled();
+      this._afterLeak();
     }
 
     this.onEvent(compact(rec));
+  }
+
+  /**
+   * A model that cannot make a real tool call sometimes writes the call out as plain text (`<｜DSML｜…`, `<function=…>`,
+   * `<parameter=…>`) and goes on to ramble: nothing is executed, and the turn fills with garbage. Seen with a DeepSeek endpoint.
+   * The moment the text shows it the turn is stopped, and the model is told once or twice (not more: a model that keeps
+   * doing it will not stop because it was asked) to make the call for real.
+   */
+  _watchForLeak(rec) {
+    if (rec.type === 'message_start') this._said = '';
+    else if (rec.type === 'message_update' && rec.assistantMessageEvent?.type === 'text_delta') {
+      this._said = ((this._said ?? '') + (rec.assistantMessageEvent.delta ?? '')).slice(-400);
+      if (!this._leaked && TOOL_CALL_AS_TEXT.test(this._said)) {
+        this._leaked = true;
+        log('the model wrote a tool call as plain text: stopping this turn');
+        this.onEvent({ type: 'dispatcher_notice', kind: 'tool_call_as_text' });
+        this.command('abort', {}, 30_000).catch((err) => log(`could not stop the turn: ${err.message}`));
+      }
+    }
+  }
+
+  /** The turn ended: if it was stopped for that, say so to the model (a few times in a row at most). */
+  _afterLeak() {
+    if (!this._leaked) {
+      this._leakRetries = 0;
+      return;
+    }
+    this._leaked = false;
+    this._said = '';
+    this._leakRetries = (this._leakRetries ?? 0) + 1;
+    if (this._leakRetries > MAX_LEAK_RETRIES) {
+      this._leakRetries = 0;
+      this.onEvent({ type: 'dispatcher_notice', kind: 'tool_call_as_text_gave_up' });
+      return;
+    }
+    this.turns.submit(LEAK_CORRECTION).catch((err) => log(`could not send the correction: ${err.message}`));
   }
 
   /** The process ended (pi's client already failed what was pending). */

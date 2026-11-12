@@ -350,9 +350,29 @@ export function useConversation(project: string, sel: string, member: Member | u
         }
         if (ev.name !== 'dispatcher.event' || !isDispatcher || ev.project !== project) return;
         const d = ev.data ?? {};
+        if (d.type === 'dispatcher_notice') {
+          toast(d.kind === 'tool_call_as_text' ? '调度器的模型把工具调用写成了普通文字（没有执行），已中断这一轮并让它重发' : '调度器的模型连续把工具调用写成文字，不再自动重试：换个模型试试');
+          return;
+        }
         // What the dispatcher is doing, from what it reports: shown under the conversation with the time since the message.
         if (d.type === 'agent_start' && !turnRef.current) putTurn({ startedAt: Date.now(), phase: '思考中' });
         else if (d.type === 'agent_start' || d.type === 'turn_start' || d.type === 'message_start') phaseOf('思考中');
+        // A report (or a notice) starts a turn of the dispatcher without this page having sent anything: show it now, not after a reload.
+        if (d.type === 'message_start' && d.message?.role === 'user') {
+          const said = textOf(d.message.content);
+          if (said.startsWith(REPORT_TAG)) {
+            const text = said.slice(REPORT_TAG.length).trim();
+            if (!itemsRef.current.some((i) => i.kind === 'report' && i.text === text)) {
+              applyReport(itemsRef.current, said, d.message.timestamp ?? Date.now(), next);
+              commit();
+            }
+            return;
+          }
+        } else if (d.type === 'message_start' && d.truncated) {
+          // too big to carry (a long report): read the conversation again
+          void load();
+          return;
+        }
         else if (d.type === 'message_update') phaseOf(d.kind === 'text_delta' ? '正在回复' : d.kind === 'thinking_delta' ? '思考中' : (turnRef.current?.phase ?? ''));
         else if (d.type === 'tool_execution_start') phaseOf(d.toolName === 'agent_run' ? `等待 ${argOf(d.args).agent ?? '执行者'} 的结果` : `正在使用 ${d.toolName ?? '工具'}`);
         else if (d.type === 'tool_execution_end') phaseOf('思考中');
