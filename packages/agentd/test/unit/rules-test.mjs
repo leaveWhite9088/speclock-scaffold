@@ -27,5 +27,13 @@ check('the tester checks the whole feature end to end and does not trust the evi
 check('the requirements agent writes acceptance conditions as business behaviour', /验收条件写成业务行为/.test(specRules('requirements')) && /哪些模块（名称和版本）/.test(specRules('requirements')));
 check('the dispatcher names an owner, marks every message, and does not claim or verify itself', /指定负责人/.test(d) && /【按规格安排】/.test(d) && /你自己不领取、不提交、不验收/.test(d));
 check('it says what “implemented” means and asks before an end-to-end check', /已实现只表示/.test(d) && /不要自动做/.test(d));
+// the exact words between the dispatcher and the executors: markers per part, rework, a spec that changes under work, the scan
+check('every part of a message has a marker, a message may have several parts, and requirements messages are covered', /每一段话，开头都要有一个标记/.test(d) && /一条消息可以有好几段/.test(d) && /派给需求的消息也一样/.test(d));
+check('rework goes in two parts, the tester’s own words with it, and the owner claims again and submits every condition', /【转自 测试工程师】/.test(d) && /重新领取并重新提交全部验收条件/.test(d) && /重新领取会清空之前的结果/.test(d));
+check('a spec that changes under work is announced to everyone on the module, the tester included', /已被取代，新的是/.test(d) && /包括正在验收的测试/.test(d) && /get_diff/.test(d));
+check('a spec check is started by the user’s words and its advice goes on as the reviewer’s', /规格检查/.test(d) && /【转自 规格审查员】/.test(d));
+check('an executor reads the diff, changes what is affected, claims again and keeps the evidence that still holds', /get_diff/.test(ex) && /重新提交全部验收条件/.test(ex) && /沿用之前的证据/.test(ex) && /重新领取会清空之前的结果/.test(ex));
+check('the tester stops when the item is replaced', /规格已更新/.test(specRules('tester')));
+check('executors are told how to read a message of several parts', /一条消息可以有几段/.test(e) && /【转自】那一段是依据/.test(e));
 console.log(process.exitCode ? '\n=> ✗ RULES BROKEN' : '\n=> ✓ RULES OK');
 process.exit(process.exitCode ?? 0);
