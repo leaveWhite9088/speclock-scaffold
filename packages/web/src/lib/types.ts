@@ -35,6 +35,8 @@ export interface Provider {
   models: string[];
   /** Context length in tokens per model, where known. */
   contexts?: Record<string, number>;
+  /** The models that reason (pi offers reasoning levels only for those). */
+  reasonings?: string[];
   /** The CLIs it may be used with. */
   types: string[];
   support: ProviderSupport[];
@@ -89,6 +91,8 @@ export interface Member {
   /** The provider (kept on this device) this executor starts with, and its model; null for the CLI's own login. */
   provider?: { id: string; model: string } | null;
   preferModel: string | null;
+  /** The reasoning level it should use (the CLI's own value), null: the CLI's default. */
+  preferEffort?: string | null;
   preferSession: string | null;
   alive: boolean;
   busy: boolean;
@@ -150,10 +154,14 @@ export interface ModelOption {
 export interface ModelCatalog {
   models: ModelOption[];
   default: string | null;
+  /** The CLI's reasoning levels, when it has them. */
+  effort?: { id: string; current: string | null; options: { value: string; name: string }[] } | null;
 }
 export interface DispatcherModels {
   models: ModelOption[];
   current: string | null;
+  thinkingLevel?: string | null;
+  thinkingLevels?: string[] | null;
   hiddenWithoutCredentials?: number;
 }
 

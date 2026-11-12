@@ -6,7 +6,7 @@ import { toast } from '@/components/ui/toast';
 import { useDispatcherModels, useDispatcherSessions, useProject, useProviders } from '@/hooks/queries';
 import { useDraft } from '@/hooks/useDraft';
 import { api, enc, pq } from '@/lib/api';
-import { modelLabel, when } from '@/lib/format';
+import { effortOptions, modelLabel, when } from '@/lib/format';
 import { useUi } from '@/store';
 import { RuntimeFields } from './RuntimeFields';
 import { SessionsSection } from './SessionList';
@@ -25,6 +25,7 @@ export function DispatcherSettings({ projectId }: { projectId: string }) {
     provider: chosen?.id ?? '',
     providerModel: chosen?.model ?? '',
     model: models?.current ?? '',
+    effort: models?.thinkingLevel ?? '',
     compactK: project?.dispatcher?.compactAt ? String(Math.round(project.dispatcher.compactAt / 1000)) : '',
   };
   const draft = useDraft(`draft:dispatcher:${projectId}`, saved);
@@ -47,6 +48,8 @@ export function DispatcherSettings({ projectId }: { projectId: string }) {
       if (Object.keys(patch).length) await api('PATCH', `/api/projects/${enc(projectId)}/dispatcher`, patch);
       // pi's own models: the choice is made on the running dispatcher (a new provider starts it again first)
       if (!v.provider && v.model !== saved.model) await api('POST', `/api/dispatcher/model${pq(projectId)}`, { value: v.model });
+      // the reasoning level is set on the running dispatcher, whatever model it runs on
+      if (v.effort && v.effort !== saved.effort) await api('POST', `/api/dispatcher/thinking${pq(projectId)}`, { level: v.effort });
       draft.clear();
       toast('已提交');
       await refreshAll();
@@ -64,6 +67,7 @@ export function DispatcherSettings({ projectId }: { projectId: string }) {
           providerModel={v.providerModel}
           onProvider={(id, model) => draft.set({ provider: id, providerModel: model })}
           onProviderModel={(model) => draft.set({ providerModel: model })}
+          effort={{ value: v.effort, disabled: !models, onChange: (x) => draft.set({ effort: x }), options: effortOptions((models?.thinkingLevels ?? []).map((l) => ({ value: l, name: l })), null, saved.effort).filter((o) => o.value !== '') }}
           base={{ value: v.model, disabled: !models, onChange: (x) => draft.set({ model: x }), options: (models?.models ?? []).map((x) => ({ value: x.value, label: modelLabel(x.value, x.name) })) }}
         />
         <Field label="压缩">

@@ -26,13 +26,15 @@ interface Draft {
   models: string;
   /** model -> context length as typed ("1M") */
   contexts: Record<string, string>;
+  /** the models that reason */
+  reasonings: string[];
   types: string[];
 }
 
 /** A new provider starts with the CLIs that take it per process ticked; one that changes the CLI's own configuration (mcode) is for the person to tick. */
-const emptyDraft = (clis: ProviderCli[]): Draft => ({ id: '', name: '', apiKey: '', anthropic: '', openai: '', models: '', contexts: {}, types: clis.filter((c) => c.scope === 'process').map((c) => c.type) });
+const emptyDraft = (clis: ProviderCli[]): Draft => ({ id: '', name: '', apiKey: '', anthropic: '', openai: '', models: '', contexts: {}, reasonings: [], types: clis.filter((c) => c.scope === 'process').map((c) => c.type) });
 
-const draftOf = (p: Provider): Draft => ({ id: p.id, name: p.name, apiKey: '', anthropic: p.endpoints.anthropic ?? '', openai: p.endpoints.openai ?? '', models: p.models.join(', '), contexts: Object.fromEntries(Object.entries(p.contexts ?? {}).map(([m, n]) => [m, sizeText(n)])), types: p.types });
+const draftOf = (p: Provider): Draft => ({ id: p.id, name: p.name, apiKey: '', anthropic: p.endpoints.anthropic ?? '', openai: p.endpoints.openai ?? '', models: p.models.join(', '), contexts: Object.fromEntries(Object.entries(p.contexts ?? {}).map(([m, n]) => [m, sizeText(n)])), reasonings: p.reasonings ?? [], types: p.types });
 
 type Result = ProviderTest | { error: string };
 
@@ -70,6 +72,7 @@ export function ProvidersPanel() {
         endpoints: { anthropic: d.anthropic.trim(), openai: d.openai.trim() },
         models: d.models,
         contexts: Object.fromEntries(Object.entries(d.contexts).map(([m, t]): [string, number] => [m, parseSize(t)]).filter(([, n]) => n > 0)),
+        reasonings: d.reasonings,
         types: d.types,
       });
       setEdit(null);
@@ -130,7 +133,7 @@ export function ProvidersPanel() {
         <Field label="Anthropic" className={label}>
           <Input placeholder="https://…/anthropic" value={edit.d.anthropic} onChange={(e) => set({ anthropic: e.target.value })} />
         </Field>
-        <ModelPicker id={edit.isNew ? undefined : edit.d.id} apiKey={edit.d.apiKey} openai={edit.d.openai} anthropic={edit.d.anthropic} value={edit.d.models} onChange={(models) => set({ models })} contexts={edit.d.contexts} onContexts={(contexts) => set({ contexts })} />
+        <ModelPicker id={edit.isNew ? undefined : edit.d.id} apiKey={edit.d.apiKey} openai={edit.d.openai} anthropic={edit.d.anthropic} value={edit.d.models} onChange={(models) => set({ models })} contexts={edit.d.contexts} onContexts={(contexts) => set({ contexts })} reasonings={edit.d.reasonings} onReasonings={(reasonings) => set({ reasonings })} />
         <div className="grid grid-cols-[5.5em_minmax(0,1fr)] items-start gap-x-2 text-[12.5px] text-muted">
           <span className="pt-0.5">CLI</span>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-ink">

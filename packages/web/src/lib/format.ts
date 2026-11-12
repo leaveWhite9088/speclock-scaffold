@@ -105,3 +105,10 @@ export const SPEC_ROLE_OPTIONS = [
 ];
 
 export const specRoleName = (role?: string | null) => SPEC_ROLE_OPTIONS.find((o) => o.value === role)?.label.split('：')[0] ?? null;
+
+/** The reasoning levels a CLI offers as a picker's options, with "default" (what the CLI does on its own) first. A saved level that is not in the list still shows. */
+export function effortOptions(levels: { value: string; name: string }[] | undefined | null, current: string | null | undefined, saved = ''): { value: string; label: string }[] {
+  const out = [{ value: '', label: current ? `默认（${current}）` : '默认' }, ...(levels ?? []).filter((l) => l.value !== 'default').map((l) => ({ value: l.value, label: l.name || l.value }))];
+  if (saved && !out.some((o) => o.value === saved)) out.push({ value: saved, label: saved });
+  return out;
+}

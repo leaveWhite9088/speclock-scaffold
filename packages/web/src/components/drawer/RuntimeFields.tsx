@@ -18,13 +18,15 @@ interface Props {
   onProviderModel: (model: string) => void;
   /** The model while no provider is chosen: the CLI's own list. */
   base: { value: string; options: SelectOption[]; onChange: (value: string) => void; disabled?: boolean };
+  /** The reasoning level: shown when the CLI has levels to pick from (more than the default). */
+  effort?: { value: string; options: SelectOption[]; onChange: (value: string) => void; disabled?: boolean };
 }
 
 /**
  * Where an agent runs and with which model, the same for a dispatcher and an executor: the provider first (or the CLI's own
  * login), then the model, which is that provider's list or the CLI's own.
  */
-export function RuntimeFields({ type, providerId, providerModel, onProvider, onProviderModel, base }: Props) {
+export function RuntimeFields({ type, providerId, providerModel, onProvider, onProviderModel, base, effort }: Props) {
   const usable = useUsableProviders(type);
   const chosen = usable.find((p) => p.id === providerId);
   const modelOptions = chosen
@@ -42,6 +44,11 @@ export function RuntimeFields({ type, providerId, providerModel, onProvider, onP
       <Field label="模型">
         {chosen ? <Select value={providerModel} onChange={onProviderModel} options={modelOptions} /> : <Select value={base.value} onChange={base.onChange} disabled={base.disabled} options={base.options} />}
       </Field>
+      {effort && effort.options.length > 1 ? (
+        <Field label="推理强度">
+          <Select value={effort.value} onChange={effort.onChange} disabled={effort.disabled} options={effort.options} />
+        </Field>
+      ) : null}
     </>
   );
 }

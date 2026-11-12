@@ -6,11 +6,11 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { toast } from '@/components/ui/toast';
-import { useCatalog, useExecutorSessions, useProviders, useTemplates } from '@/hooks/queries';
+import { useCatalog, useExecutorSessions, useModelEffort, useProviders, useTemplates } from '@/hooks/queries';
 import { useDraft } from '@/hooks/useDraft';
 import { useForceable } from '@/hooks/useForceable';
 import { api, enc } from '@/lib/api';
-import { SPEC_ROLE_OPTIONS, modelLabel, modelName, relDir, when } from '@/lib/format';
+import { SPEC_ROLE_OPTIONS, effortOptions, modelLabel, modelName, relDir, when } from '@/lib/format';
 import type { Member, Session } from '@/lib/types';
 import { DISPATCHER, useUi } from '@/store';
 import { RuntimeFields } from './RuntimeFields';
@@ -31,10 +31,16 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
 
   let current = m.model ?? m.preferModel ?? '';
   if (current === catalog?.default) current = '';
-  const saved = { name: m.id, role: m.role ?? '', template: m.template ?? '', spec: m.spec ?? '', model: current, compactK: m.compactAt ? String(Math.round(m.compactAt / 1000)) : '', provider: m.provider?.id ?? '', providerModel: m.provider?.model ?? '' };
+  const saved = { name: m.id, role: m.role ?? '', template: m.template ?? '', spec: m.spec ?? '', model: current, effort: m.preferEffort ?? '', compactK: m.compactAt ? String(Math.round(m.compactAt / 1000)) : '', provider: m.provider?.id ?? '', providerModel: m.provider?.model ?? '' };
   const dirLabel = relDir(m.dir, root);
   const draft = useDraft(`draft:instance:${projectId}:${m.id}`, saved);
   const v = draft.values;
+
+  // The reasoning levels depend on the model in use: the default model's come with the model list, another model's are asked for.
+  const chosenModel = v.provider ? '' : v.model;
+  const modelEffort = useModelEffort(m.type, chosenModel);
+  const providerReasons = v.provider ? providers.find((p) => p.id === v.provider)?.reasonings?.includes(v.providerModel) : true;
+  const effortSource = !providerReasons ? null : chosenModel ? modelEffort.data : catalog?.effort;
 
   const options = [{ value: '', label: catalog?.default ? `默认（${modelName(catalog, catalog.default)}）` : '默认' }, ...(catalog?.models ?? []).map((x) => ({ value: x.value, label: modelLabel(x.value, x.name) }))];
   // The saved choice must show even when the model list could not be read.
@@ -54,6 +60,7 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
     if (v.template !== saved.template) patch.template = v.template || null;
     if (v.spec !== saved.spec) patch.spec = v.spec || null;
     if (v.model !== current) patch.model = v.model || null;
+    if (v.effort !== saved.effort) patch.effort = v.effort || null;
     if (v.provider !== saved.provider || (v.provider && v.providerModel !== saved.providerModel)) {
       patch.provider = v.provider ? { id: v.provider, model: v.providerModel || providers.find((p) => p.id === v.provider)?.models[0] } : null;
     }
@@ -118,9 +125,10 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
           type={m.type}
           providerId={v.provider}
           providerModel={v.providerModel}
-          onProvider={(id, model) => draft.set({ provider: id, providerModel: model })}
-          onProviderModel={(model) => draft.set({ providerModel: model })}
-          base={{ value: v.model, options, onChange: (x) => draft.set({ model: x }) }}
+          onProvider={(id, model) => draft.set({ provider: id, providerModel: model, effort: '' })}
+          onProviderModel={(model) => draft.set({ providerModel: model, effort: '' })}
+          effort={{ value: v.effort, onChange: (x) => draft.set({ effort: x }), disabled: Boolean(chosenModel) && modelEffort.isPending, options: effortOptions(effortSource?.options, effortSource?.current, saved.effort) }}
+          base={{ value: v.model, options, onChange: (x) => draft.set({ model: x, effort: '' }) }}
         />
         <Field label="压缩">
           <Input type="number" min={10} step={1} disabled={m.canCompact === false} placeholder="例如 256" value={v.compactK} onChange={(e) => draft.set({ compactK: e.target.value })} />
