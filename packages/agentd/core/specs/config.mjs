@@ -21,8 +21,20 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const section = CONFIG.speclock ?? {};
 
-/** The speclock-core checkout. By default it sits next to this repository. */
-export const CORE_DIR = process.env.AGENTD_SPECLOCK_DIR || section.dir || join(ROOT, '..', '..', '..', 'speclock-core');
+/**
+ * The speclock-core checkout, found each time it is needed (so one fetched while the daemon runs is used at once). In this
+ * order, the first that is a Core wins: AGENTD_SPECLOCK_DIR or "speclock.dir" in agentd.config.json; the copy
+ * `npm run preflight -- core --yes` fetched into data/global/tools/speclock-core; a `speclock-core` folder next to this
+ * repository (someone developing Core has one). packages/preflight looks in the same places in the same order.
+ */
+const isCore = (dir) => existsSync(join(dir, 'pyproject.toml')) && existsSync(join(dir, 'packages', 'config'));
+export const OWN_CORE_DIR = join(GLOBAL_DIR, 'tools', 'speclock-core');
+const SIBLING_CORE_DIR = join(ROOT, '..', '..', '..', 'speclock-core');
+export function coreDir() {
+  const configured = process.env.AGENTD_SPECLOCK_DIR || section.dir;
+  if (configured) return configured; // named on purpose: used as it is, found or not (the error says where it looked)
+  return [OWN_CORE_DIR, SIBLING_CORE_DIR].find(isCore) ?? OWN_CORE_DIR;
+}
 export const CORE_PORT = Number(process.env.AGENTD_SPECLOCK_PORT || section.port || 47821);
 export const CORE_URL = `http://127.0.0.1:${CORE_PORT}`;
 
@@ -30,7 +42,7 @@ export const HOME_DIR = join(GLOBAL_DIR, '.speclock');
 const GLOBAL_FILE = join(GLOBAL_DIR, 'specs.json');
 
 /** Python of Core's own virtual environment (made by `uv sync`). */
-export const venvPython = () => join(CORE_DIR, '.venv', process.platform === 'win32' ? join('Scripts', 'python.exe') : join('bin', 'python'));
+export const venvPython = () => join(coreDir(), '.venv', process.platform === 'win32' ? join('Scripts', 'python.exe') : join('bin', 'python'));
 
 function read(file) {
   try {

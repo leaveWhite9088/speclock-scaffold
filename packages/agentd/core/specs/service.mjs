@@ -10,7 +10,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync } from 'node:f
 import { join } from 'node:path';
 import { GLOBAL_DIR } from '../base/index.mjs';
 import { call } from './client.mjs';
-import { CORE_DIR, CORE_PORT, HOME_DIR, readGlobal, venvPython, writeGlobal } from './config.mjs';
+import { CORE_PORT, HOME_DIR, coreDir, readGlobal, venvPython, writeGlobal } from './config.mjs';
 
 const log = (...a) => process.stderr.write(`[specs] ${a.join(' ')}\n`);
 const ENV = { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' };
@@ -38,16 +38,17 @@ export async function health() {
 
 /** Is there a Core checkout, and is its environment built? `python` is where to run it. */
 export function installState() {
-  return { dir: CORE_DIR, found: existsSync(join(CORE_DIR, 'pyproject.toml')), python: venvPython(), built: existsSync(venvPython()) };
+  const dir = coreDir();
+  return { dir, found: existsSync(join(dir, 'pyproject.toml')), python: venvPython(), built: existsSync(venvPython()) };
 }
 
 /** Build Core's environment if it is not there (a minute the first time). */
 function ensureInstalled() {
   const s = installState();
-  if (!s.found) throw new Error(`SpecLock Core was not found at ${CORE_DIR} (set AGENTD_SPECLOCK_DIR or "speclock.dir" in agentd.config.json)`);
+  if (!s.found) throw new Error(`SpecLock Core was not found (looked at ${s.dir}). Fetch it with: npm run preflight -- core --yes   (needs git and uv), or point AGENTD_SPECLOCK_DIR / "speclock.dir" in agentd.config.json at a checkout`);
   if (s.built) return s.python;
   log('building the Core environment (uv sync), this takes a minute the first time');
-  const r = spawnSync('uv', ['sync', '--project', CORE_DIR], { env: ENV, encoding: 'utf8', timeout: 600_000, shell: process.platform === 'win32' });
+  const r = spawnSync('uv', ['sync', '--project', s.dir], { env: ENV, encoding: 'utf8', timeout: 600_000, shell: process.platform === 'win32' });
   if (r.status !== 0 || !existsSync(s.python)) throw new Error(`could not build the Core environment: ${(r.stderr || r.error?.message || 'uv sync failed').trim().slice(-400)}`);
   return s.python;
 }

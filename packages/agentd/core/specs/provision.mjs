@@ -14,7 +14,7 @@
  */
 
 import { CoreError, call } from './client.mjs';
-import { CORE_DIR, HOME_DIR, adminKeyFile, hasAdminKeyFile, readGlobal, readProject, venvPython, writeAdminKeyFile, writeProject } from './config.mjs';
+import { HOME_DIR, coreDir, adminKeyFile, hasAdminKeyFile, readGlobal, readProject, venvPython, writeAdminKeyFile, writeProject } from './config.mjs';
 import { baseUrl, ensureRunning, health, installState, isSetUp, stop } from './service.mjs';
 
 
@@ -121,5 +121,5 @@ export async function revokeKey(keyId) {
 export async function status() {
   const s = installState();
   const up = await health();
-  return { found: s.found, built: s.built, setUp: isSetUp(), running: Boolean(up), version: up?.version ?? null, url: baseUrl(), dir: CORE_DIR, home: HOME_DIR };
+  return { found: s.found, built: s.built, python: s.python, setUp: isSetUp(), running: Boolean(up), version: up?.version ?? null, url: baseUrl(), dir: coreDir(), home: HOME_DIR };
 }
