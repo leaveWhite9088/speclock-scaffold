@@ -10,6 +10,7 @@ export function useActivity(key: string | undefined) {
   const { data } = useProjectsQuery();
   const row = key ? data?.projects.flatMap((p) => p.instances).find((i) => i.key === key)?.activity : null;
   const startedAt = stored?.startedAt ?? row?.startedAt;
+  const quietSince = row?.quietSince ?? null;
   const [, tick] = useState(0);
   const on = startedAt != null;
   useEffect(() => {
@@ -18,10 +19,12 @@ export function useActivity(key: string | undefined) {
     return () => clearInterval(t);
   }, [on]);
   if (startedAt == null) return null;
-  return { elapsedMs: Math.max(0, Date.now() - startedAt) };
+  return { elapsedMs: Math.max(0, Date.now() - startedAt), quietMs: quietSince != null ? Math.max(0, Date.now() - quietSince) : 0 };
 }
 
 /** The one thing shown while it runs: the total time so far. */
 export function runLabel(l: NonNullable<ReturnType<typeof useActivity>>): string {
-  return `进行中 · 已用时 ${took(l.elapsedMs)}`;
+  // A tool call that has been open for minutes with nothing else said is probably a command that never ends: say so before it is cancelled.
+  const stuck = l.quietMs >= 180_000 ? ` · 工具已 ${took(l.quietMs)} 无动静` : '';
+  return `进行中 · 已用时 ${took(l.elapsedMs)}${stuck}`;
 }

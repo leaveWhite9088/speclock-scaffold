@@ -5,7 +5,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { CANCEL_GRACE_MS, log } from '../config.mjs';
+import { CANCEL_GRACE_MS, STUCK_TOOL_MS, log } from '../config.mjs';
 import { killTree } from '../process.mjs';
 
 export class AcpTransport {
@@ -172,6 +172,13 @@ export class AcpTransport {
           if (Date.now() - started > timeoutMs) fail(`ACP ${method} timed out: still running after ${Math.round(timeoutMs / 60000)} min, cancelled`);
           else if (quiet && !quiet.quiet().waitingOnTool && quiet.quiet().forMs > idleMs) {
             fail(`ACP ${method} timed out: no activity for ${Math.round(idleMs / 1000)}s, cancelled`);
+          } else if (quiet && quiet.quiet().waitingOnTool && quiet.quiet().forMs > STUCK_TOOL_MS) {
+            // A tool that is open and a CLI that says nothing: usually a command that never ends (a dev server run in the foreground).
+            fail(
+              `ACP ${method} cancelled: a tool call has been running for ${STUCK_TOOL_MS >= 60_000 ? `${Math.round(STUCK_TOOL_MS / 60000)} min` : `${Math.round(STUCK_TOOL_MS / 1000)} s`} with no sign of life (${quiet.openToolText?.() || 'unknown'}). ` +
+                `It is most likely a command that never ends (a dev server, a watcher). A process it started may still be running (check the port)`,
+            );
+            expired.stuckTool = true;
           }
         }, Math.max(100, Math.min(5_000, idleMs / 4)));
       } else {

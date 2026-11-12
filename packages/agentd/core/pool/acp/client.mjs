@@ -249,6 +249,12 @@ export class AcpClient {
     return this.runs.durationHistory;
   }
 
+  /** How long the agent has said nothing while a tool call is open (0 when none is). */
+  get quietMs() {
+    const q = this.tracker.quiet();
+    return q.waitingOnTool ? q.forMs : 0;
+  }
+
   get openTools() {
     return this.tracker.openTools;
   }

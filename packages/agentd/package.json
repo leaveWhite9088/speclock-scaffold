@@ -72,6 +72,7 @@
     "test:dispatcher-report": "node test/live/dispatcher-test.mjs --prompt",
     "test:reports-live": "node test/live/reports-live-test.mjs",
   },
+    "test:stuck-tool": "node test/unit/stuck-tool-test.mjs"
   "dependencies": {
     "@speclock-scaffold/drivers": "*"
   }

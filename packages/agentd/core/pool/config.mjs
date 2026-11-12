@@ -45,6 +45,12 @@ export const driverOf = getDriver;
 
 /** A prompt is cancelled when the agent is silent this long (tool calls in progress do not count as silence). */
 export const IDLE_RUN_MS = 300_000;
+/**
+ * A tool call that has been open this long with the agent saying nothing else is taken as stuck (typically a dev server or a
+ * watcher run in the foreground: it never ends, and the CLI waits for it for ever). The run is cancelled. Not counted as
+ * silence before that, so a long build is left alone. `limits.stuckToolMin` in agentd.config.json, or AGENTD_STUCK_TOOL_MS.
+ */
+export const STUCK_TOOL_MS = Number(process.env.AGENTD_STUCK_TOOL_MS) || (Number(CONFIG?.limits?.stuckToolMin) > 0 ? Number(CONFIG.limits.stuckToolMin) * 60_000 : 600_000);
 /** Hard ceiling for one prompt, however active the agent is. */
 export const MAX_RUN_MS = Number(process.env.AGENTD_MAX_RUN_MS) || 2 * 60 * 60_000;
 /** How long a cancelled prompt gets to wrap up before it is abandoned. */

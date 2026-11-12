@@ -372,7 +372,7 @@ slow_run                                           → info
 先礼貌地问一下，不行就杀掉（思路同 Celery 的软超时 / 硬超时）：
 
 ```
-执行者沉默 5 分钟（`timeout`；正在跑的工具调用不算沉默）  或  总时长超过 2 小时
+执行者沉默 5 分钟（`timeout`；正在跑的工具调用不算沉默）  或  总时长超过 2 小时  或  一个工具调用开着、执行者 10 分钟没有任何动静（`limits.stuckToolMin` / `AGENTD_STUCK_TOOL_MS`；多半是前台跑了开发服务器这类不会结束的命令，取消时在报错里点出命令，并提醒它留下的进程可能还在）
   → 发 session/cancel                       软超时：请它停下来
   → 等 15 秒（AGENTD_CANCEL_GRACE_MS）
   → 它结束了：任务记为 timeout

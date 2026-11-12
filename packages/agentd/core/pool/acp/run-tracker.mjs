@@ -38,6 +38,17 @@ export class RunTracker {
     return { forMs: Date.now() - this.lastSignal, waitingOnTool: this.openTools.size > 0 };
   }
 
+  /** The tool calls that are open, for a message: the command or title of each, shortened. */
+  openToolText() {
+    const run = this.getRun();
+    return [...this.openTools]
+      .map((id) => {
+        const t = run?.tools?.get(id);
+        return String(t?.input || t?.title || id).replace(/\s+/g, ' ').slice(0, 160);
+      })
+      .join('; ');
+  }
+
   /** One `session/update`. */
   onUpdate(u) {
     this._noteSignal(u);

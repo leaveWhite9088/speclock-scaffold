@@ -54,7 +54,7 @@ export function listInstances() {
     alive: Boolean(a.child),
     busy: a.busy,
     /** What the running task is doing now, so a page opened mid-run can show it at once. */
-    activity: a.run ? { startedAt: a.run.startedAt, tool: a.run.lastTool ?? null, toolCalls: a.run.toolCalls ?? 0, openTools: a.openTools.size, thinking: a.run.thoughtChars } : null,
+    activity: a.run ? { startedAt: a.run.startedAt, tool: a.run.lastTool ?? null, toolCalls: a.run.toolCalls ?? 0, openTools: a.openTools.size, quietSince: a.openTools.size ? Date.now() - a.quietMs : null, thinking: a.run.thoughtChars } : null,
     /** Prompts waiting behind the one that runs, so a page opened mid-run can tell which task is queued. */
     waiting: a.waitingJobs().length,
     /** The same prompts one by one, so each can be cancelled: [{ jobId, text, at }]. */
