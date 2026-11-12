@@ -122,6 +122,14 @@
 @layer base {
   * { border-color: var(--line); }
   html, body, #root { height: 100%; margin: 0; }
+  /* Scrollbars in the page's own colours: a slim rounded thumb on no track, a little darker on hover. Firefox gets the
+     standard properties, Chromium the pseudo-elements (which win there, so the arrows and the corner are gone too). */
+  * { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+  *::-webkit-scrollbar { width: 10px; height: 10px; }
+  *::-webkit-scrollbar-track, *::-webkit-scrollbar-corner { background: transparent; }
+  *::-webkit-scrollbar-button { display: none; }
+  *::-webkit-scrollbar-thumb { background: var(--line-2); border: 3px solid transparent; border-radius: 999px; background-clip: content-box; }
+  *::-webkit-scrollbar-thumb:hover { background: var(--muted); background-clip: content-box; }
   body { font: 13.5px/1.5 var(--font-sans); color: var(--ink); background: var(--bg); -webkit-font-smoothing: antialiased; }
   button, input, select, textarea { font: inherit; color: inherit; }
   button { cursor: pointer; }
