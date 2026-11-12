@@ -34,6 +34,9 @@ function loadWidths(): Widths {
 interface UiState {
   widths: Widths;
   setWidth: (k: keyof Widths, v: number | null) => void;
+  /** The spec library (SpecLock Core's own page) in a drawer; it and the settings drawer share the right edge, one at a time. */
+  core: boolean;
+  setCore: (open: boolean) => void;
   /** Running executors, by key ("project~id"). */
   activity: Record<string, Activity>;
   setActivity: (key: string, a: Activity | null) => void;
@@ -59,6 +62,8 @@ export const useUi = create<UiState>((set) => ({
       localStorage.setItem('widths', JSON.stringify(widths));
       return { widths };
     }),
+  core: false,
+  setCore: (open) => set(open ? { core: true, drawer: false } : { core: false }),
   activity: {},
   setActivity: (key, a) =>
     set((s) => {
@@ -77,7 +82,7 @@ export const useUi = create<UiState>((set) => ({
     set({ project: id, sel: DISPATCHER });
   },
   select: (key) => set({ sel: key }),
-  setDrawer: (open) => set({ drawer: open }),
+  setDrawer: (open) => set(open ? { drawer: true, core: false } : { drawer: false }),
   setConn: (conn) => set({ conn }),
   reloadConversation: () => set((s) => ({ conversationVersion: s.conversationVersion + 1 })),
 }));

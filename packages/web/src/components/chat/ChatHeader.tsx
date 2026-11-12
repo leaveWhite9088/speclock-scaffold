@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Settings } from 'lucide-react';
+import { BookMarked, Settings } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ContextRing } from '@/components/ui/context-ring';
@@ -12,11 +12,27 @@ import { api, enc } from '@/lib/api';
 import { memberLlm, modelLabel, took } from '@/lib/format';
 import { useUi } from '@/store';
 
+/** The two drawers' buttons, at the right end of the header. */
+function PanelButtons() {
+  const drawer = useUi((s) => s.drawer);
+  const setDrawer = useUi((s) => s.setDrawer);
+  const core = useUi((s) => s.core);
+  const setCore = useUi((s) => s.setCore);
+  return (
+    <>
+      <IconButton label="规格库" size="icon" aria-pressed={core} className={core ? 'bg-hover text-ink' : undefined} onClick={() => setCore(!core)}>
+        <BookMarked className="size-4" />
+      </IconButton>
+      <IconButton label="设置" size="icon" aria-pressed={drawer} className={drawer ? 'bg-hover text-ink' : undefined} onClick={() => setDrawer(!drawer)}>
+        <Settings className="size-4" />
+      </IconButton>
+    </>
+  );
+}
+
 export function ChatHeader() {
   const qc = useQueryClient();
   const { project, member, isDispatcher } = useSelectedMember();
-  const drawer = useUi((s) => s.drawer);
-  const setDrawer = useUi((s) => s.setDrawer);
   const { data: models } = useDispatcherModels(project?.id ?? '', isDispatcher);
   const { data: catalog } = useCatalog(member?.type);
   const providerName = useProviderName();
@@ -25,8 +41,11 @@ export function ChatHeader() {
 
   if (!project) {
     return (
-      <header className="flex min-h-[52px] items-center px-6 py-2.5">
+      <header className="flex min-h-[52px] items-center justify-between px-6 py-2.5">
         <h1 className="m-0 text-[15px] font-semibold">agentd</h1>
+        <div className="flex items-center gap-1">
+          <PanelButtons />
+        </div>
       </header>
     );
   }
@@ -82,9 +101,9 @@ export function ChatHeader() {
             重试启动
           </Button>
         ) : null}
-        <IconButton label="设置" size="icon" aria-pressed={drawer} className={drawer ? 'bg-hover text-ink' : undefined} onClick={() => setDrawer(!drawer)}>
-          <Settings className="size-4" />
-        </IconButton>
+        <div className="flex items-center gap-1">
+          <PanelButtons />
+        </div>
       </div>
     </header>
   );

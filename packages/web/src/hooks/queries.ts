@@ -73,3 +73,24 @@ export function useProviderName() {
   return (id: string) => list.find((p) => p.id === id)?.name ?? id;
 }
 export const useTemplates = (enabled = true) => useQuery({ queryKey: ['templates'], queryFn: async () => (await api<{ templates: Template[] }>('GET', '/api/templates')).templates, enabled });
+
+/** SpecLock Core as agentd sees it: is it installed, set up, running, and where its own page is. */
+export interface SpecsStatus {
+  found: boolean;
+  built: boolean;
+  setUp: boolean;
+  running: boolean;
+  version: string | null;
+  url: string;
+  /** The current project's id inside Core, null until it has one there. */
+  coreProjectId: number | null;
+}
+
+/** Polls while the drawer is open and Core is not up yet, so it appears when it comes up. */
+export const useSpecsStatus = (enabled: boolean, project: string) =>
+  useQuery({
+    queryKey: ['specs', project],
+    queryFn: () => api<SpecsStatus>('GET', `/api/specs?project=${enc(project)}`),
+    enabled,
+    refetchInterval: (q) => (q.state.data?.running && (q.state.data.coreProjectId != null || !project) ? false : 4000),
+  });

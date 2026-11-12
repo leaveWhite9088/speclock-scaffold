@@ -1,6 +1,7 @@
 import { Chat } from '@/components/chat/Chat';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { HandoffBar } from '@/components/chat/HandoffBar';
+import { CoreDrawer } from '@/components/drawer/CoreDrawer';
 import { Drawer } from '@/components/drawer/Drawer';
 import { Sidebar } from '@/components/sidebar/Sidebar';
 import { useLiveEvents } from '@/hooks/useLiveEvents';
@@ -18,6 +19,7 @@ export default function App() {
         <Chat />
       </main>
       <Drawer />
+      <CoreDrawer />
     </div>
   );
 }
