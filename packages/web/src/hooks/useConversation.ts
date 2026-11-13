@@ -178,13 +178,14 @@ export function useConversation(project: string, sel: string, member: Member | u
     itemsRef.current = itemsRef.current.filter((i) => !((i.kind === 'assistant' || i.kind === 'thought') && i.live));
   };
 
-  const pull = useCallback(async () => {
+  /** One page of the transcript after what is shown. True when there is more behind it. */
+  const pullPage = useCallback(async (): Promise<boolean> => {
     const m = memberRef.current;
     const g = gen.current;
-    if (!m || !sessionId.current) return;
-    const q = lastSeq.current ? `?afterSeq=${lastSeq.current}` : '';
-    const r = await api<{ entries: TranscriptEntry[] }>('GET', `/api/agents/${enc(m.key)}/sessions/${enc(sessionId.current)}/transcript${q}`);
-    if (g !== gen.current) return;
+    if (!m || !sessionId.current) return false;
+    // A page is at most 1000 entries (the server's own limit; without one it gives 200)
+    const r = await api<{ entries: TranscriptEntry[]; hasMore?: boolean }>('GET', `/api/agents/${enc(m.key)}/sessions/${enc(sessionId.current)}/transcript?limit=1000${lastSeq.current ? `&afterSeq=${lastSeq.current}` : ''}`);
+    if (g !== gen.current) return false;
     // What the live end of the conversation showed is now in the transcript: it is drawn again after this.
     if (r.entries.some((e) => e.role === 'assistant' || e.role === 'thought' || e.role === 'error')) dropLive();
     for (const e of r.entries) {
@@ -225,7 +226,17 @@ export function useConversation(project: string, sel: string, member: Member | u
       }
     }
     commit();
+    return Boolean(r.hasMore) && r.entries.length > 0;
   }, []);
+
+  /**
+   * The whole transcript after what is shown, page by page. A conversation of hundreds of entries used to show only its first
+   * 200: it ended on a tool call that had begun and whose end was on the next page, shown as running for hours.
+   */
+  const pull = useCallback(async () => {
+    const g = gen.current;
+    while (await pullPage()) if (g !== gen.current) return;
+  }, [pullPage]);
 
   const load = useCallback(async () => {
     const g = ++gen.current;
