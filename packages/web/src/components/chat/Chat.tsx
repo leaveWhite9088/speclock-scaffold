@@ -132,16 +132,21 @@ export function Chat() {
         ) : (
           <div className="mx-auto grid max-w-[740px] grid-cols-[minmax(0,1fr)] gap-3.5 px-6 pt-1.5 pb-3 *:min-w-0">
             {list.map((b) =>
-              b.kind === 'say' ? <Message key={b.item.id} item={b.item} /> : b.kind === 'dispatch' ? <DispatchLine key={b.item.id} item={b.item} queued={queued.has(b.item.id)} onCancel={queued.get(b.item.id)?.jobId ? () => void cancelJob(queued.get(b.item.id)!.agent, queued.get(b.item.id)!.jobId!) : undefined} /> : b.kind === 'thought' ? <ThoughtBlock key={b.item.id} item={b.item} /> : b.kind === 'report' ? <ReportLine key={b.item.id} item={b.item} /> : <ToolGroup key={b.id} tools={b.tools} />,
+              b.kind === 'say' ? <Message key={b.item.id} item={b.item} /> : b.kind === 'dispatch' ? <DispatchLine key={b.item.id} item={b.item} queued={queued.has(b.item.id)} ahead={queued.get(b.item.id)?.ahead} onPromote={queued.get(b.item.id)?.jobId && (queued.get(b.item.id)?.ahead ?? 0) > (project?.instances.find((m) => m.key === queued.get(b.item.id)!.agent)?.busy ? 1 : 0) ? () => void promoteJob(queued.get(b.item.id)!.agent, queued.get(b.item.id)!.jobId!) : undefined} onCancel={queued.get(b.item.id)?.jobId ? () => void cancelJob(queued.get(b.item.id)!.agent, queued.get(b.item.id)!.jobId!) : undefined} /> : b.kind === 'thought' ? <ThoughtBlock key={b.item.id} item={b.item} /> : b.kind === 'report' ? <ReportLine key={b.item.id} item={b.item} /> : <ToolGroup key={b.id} tools={b.tools} />,
             )}
           </div>
         )}
         {waitingMsgs.length ? (
-          <div className="mx-auto grid max-w-[740px] gap-2 px-6 pb-3">
+          <div className="mx-auto grid max-w-[740px] grid-cols-[minmax(0,1fr)] gap-2 px-6 pb-3 *:min-w-0">
             {waitingMsgs.map((m, i) => (
               <div key={`${i}-${m.slice(0, 20)}`} className="flex items-center justify-end gap-2 text-[12.5px] text-muted">
                 <span className="shrink-0">排队中</span>
                 <span className="max-w-[70%] truncate rounded-lg bg-bubble px-3 py-[7px] text-sm text-ink opacity-70">{m}</span>
+                {i > 0 ? (
+                  <button type="button" aria-label="插队" title="插队：排到下一个" className="shrink-0 rounded p-1 hover:bg-hover hover:text-ink" onClick={() => void promoteMsg(i)}>
+                    <ArrowUpToLine className="size-3.5" />
+                  </button>
+                ) : null}
                 <button type="button" aria-label="取消排队" title="取消排队" className="shrink-0 rounded p-1 hover:bg-hover hover:text-ink" onClick={() => void dequeue(i)}>
                   <X className="size-3.5" />
                 </button>
@@ -150,11 +155,16 @@ export function Chat() {
           </div>
         ) : null}
         {waitingJobs.length ? (
-          <div className="mx-auto grid max-w-[740px] gap-2 px-6 pb-3">
-            {waitingJobs.map((j) => (
+          <div className="mx-auto grid max-w-[740px] grid-cols-[minmax(0,1fr)] gap-2 px-6 pb-3 *:min-w-0">
+            {waitingJobs.map((j, i) => (
               <div key={j.jobId} className="flex items-center justify-end gap-2 text-[12.5px] text-muted">
                 <span className="shrink-0">排队中</span>
                 <span className="max-w-[70%] truncate rounded-lg bg-bubble px-3 py-[7px] text-sm text-ink opacity-70">{j.text}</span>
+                {i > 0 ? (
+                  <button type="button" aria-label="插队" title="插队：排到下一个" className="shrink-0 rounded p-1 hover:bg-hover hover:text-ink" onClick={() => void promoteJob(member!.key, j.jobId)}>
+                    <ArrowUpToLine className="size-3.5" />
+                  </button>
+                ) : null}
                 <button type="button" aria-label="取消排队" title="取消排队" className="shrink-0 rounded p-1 hover:bg-hover hover:text-ink" onClick={() => void cancelJob(member!.key, j.jobId)}>
                   <X className="size-3.5" />
                 </button>
