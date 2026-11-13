@@ -7,6 +7,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { projectPath } from '../../base/index.mjs';
+import { flushLogs } from './log-writer.mjs';
 
 const KEEP_RUNS = 30;
 const KEEP_DURATIONS = 20;
@@ -86,6 +87,7 @@ export class RunLog {
   finish(run, metricsOf) {
     run.endedAt = Date.now();
     this.run = null;
+    if (run.logFile) flushLogs(run.logFile); // the log is complete when the run is over
     const metrics = metricsOf(run);
     // Fed only once per finished run, so a run is never its own baseline and repeated metric reads do not skew it.
     if (!run.error) {
@@ -107,7 +109,8 @@ export class RunLog {
       chars: run.text.length,
       chunks: run.chunks,
       thinkingChars: run.thoughtChars,
-      text: run.text,
+      // the whole text only once the run is over: while it runs the page takes `pendingText`, and a long run's text, sent with every poll, would be megabytes
+      ...(run.endedAt ? { text: run.text } : {}),
       // What is not in the transcript yet: the page shows it as the live end of the conversation.
       pendingText: run.text.slice(run.flushed),
       pendingThought: run.thought.slice(run.flushedThought).slice(-3000),

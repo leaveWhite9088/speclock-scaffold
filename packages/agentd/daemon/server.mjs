@@ -12,6 +12,9 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { addClient, dropClient } from './events.mjs';
 
+/** The longest request line accepted (a request is one JSON line). */
+const MAX_LINE = 32 * 1024 * 1024;
+
 /**
  * @param {{
  *   ops: Record<string, (args: object, sock: import('node:net').Socket) => any>,
@@ -36,6 +39,11 @@ export function startServer({ ops, scopeArgs, pipe, port, endpointFile, info, on
 
     sock.on('data', (chunk) => {
       buf += chunk;
+      // a client that never ends a line would grow this without limit
+      if (buf.length > MAX_LINE) {
+        sock.destroy();
+        return;
+      }
       let i;
       while ((i = buf.indexOf('\n')) !== -1) {
         const line = buf.slice(0, i).trim();
@@ -61,7 +69,12 @@ export function startServer({ ops, scopeArgs, pipe, port, endpointFile, info, on
       }
     });
 
+    // 'error' is followed by 'close': counted once, or a connection that failed would be subtracted twice and the daemon
+    // would think nobody is connected while a client still is
+    let gone = false;
     const cleanup = () => {
+      if (gone) return;
+      gone = true;
       stats.connections = Math.max(0, stats.connections - 1);
       dropClient(sock);
     };

@@ -27,20 +27,47 @@ function storeOf(project) {
   return store;
 }
 
-/** Write the store of the project an executor belongs to (given its name), or of every project read so far. */
-export function saveStore(name = null) {
-  for (const project of name ? [projectIdOf(name)] : [...stores.keys()]) {
-    try {
-      mkdirSync(projectDir(project), { recursive: true });
-      writeFileSync(fileOf(project), JSON.stringify(storeOf(project), null, 2));
-    } catch (err) {
-      log('failed to save labels:', err.message);
-    }
+/** Projects whose store changed and is not written yet, and the timer that will write them. */
+const dirty = new Set();
+let timer = null;
+/** How long changes are gathered before the file is written: a figure that changes with every message must not rewrite the file each time. */
+const SAVE_DELAY_MS = 500;
+
+function writeProject(project) {
+  try {
+    mkdirSync(projectDir(project), { recursive: true });
+    writeFileSync(fileOf(project), JSON.stringify(storeOf(project), null, 2));
+  } catch (err) {
+    log('failed to save labels:', err.message);
   }
+}
+
+/** Write what changed now (at once, for a caller that is about to exit or to read the file). */
+export function flushStore() {
+  clearTimeout(timer);
+  timer = null;
+  for (const project of [...dirty]) {
+    dirty.delete(project);
+    writeProject(project);
+  }
+}
+process.on('exit', flushStore);
+
+/**
+ * Write the store of the project an executor belongs to (given its name), or of every project read so far. Not at once: the
+ * file holds every conversation of every executor of the project and is written whole, on the daemon's one thread, so changes
+ * that come close together go out as one write.
+ */
+export function saveStore(name = null) {
+  for (const project of name ? [projectIdOf(name)] : [...stores.keys()]) dirty.add(project);
+  if (timer || !dirty.size) return;
+  timer = setTimeout(flushStore, SAVE_DELAY_MS);
+  timer.unref?.();
 }
 
 /** The project is gone: forget what was read of it (its folder is removed by the caller). */
 export function forgetProject(project) {
+  dirty.delete(project);
   stores.delete(project);
 }
 
@@ -51,9 +78,14 @@ export function entry(agent, sessionId) {
   return store[agent][sessionId];
 }
 
+const same = (a, b) => a === b || (a && b && typeof a === 'object' && typeof b === 'object' && JSON.stringify(a) === JSON.stringify(b));
+
 export function noteSession(agent, sessionId, patch) {
   if (!sessionId) return;
-  Object.assign(entry(agent, sessionId), patch);
+  const e = entry(agent, sessionId);
+  // nothing to write when it says what the record already says (a usage figure repeats between messages)
+  if (Object.entries(patch).every(([k, v]) => same(e[k], v))) return;
+  Object.assign(e, patch);
   saveStore(agent);
 }
 

@@ -4,7 +4,7 @@
  * happened and tells the front ends the run is alive. It knows nothing about processes or JSON-RPC: it is fed updates.
  */
 
-import { appendFileSync } from 'node:fs';
+import { appendLog } from './log-writer.mjs';
 import { TOOL_CALL_AS_TEXT } from '../../base/index.mjs';
 import { appendEntry } from '../../records/index.mjs';
 import { inputText, outputText } from '../tool-text.mjs';
@@ -170,13 +170,7 @@ export class RunTracker {
     if (run.segAt == null) run.segAt = Date.now();
     run.text += text;
     run.chunks += 1;
-    if (run.logFile) {
-      try {
-        appendFileSync(run.logFile, text, 'utf8');
-      } catch {
-        /* logging is best-effort */
-      }
-    }
+    if (run.logFile) appendLog(run.logFile, text);
     this.progress(run);
   }
 

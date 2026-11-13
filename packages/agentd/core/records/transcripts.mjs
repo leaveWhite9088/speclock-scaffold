@@ -15,7 +15,7 @@
  * run that went through agentd.
  */
 
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { instanceIdOf, projectPath } from '../base/index.mjs';
 
@@ -59,6 +59,67 @@ export function appendEntry(instance, sessionId, entry) {
 }
 
 /**
+ * Where each line of a transcript starts, kept per file so that a read does not go through the whole file again. A poll that
+ * asks for "after seq N" used to read, split and parse every line of a file that only ever grows (hours of tool output), on the
+ * daemon's one thread, every second or two. Now only the bytes that were added since the last read are scanned (to find the
+ * line starts), and only the lines asked for are read and parsed.
+ */
+const indexes = new Map();
+const NEWLINE = 0x0a;
+
+/** `{ size, starts: number[] }`: the byte offset where each non-blank line starts, for the lines that are complete (end in a newline). */
+function indexOf(file, size) {
+  let ix = indexes.get(file);
+  if (!ix || size < ix.size) ix = { size: 0, scanned: 0, starts: [], lineStart: 0, blank: true };
+  if (size > ix.scanned) {
+    const fd = openSync(file, 'r');
+    try {
+      const CHUNK = 1 << 20;
+      const buf = Buffer.allocUnsafe(Math.min(CHUNK, size - ix.scanned));
+      let pos = ix.scanned;
+      while (pos < size) {
+        const n = readSync(fd, buf, 0, Math.min(buf.length, size - pos), pos);
+        if (n <= 0) break;
+        for (let i = 0; i < n; i += 1) {
+          const b = buf[i];
+          if (b === NEWLINE) {
+            if (!ix.blank) ix.starts.push(ix.lineStart);
+            ix.lineStart = pos + i + 1;
+            ix.blank = true;
+          } else if (ix.blank && b !== 0x20 && b !== 0x0d && b !== 0x09) {
+            ix.blank = false;
+          }
+        }
+        pos += n;
+      }
+      ix.scanned = pos;
+    } finally {
+      closeSync(fd);
+    }
+  }
+  ix.size = size;
+  indexes.set(file, ix);
+  return ix;
+}
+
+/** Read bytes [from, to) of a file as text. */
+function readRange(file, from, to) {
+  const fd = openSync(file, 'r');
+  try {
+    const buf = Buffer.allocUnsafe(Math.max(0, to - from));
+    let got = 0;
+    while (got < buf.length) {
+      const n = readSync(fd, buf, got, buf.length - got, from + got);
+      if (n <= 0) break;
+      got += n;
+    }
+    return buf.toString('utf8', 0, got);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/**
  * Read entries of one session.
  *   afterSeq  return entries with seq greater than this (default 0)
  *   limit     maximum entries returned (default 200, maximum 1000)
@@ -71,28 +132,24 @@ export function readTranscript(instance, sessionId, { afterSeq = 0, limit = 200,
     return { agent: instance, sessionId, recorded: false, total: 0, entries: [], hasMore: false };
   }
 
-  const all = [];
-  const lines = readFileSync(file, 'utf8').split('\n');
-  let seq = 0;
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    seq += 1;
-    try {
-      all.push({ seq, ...JSON.parse(line) });
-    } catch {
-      /* skip a damaged line but keep the numbering stable */
-    }
+  const ix = indexOf(file, statSync(file).size);
+  const total = ix.starts.length;
+  const after = Math.min(Math.max(Number(afterSeq) || 0, 0), total);
+  // the lines after `after`, and of those the ones to return: the first `max`, or the last `max`
+  const first = tail ? Math.max(after, total - max) : after;
+  const last = Math.min(total, first + max);
+  const entries = [];
+  if (last > first) {
+    const from = ix.starts[first];
+    const to = last < total ? ix.starts[last] : ix.lineStart;
+    const lines = readRange(file, from, to).split('\n').filter((l) => l.trim());
+    lines.forEach((line, i) => {
+      try {
+        entries.push({ seq: first + i + 1, ...JSON.parse(line) });
+      } catch {
+        /* skip a damaged line but keep the numbering stable */
+      }
+    });
   }
-
-  const after = Math.max(Number(afterSeq) || 0, 0);
-  const pool = all.filter((e) => e.seq > after);
-  const entries = tail ? pool.slice(-max) : pool.slice(0, max);
-  return {
-    agent: instance,
-    sessionId,
-    recorded: true,
-    total: seq,
-    entries,
-    hasMore: pool.length > max,
-  };
+  return { agent: instance, sessionId, recorded: true, total, entries, hasMore: total - after > max };
 }

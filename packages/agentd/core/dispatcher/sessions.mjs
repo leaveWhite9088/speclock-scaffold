@@ -7,6 +7,21 @@
 import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 
+/** The first 64 KB of a file as text (all of it when smaller): a conversation file grows with every message, and a list must not read all of each. */
+function head(file, bytes = 65536) {
+  const fd = openSync(file, 'r');
+  try {
+    const buf = Buffer.alloc(bytes);
+    const n = readSync(fd, buf, 0, buf.length, 0);
+    return buf.toString('utf8', 0, n);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/** turns() of a file as it was when last read, by size and time: the same file is not read and parsed again until it changes. */
+const turnsCache = new Map();
+
 /** First user message of a pi session file, as a title. Reads only the head of the file. */
 export function firstUserText(file) {
   try {
@@ -73,18 +88,19 @@ export class SessionStore {
         else if (e.name.endsWith('.jsonl')) {
           let header = null;
           try {
-            header = JSON.parse(readFileSync(p, 'utf8').split('\n', 1)[0]);
+            header = JSON.parse(head(p).split('\n', 1)[0]);
           } catch {
             /* a file without a readable header is still listed */
           }
+          const st = statSync(p);
           rows.push({
             file: p,
             title: firstUserText(p),
             label: labels[basename(p)] ?? null,
             sessionId: header?.id ?? null,
             cwd: header?.cwd ?? null,
-            updatedAt: statSync(p).mtime.toISOString(),
-            size: statSync(p).size,
+            updatedAt: st.mtime.toISOString(),
+            size: st.size,
             active: Boolean(activeFile) && resolve(p) === resolve(activeFile),
           });
         }
@@ -133,6 +149,10 @@ export class SessionStore {
   turns(file, { running = false } = {}) {
     try {
       if (!file) return [];
+      const st = statSync(file);
+      const key = `${st.size}:${st.mtimeMs}:${running}`;
+      const cached = turnsCache.get(file);
+      if (cached?.key === key) return cached.turns;
       const turns = [];
       let cur = null;
       for (const line of readFileSync(file, 'utf8').split('\n')) {
@@ -151,7 +171,10 @@ export class SessionStore {
         } else if (cur && Number.isFinite(end)) cur.tookMs = end - cur.start;
       }
       if (running) turns.pop();
-      return turns.filter((t) => t.tookMs > 0).map(({ at, tookMs }) => ({ at, tookMs }));
+      const result = turns.filter((t) => t.tookMs > 0).map(({ at, tookMs }) => ({ at, tookMs }));
+      turnsCache.set(file, { key, turns: result });
+      if (turnsCache.size > 50) turnsCache.delete(turnsCache.keys().next().value);
+      return result;
     } catch {
       return [];
     }

@@ -22,10 +22,18 @@ const subscribers = new Map();
 export const allSubscribers = new Set();
 /** Every connected socket: system events (no jobId) go to all of them. */
 const clients = new Set();
+/** A client that does not read piles up what is written to it in memory; past this it is dropped (it reconnects and catches up from the ring). */
+const MAX_BACKLOG = 32 * 1024 * 1024;
+
 function writeAll(socks, payload) {
   const line = JSON.stringify(payload) + '\n';
   for (const sock of socks) {
     try {
+      if (sock.destroyed) continue;
+      if (sock.writableLength > MAX_BACKLOG) {
+        sock.destroy();
+        continue;
+      }
       sock.write(line);
     } catch {
       /* a broken socket is cleaned up by its own handler */

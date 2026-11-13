@@ -17,6 +17,7 @@
 import { PiRpc } from '../pi/index.mjs';
 import { dispatcherRules } from '../prompts/index.mjs';
 import { nodeBin, piMcpServers, piPaths } from '../pool/index.mjs';
+import { killTree } from '../pool/process.mjs';
 import { injectionFor, providerForDispatcher } from '../pool/index.mjs';
 import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -513,9 +514,12 @@ export class Dispatcher {
     } catch {
       /* ignore */
     }
-    const timer = setTimeout(() => child.kill(), 3000);
-    await closed;
+    const timer = setTimeout(() => killTree(child), 3000);
+    // bounded: a process that will not go cannot hold whoever waits for this (the idle sweep, the daemon's own exit) for good
+    let giveUp;
+    await Promise.race([closed, new Promise((resolve) => (giveUp = setTimeout(resolve, 8000)))]);
     clearTimeout(timer);
+    clearTimeout(giveUp);
   }
 }
 
