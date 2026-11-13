@@ -33,12 +33,11 @@ export function Message({ item }: { item: Say }) {
           {item.ack ? <span>已收到</span> : null}
           {item.at ? <span title="发送的时刻">{clock(item.at)}</span> : null}
         </div>
-      ) : (
+      ) : item.tookMs != null ? (
         <div className="flex items-center gap-2 text-[11.5px] text-muted">
-          <CopyButton text={item.text} className="-ml-1 opacity-0 group-hover:opacity-100" />
-          {item.tookMs != null ? <span>{item.tookLabel ?? '用时'} {took(item.tookMs)}</span> : null}
+          <span>{item.tookLabel ?? '用时'} {took(item.tookMs)}</span>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
