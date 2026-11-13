@@ -1,4 +1,4 @@
-import { ChevronRight, X } from 'lucide-react';
+import { ArrowUpToLine, ChevronRight, X } from 'lucide-react';
 import { CopyButton } from '@/components/ui/copy-button';
 import { toast } from '@/components/ui/toast';
 import { api, enc } from '@/lib/api';
@@ -15,7 +15,7 @@ type Dispatch = Extract<Item, { kind: 'dispatch' }>;
  * One line for a task the dispatcher handed to an executor: who got it, what it was, how it went.
  * Open it for the full task and the executor's reply (or the reason it failed).
  */
-export function DispatchLine({ item, queued = false, onCancel }: { item: Dispatch; queued?: boolean; onCancel?: () => void }) {
+export function DispatchLine({ item, queued = false, ahead, onCancel, onPromote }: { item: Dispatch; queued?: boolean; /** How many are in front of it now (the line can be reordered, so the figure from when it was sent is out of date) */ ahead?: number; onCancel?: () => void; onPromote?: () => void }) {
   const retry = (item.attempt ?? 1) > 1;
   const project = useUi((s) => s.project);
   const dispatcher = useProject()?.dispatcher;
@@ -53,7 +53,21 @@ export function DispatchLine({ item, queued = false, onCancel }: { item: Dispatc
           <span className="shrink-0 text-danger">已中断：没有收到结果</span>
         ) : waiting ? (
           <>
-            <span className="shrink-0">排队中{item.ahead ? `（前面还有 ${item.ahead} 个）` : ''}</span>
+            <span className="shrink-0">排队中{(ahead ?? item.ahead) ? `（前面还有 ${ahead ?? item.ahead} 个）` : ''}</span>
+            {onPromote ? (
+              <button
+                type="button"
+                aria-label="插队"
+                title="插队：排到下一个"
+                className="shrink-0 rounded p-0.5 hover:bg-hover hover:text-ink"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onPromote();
+                }}
+              >
+                <ArrowUpToLine className="size-3" />
+              </button>
+            ) : null}
             {onCancel ? (
               <button
                 type="button"

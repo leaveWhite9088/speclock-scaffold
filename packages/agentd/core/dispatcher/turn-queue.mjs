@@ -93,6 +93,16 @@ export class TurnQueue {
     return { removed: true };
   }
 
+  /** Move a waiting message to the front: it goes next, when the turn ends. */
+  promote(index) {
+    const i = Number(index);
+    if (!Number.isInteger(i) || i < 0 || i >= this.items.length) return { promoted: false };
+    const [m] = this.items.splice(i, 1);
+    this.items.unshift(m);
+    this.onChange(this.items.length);
+    return { promoted: true };
+  }
+
   /** Drop everything that waits. */
   clear() {
     if (!this.items.length) return;

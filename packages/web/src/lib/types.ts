@@ -99,7 +99,7 @@ export interface Member {
   /** Prompts queued behind the running one. */
   waiting?: number;
   /** The queued prompts one by one, oldest first, each can be cancelled by its job id. */
-  waitingJobs?: { jobId: string; text: string; at: number }[];
+  waitingJobs?: { jobId: string; text: string; at: number; priority?: boolean }[];
   /** The running task, if any: when it started (epoch ms) and what it is doing. */
   activity?: { startedAt: number; tool: string | null; toolCalls: number; openTools: number; /** since when a tool call is open and the agent has said nothing (epoch ms) */ quietSince?: number | null; thinking?: number } | null;
   /** Its last task was cut off by a daemon shutdown; cleared when it gets new work. */

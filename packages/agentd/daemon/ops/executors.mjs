@@ -120,6 +120,15 @@ export function executorOps(ctx) {
     /** With a `jobId`: that run only (waiting or running); without: whatever the executor is running now. */
     cancel: ({ agent, jobId }) => getAgent(agent).cancel(jobId),
 
+    /** What the executor is running and what waits behind it (next first), so a task can be cancelled or moved up by its id. */
+    queue: ({ agent }) => {
+      const a = getAgent(agent);
+      return { agent, running: a.run ? { jobId: a.run.jobId } : null, waiting: a.waitingJobs() };
+    },
+
+    /** Move a waiting task to the front: it goes next, after the one that runs now. */
+    promote: ({ agent, jobId }) => getAgent(agent).promote(jobId),
+
     /** A person has looked at an executor marked unstable: let it take work again. */
     'agent.recover': ({ agent }) => {
       const r = getAgent(agent).recover();

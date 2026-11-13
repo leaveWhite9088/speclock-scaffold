@@ -433,6 +433,11 @@ export class Dispatcher {
     return this.turns.take(index);
   }
 
+  /** Move a waiting message to the front (it goes next, when the turn ends). */
+  promote(index) {
+    return this.turns.promote(index);
+  }
+
   async abort() {
     if (!this.child) return { aborted: false, reason: 'not running' };
     // Stop means stop: what was waiting behind the turn is dropped too.

@@ -77,6 +77,8 @@ await q.submit('y');
 await q.submit('z');
 check('a waiting message can be taken back', q.take(1).removed === true && q.items.join() === 'x,z');
 check('a place that is not there takes nothing', q.take(9).removed === false && q.take(-1).removed === false && q.take('a').removed === false);
+check('a waiting message can be moved to the front', q.promote(1).promoted === true && q.items.join() === 'z,x');
+check('a place that is not there moves nothing', q.promote(9).promoted === false && q.promote(-1).promoted === false && q.items.join() === 'z,x');
 q.clear();
 check('stop drops all that waits, and does not touch the turn', q.items.length === 0 && q.busy);
 await q.submit('late1');

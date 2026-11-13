@@ -10,7 +10,7 @@ import * as projects from '../core/projects/index.mjs';
  * resolved inside that project, and a name that already points elsewhere is refused.
  */
 export const AGENT_ARG_OPS = new Set([
-  'status', 'sessions', 'use', 'new', 'rename', 'deleteSession', 'models', 'setModel', 'run', 'tail', 'wait', 'cancel', 'transcript',
+  'status', 'sessions', 'use', 'new', 'rename', 'deleteSession', 'models', 'setModel', 'run', 'tail', 'wait', 'cancel', 'queue', 'promote', 'transcript',
 ]);
 
 /**

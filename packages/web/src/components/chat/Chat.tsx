@@ -101,16 +101,30 @@ export function Chat() {
     }
     await qc.invalidateQueries({ queryKey: ['projects'] });
   };
+  const promoteMsg = async (index: number) => {
+    try {
+      await api('POST', `/api/dispatcher/promote${pq(project?.id ?? '')}`, { index });
+    } catch (e) {
+      toast((e as Error).message);
+    }
+    await qc.invalidateQueries({ queryKey: ['projects'] });
+  };
   // Which dispatched tasks wait behind another: an executor works on one thing at a time, in order, so of its
   // unfinished dispatches the newest `waiting` ones are the queued ones (the server counts them).
-  const queued = new Map<string, { agent: string; jobId?: string }>();
+  const queued = new Map<string, { agent: string; jobId?: string; ahead?: number }>();
   if (isDispatcher && project) {
     const open = items.filter((i): i is Extract<Item, { kind: 'dispatch' }> => i.kind === 'dispatch' && i.state === 'run');
     for (const m of project.instances) {
       const lines = open.filter((d) => d.agent === m.id);
       const mine = lines.slice(Math.max(0, lines.length - (m.waiting ?? 0)));
       const jobs = m.waitingJobs ?? [];
-      mine.forEach((d, i) => queued.set(d.id, { agent: m.key, jobId: jobs[jobs.length - mine.length + i]?.jobId }));
+      // The line can be reordered, so a task is found by its own job id; the newest-N guess is only for one that has none yet.
+      mine.forEach((d, i) => {
+        const at = d.jobId ? jobs.findIndex((j) => j.jobId === d.jobId) : -1;
+        const jobId = at >= 0 ? d.jobId : jobs[jobs.length - mine.length + i]?.jobId;
+        const pos = at >= 0 ? at : jobs.length - mine.length + i;
+        queued.set(d.id, { agent: m.key, jobId, ahead: pos >= 0 ? pos + (m.busy ? 1 : 0) : undefined });
+      });
     }
   }
   const cancelJob = async (agent: string, jobId: string) => {

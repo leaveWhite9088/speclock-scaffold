@@ -293,24 +293,31 @@ export class Sessions {
           options: flattenOptions(opt.options),
         })),
       };
-    });
+    }, sessionId ? { session: { kind: 'other' } } : undefined);
   }
 
   /** Reattach to an existing session. Requires cwd for both agents. */
   async useSession(sessionId, cwd) {
-    return this.enqueue(async () => {
-      await this.init();
-      return this.attach(sessionId, cwd);
-    });
+    return this.enqueue(
+      async () => {
+        await this.init();
+        return this.attach(sessionId, cwd);
+      },
+      // marked for the line: a task that follows runs in this conversation, and a copy of the switch can be made (see PromptQueue.promote)
+      { session: { kind: 'use', id: sessionId } },
+    );
   }
 
   async newSession(cwd) {
-    return this.enqueue(async () => {
-      await this.init();
-      this.sessionId = null;
-      this.preferSession = null; // an explicit "new" must not fall back to the remembered session
-      return this.ensureReady(cwd);
-    });
+    return this.enqueue(
+      async () => {
+        await this.init();
+        this.sessionId = null;
+        this.preferSession = null; // an explicit "new" must not fall back to the remembered session
+        return this.ensureReady(cwd);
+      },
+      { session: { kind: 'other' } }, // a new conversation cannot be made twice
+    );
   }
 
   /**

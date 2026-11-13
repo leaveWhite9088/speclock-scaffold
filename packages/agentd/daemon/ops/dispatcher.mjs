@@ -35,6 +35,8 @@ export function dispatcherOps(ctx) {
 
     'dispatcher.dequeue': ({ project, index }) => getDispatcher(project).dequeue(index),
 
+    'dispatcher.promote': ({ project, index }) => getDispatcher(project).promote(index),
+
     'dispatcher.new': ({ project } = {}) => getDispatcher(project).newSession(),
 
     'dispatcher.sessions': ({ project } = {}) => getDispatcher(project).sessions(),

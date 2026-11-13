@@ -16,6 +16,7 @@ import { PROJECT, closeDaemon } from "./router/daemon.ts";
 import { registerRoster } from "./router/roster.ts";
 import { runTool } from "./router/tools/run.ts";
 import { proposeHandoffTool } from "./router/tools/handoff.ts";
+import { cancelTool, jumpTool, queueTool } from "./router/tools/queue.ts";
 import { createInstanceTool, instancesTool } from "./router/tools/instances.ts";
 import { deleteSessionTool, modelsTool, newSessionTool, renameSessionTool, sessionsTool, setModelTool, statusTool, useSessionTool } from "./router/tools/sessions.ts";
 
@@ -33,6 +34,9 @@ export default function agentRouter(pi: ExtensionAPI) {
 	registerRoster(pi);
 
 	pi.registerTool(runTool);
+	pi.registerTool(queueTool);
+	pi.registerTool(cancelTool);
+	pi.registerTool(jumpTool);
 	pi.registerTool(sessionsTool);
 	pi.registerTool(newSessionTool);
 	pi.registerTool(useSessionTool);

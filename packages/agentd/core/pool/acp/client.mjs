@@ -58,7 +58,17 @@ export class AcpClient {
 
     this.spawnCount = 0;
 
-    this.line = new PromptQueue({ touch: () => (this.lastActive = Date.now()) });
+    this.line = new PromptQueue({
+      touch: () => (this.lastActive = Date.now()),
+      // how the line moves the executor to a conversation itself (when it moves a task up): inside its own turn, so not through the line
+      switcher: {
+        current: () => this.sessionId,
+        use: async (id) => {
+          await this._init();
+          return this.sessions.attach(id);
+        },
+      },
+    });
     this.agentInfo = null;
     this.capabilities = null;
 
@@ -67,7 +77,7 @@ export class AcpClient {
       agent: this,
       request: (method, params, opts) => this._request(method, params, opts),
       init: () => this._init(),
-      enqueue: (fn) => this._enqueue(fn),
+      enqueue: (fn, meta) => this._enqueue(fn, meta),
       rulesMeta: () => this.rulesChannel.meta(),
     });
 
@@ -242,8 +252,8 @@ export class AcpClient {
     return { agent: this.name, unstable: false };
   }
 
-  _enqueue(task) {
-    return this.line.enqueue(task);
+  _enqueue(task, meta) {
+    return this.line.enqueue(task, meta);
   }
 
   // The run record, under the names the rest of the daemon and the tests use.
@@ -458,6 +468,8 @@ export class AcpClient {
       () => this._runPrompt(jobId, text, { timeoutMs, cwd, reset, sessionId, meta, display }),
       // Cancelled while it waited: it never reaches the CLI.
       () => refusedRun(jobId, 'cancelled', 'cancelled before it started', { health: 'warn', text: 'the run was cancelled before it started' }),
+      // which conversation it names (it attaches to it itself), or that it makes a new one: the line needs to know to move it up
+      { session: reset ? { kind: 'other' } : sessionId ? { kind: 'use', id: sessionId } : null },
     );
     return { jobId, done, ahead };
   }
@@ -690,7 +702,13 @@ export class AcpClient {
     return { cancelled: true, sessionId: this.sessionId };
   }
 
-  /** What a page shows with a cancel button: the waiting prompts, oldest first. */
+  /** Move a waiting prompt to the front of the line: it goes next, after the one that runs now. */
+  promote(jobId) {
+    const r = this.line.promote(jobId);
+    return r.promoted ? { promoted: true, jobId, position: r.position } : { promoted: false, jobId, reason: r.reason };
+  }
+
+  /** What a page shows with a cancel button: the waiting prompts, next first. */
   waitingJobs() {
     return this.line.waiting();
   }
