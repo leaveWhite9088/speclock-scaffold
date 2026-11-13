@@ -146,11 +146,13 @@ remoteSessions = [
   { sessionId: 'R3', cwd: 'C:/elsewhere', title: "another executor's talk", updatedAt: '2026-01-03T00:00:00Z' },
 ];
 s.remove('R2');
-const listed = (await s.list()).sessions;
+const plain = (await s.list()).sessions;
+check("by default the CLI's own list is not asked: only what agentd recorded", !plain.some((r) => r.sessionId === 'R1') && plain.some((r) => r.sessionId === mine), plain.map((r) => r.sessionId).join());
+const listed = (await s.list({ remote: true })).sessions;
 check("the sessions in its own directory, the live one and the active one are listed", listed.some((r) => r.sessionId === 'R1' && r.source === 'agent') && listed.some((r) => r.sessionId === mine && r.active), listed.map((r) => r.sessionId).join());
 check('a hidden one is not', !listed.some((r) => r.sessionId === 'R2'));
 check("another directory's sessions are not its own (two executors of one CLI do not mix)", !listed.some((r) => r.sessionId === 'R3'), listed.map((r) => r.sessionId).join());
-check('naming one', s.rename('R1', 'Talk').label === 'Talk' && (await s.list()).sessions.find((r) => r.sessionId === 'R1').label === 'Talk');
+check('naming one', s.rename('R1', 'Talk').label === 'Talk' && (await s.list({ remote: true })).sessions.find((r) => r.sessionId === 'R1').label === 'Talk');
 check('an empty name removes it', s.rename('R1', '').label === null);
 check('with no id it names the active one', s.rename(null, 'Mine').sessionId === mine);
 try {

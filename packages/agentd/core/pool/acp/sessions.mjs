@@ -275,6 +275,11 @@ export class Sessions {
 
   /** Describe the config options and their current values for a session. */
   async describeModels(sessionId) {
+    // While the agent works, its run holds the queue, so asking through it would wait for the whole run (and hold the
+    // dispatcher that called this): answer from what the session reported last.
+    if (this.agent.busy && this.sessionId && this.configOptions && (!sessionId || sessionId === this.sessionId)) {
+      return { sessionId: this.sessionId, configOptions: this.configOptions.map((opt) => ({ ...opt, options: flattenOptions(opt.options) })) };
+    }
     return this.enqueue(async () => {
       await this.init();
       if (sessionId && sessionId !== this.sessionId) await this.attach(sessionId);
@@ -308,17 +313,23 @@ export class Sessions {
     });
   }
 
-  /** `session/list`; merged with local labels. */
-  async list() {
-    await this.init();
+  /**
+   * The conversations of this executor, from what agentd recorded: it knows every conversation it started and its labels, and
+   * reading it neither starts the process nor asks the CLI, so a CLI's other conversations (those agentd never saw) stay out of
+   * the list. `remote: true` also asks the CLI (`session/list`, which starts it): only for finding conversations to take over.
+   */
+  async list({ remote: askCli = false } = {}) {
     let remote = [];
     let remoteError = null;
-    try {
-      // While it works the CLI may answer late (or not at all until the run ends): ask briefly, and fall back to what is known.
-      const res = await this.request('session/list', {}, { timeoutMs: this.agent.busy ? 5_000 : 60_000 });
-      remote = res?.sessions ?? (Array.isArray(res) ? res : []);
-    } catch (err) {
-      remoteError = err.message;
+    if (askCli) {
+      await this.init();
+      try {
+        // While it works the CLI may answer late (or not at all until the run ends): ask briefly, and fall back to what is known.
+        const res = await this.request('session/list', {}, { timeoutMs: this.agent.busy ? 5_000 : 60_000 });
+        remote = res?.sessions ?? (Array.isArray(res) ? res : []);
+      } catch (err) {
+        remoteError = err.message;
+      }
     }
 
     const local = savedAll(this.agent.name);

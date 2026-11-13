@@ -357,8 +357,8 @@ export class AcpClient {
   newSession(cwd) {
     return this.sessions.newSession(cwd);
   }
-  listSessions() {
-    return this.sessions.list();
+  listSessions(opts) {
+    return this.sessions.list(opts);
   }
   deleteSession(sessionId) {
     return this.sessions.remove(sessionId);
