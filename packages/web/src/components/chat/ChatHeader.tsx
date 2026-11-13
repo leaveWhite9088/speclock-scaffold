@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { BookMarked, Settings } from 'lucide-react';
+import { BookMarked, SlidersHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ContextRing } from '@/components/ui/context-ring';
@@ -24,7 +24,7 @@ function PanelButtons() {
         <BookMarked className="size-4" />
       </IconButton>
       <IconButton label="设置" size="icon" aria-pressed={drawer} className={drawer ? 'bg-hover text-ink' : undefined} onClick={() => setDrawer(!drawer)}>
-        <Settings className="size-4" />
+        <SlidersHorizontal className="size-4" />
       </IconButton>
     </>
   );

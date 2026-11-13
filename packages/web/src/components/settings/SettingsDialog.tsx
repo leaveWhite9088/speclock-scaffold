@@ -27,7 +27,7 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
     <RD.Root open={open} onOpenChange={onOpenChange}>
       <RD.Portal>
         <RD.Overlay className="fixed inset-0 z-50 bg-black/40" />
-        <RD.Content className="fixed top-1/2 left-1/2 z-50 grid h-[min(560px,88vh)] w-[min(760px,94vw)] -translate-x-1/2 -translate-y-1/2 grid-cols-[168px_minmax(0,1fr)] overflow-hidden surface p-0 max-[620px]:grid-cols-[120px_minmax(0,1fr)]">
+        <RD.Content className="fixed top-1/2 left-1/2 z-50 grid h-[min(760px,92vh)] w-[min(1000px,94vw)] -translate-x-1/2 -translate-y-1/2 grid-cols-[200px_minmax(0,1fr)] overflow-hidden surface p-0 max-[620px]:grid-cols-[120px_minmax(0,1fr)]">
           <nav className="flex min-h-0 flex-col gap-0.5 border-r border-line bg-side p-3">
             <RD.Title className="m-0 mb-2 px-2 text-[15px] font-semibold">设置</RD.Title>
             {SECTIONS.map((s) => (

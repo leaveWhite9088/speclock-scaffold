@@ -1,4 +1,4 @@
-import { Settings, X } from 'lucide-react';
+import { SlidersHorizontal, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Resizer } from '@/components/ui/resizer';
 import { useSelectedMember } from '@/hooks/queries';
@@ -24,7 +24,7 @@ export function Drawer() {
       <Resizer edge="left" label="调整设置栏宽度" value={width} min={WIDTH_LIMITS.settings[0]} max={WIDTH_LIMITS.settings[1]} onChange={(v) => setWidth('settings', v)} onReset={() => setWidth('settings', null)} />
       <div className="flex min-h-[52px] items-center justify-between py-2.5 pr-3.5 pl-5">
         <h2 className="m-0 flex items-center gap-2 text-[15px] font-semibold">
-          <Settings className="size-4 text-muted" />
+          <SlidersHorizontal className="size-4 text-muted" />
           {isDispatcher ? '调度器' : (member?.id ?? '')}
         </h2>
         <Button size="icon" variant="ghost" aria-label="关闭设置" onClick={() => setDrawer(false)}>
