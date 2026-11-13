@@ -154,6 +154,10 @@ class AdapterPi extends PiRpc {
   }
 
   _fanOut(rec) {
+    // A model call that failed (bad key, unknown model, ...) ends the turn with an empty assistant message; keep why.
+    if (rec.type === 'message_end' && rec.message?.role === 'assistant') {
+      this.modelError = rec.message.stopReason === 'error' ? String(rec.message.errorMessage || 'the model call failed') : null;
+    }
     if (
       this.eventListeners.length &&
       (rec.type === 'tool_execution_start' ||
@@ -297,6 +301,18 @@ function emitActivity(sessionId, rec) {
   }
 }
 
+/** Tell agentd how full the session's conversation is (pi's own count, which is an estimate while no answer has come back since a compaction). */
+async function emitUsage(sessionId) {
+  try {
+    const stats = await rpc.command('get_session_stats', {}, 30_000);
+    const ctx = stats?.contextUsage;
+    if (ctx?.tokens == null) return;
+    notify('session/update', { sessionId, update: { sessionUpdate: 'usage_update', used: ctx.tokens, size: ctx.contextWindow ?? null, tokens: stats?.tokens ?? null, cost: stats?.cost != null ? { amount: stats.cost, currency: 'USD' } : null } });
+  } catch (err) {
+    log(`stats unavailable: ${err.message}`);
+  }
+}
+
 async function ensureSession(sessionId) {
   rpc.ensureStarted();
 
@@ -366,6 +382,8 @@ async function handle(method, params, id) {
         sessionId: params.sessionId,
         configOptions: await buildConfigOptions(),
       });
+      // How full the conversation already is, so the sidebar shows it before the next turn ends.
+      await emitUsage(params.sessionId);
       return;
     }
 
@@ -412,6 +430,7 @@ async function handle(method, params, id) {
       try {
         // No deadline of its own: how long a task may run is agentd's call (it waits while the agent is active, gives up
         // after a quiet spell or the overall ceiling, and then sends session/cancel). A fixed 10 minutes here cut off long, busy work.
+        rpc.modelError = null;
         const settled = rpc.waitSettled(0);
         settled.catch(() => {}); // if pi dies before the command is answered, the failure surfaces there, not as an unhandled rejection
         const r = await rpc.command('prompt', { message: text });
@@ -446,6 +465,12 @@ async function handle(method, params, id) {
           log(`stats unavailable: ${err.message}`);
         }
 
+        if (rpc.modelError && !cancelling.has(sid)) {
+          const msg = rpc.modelError;
+          rpc.modelError = null;
+          replyError(id, -32000, `model call failed: ${msg.slice(0, 500)}`);
+          return;
+        }
         reply(id, { stopReason: cancelling.delete(sid) ? 'cancelled' : 'end_turn' });
       } finally {
         const i = rpc.textListeners.indexOf(onText);

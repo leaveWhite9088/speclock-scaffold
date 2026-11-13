@@ -8,6 +8,7 @@ import { appendFileSync } from 'node:fs';
 import { TOOL_CALL_AS_TEXT } from '../../base/index.mjs';
 import { appendEntry } from '../../records/index.mjs';
 import { inputText, outputText } from '../tool-text.mjs';
+import { noteSession } from '../store.mjs';
 
 const finished = (status) => status === 'completed' || status === 'failed';
 
@@ -103,6 +104,8 @@ export class RunTracker {
       }
       // Kept with its conversation: the process serves several, and a figure from one is not how full another is.
       this.lastUsage = { ...ctx, cost: u.cost ?? null, tokens: u.tokens ?? null, sessionId: sessionId ?? run?.sessionId ?? null };
+      // Kept at once, not only when a run ends: a run that never ends well (stopped, failed) would leave an idle executor with no figure.
+      if (this.lastUsage.sessionId && ctx.percent != null) noteSession(this.name, this.lastUsage.sessionId, { context: ctx });
       return;
     }
     if (run?.sessionId && isTool) this._tool(run, u);
