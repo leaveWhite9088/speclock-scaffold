@@ -1,4 +1,6 @@
-# SpecLock Scaffold
+# SpecLock Scaffold 参考手册
+
+> 这是完整的参考：工具、配置、环境变量、预检、供应商、运维。上手和概览见 [README](../README.md)。
 
 SpecLock 的调度脚手架：在一台机器上调度多个 CLI agent。**一切都依托项目**：先有项目，项目里才有执行者和调度器；没有项目，什么都不工作。
 规格本身（版本、审核单、权限）由独立的 [SpecLock Core](https://github.com/leaveWhite9088/speclock-core) 负责，本仓库不含 Core 代码。
@@ -57,7 +59,7 @@ claude 的接口地址、模型和密钥读取你自己的 `~/.claude/settings.j
 这只验证了「规则能送到、重启后还在」，用的是一条很简单的规则；复杂规则（比如「不要 git push」）遵不遵守，
 取决于模型，而且规则始终是提示词层面的约束，不是强制。
 
-架构见 [ARCHITECTURE.md](ARCHITECTURE.md)，踩过的坑和实测数据见 [LESSONS.md](LESSONS.md)。
+架构见 [ARCHITECTURE.md](../ARCHITECTURE.md)，踩过的坑和实测数据见 [LESSONS.md](../LESSONS.md)。
 
 ## 仓库结构（npm workspaces）
 
