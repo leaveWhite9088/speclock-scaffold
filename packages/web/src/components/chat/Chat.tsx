@@ -1,9 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, X } from 'lucide-react';
+import { ArrowDown, ArrowUpToLine, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { toast } from '@/components/ui/toast';
 import { api, enc, pq } from '@/lib/api';
-import { useSelectedMember } from '@/hooks/queries';
+import { useExecutorSessions, useSelectedMember } from '@/hooks/queries';
+import { useUi } from '@/store';
 import { useConversation } from '@/hooks/useConversation';
 import type { Item } from '@/lib/types';
 import { Composer } from './Composer';
@@ -43,6 +44,39 @@ function Empty({ hasProject, isDispatcher, hasMembers }: { hasProject: boolean; 
   return (
     <div className="mx-auto mt-[14vh] max-w-[740px] px-6">
       <h2 className="m-0 text-[19px] font-semibold tracking-tight text-ink">{title}</h2>
+    </div>
+  );
+}
+
+/** Shown while the page looks at a conversation the executor is not in (it is working in another one): what that means, and the way out. */
+function ViewingBanner({ memberKey, active }: { memberKey: string; active?: string | null }) {
+  const id = useUi((s) => s.viewing[memberKey]);
+  const setViewing = useUi((s) => s.setViewing);
+  const qc = useQueryClient();
+  const { data: sessions } = useExecutorSessions(memberKey, Boolean(id));
+  if (!id || id === active) return null; // the executor has come to this conversation itself: nothing to explain
+  const title = sessions?.find((s) => s.sessionId === id);
+  const switchTo = async () => {
+    try {
+      await api('POST', `/api/agents/${enc(memberKey)}/use`, { sessionId: id });
+      setViewing(memberKey, null);
+      toast('已排队：当前任务做完后切换到这个会话');
+      await qc.invalidateQueries({ queryKey: ['projects'] });
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+  return (
+    <div className="mx-6 mt-1 flex shrink-0 items-center gap-3 rounded-md border border-line bg-raised px-3 py-1.5 text-[12.5px] text-ink-2">
+      <span className="min-w-0 flex-1 truncate">
+        正在查看「{title?.label || title?.title || id.slice(0, 8)}」：执行者在别的会话里，不受影响。现在发的消息会发到这个会话，排在当前任务后面。
+      </span>
+      <button type="button" className="shrink-0 text-accent hover:underline" onClick={() => void switchTo()}>
+        切换到这个会话
+      </button>
+      <button type="button" className="shrink-0 text-accent hover:underline" onClick={() => setViewing(memberKey, null)}>
+        回到当前会话
+      </button>
     </div>
   );
 }
@@ -135,9 +169,19 @@ export function Chat() {
     }
     await qc.invalidateQueries({ queryKey: ['projects'] });
   };
+  const promoteJob = async (agent: string, jobId: string) => {
+    try {
+      const r = await api<{ promoted?: boolean; reason?: string }>('POST', `/api/agents/${enc(agent)}/promote`, { jobId });
+      if (r?.promoted === false) toast(`没能插队：${r.reason ?? '它已经不在排队了'}`);
+    } catch (e) {
+      toast((e as Error).message);
+    }
+    await qc.invalidateQueries({ queryKey: ['projects'] });
+  };
   const waitingJobs = !isDispatcher && member ? (member.waitingJobs ?? []) : [];
   return (
     <>
+      {!isDispatcher && member ? <ViewingBanner memberKey={member.key} active={member.preferSession} /> : null}
       <div className="relative flex min-h-0 min-w-0 flex-1">
       <div ref={scroller} onScroll={onScroll} tabIndex={-1} aria-live="polite" className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto pt-1">
         <div ref={content}>

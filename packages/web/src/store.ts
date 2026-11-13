@@ -47,6 +47,12 @@ interface UiState {
   conn: 'connecting' | 'on' | 'off';
   /** Bumped when the conversation on screen must be read again (a session was switched or created). */
   conversationVersion: number;
+  /**
+   * Executors (by key) whose page shows a conversation other than the one the executor is in: it is working, and looking at another
+   * one must not switch it (the switch would wait behind the task anyway). Read-only, from the transcript on disk.
+   */
+  viewing: Record<string, string>;
+  setViewing: (key: string, sessionId: string | null) => void;
   setProject: (id: string) => void;
   select: (key: string) => void;
   setDrawer: (open: boolean) => void;
@@ -77,6 +83,14 @@ export const useUi = create<UiState>((set) => ({
   drawer: false,
   conn: 'connecting',
   conversationVersion: 0,
+  viewing: {},
+  setViewing: (key, sessionId) =>
+    set((s) => {
+      const viewing = { ...s.viewing };
+      if (sessionId) viewing[key] = sessionId;
+      else delete viewing[key];
+      return { viewing, conversationVersion: s.conversationVersion + 1 };
+    }),
   setProject: (id) => {
     localStorage.setItem('project', id);
     set({ project: id, sel: DISPATCHER });

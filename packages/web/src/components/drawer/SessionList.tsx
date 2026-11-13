@@ -13,6 +13,10 @@ export interface SessionRowData {
   title: string;
   sub: string;
   current: boolean;
+  /** Being looked at (read-only) while the executor is in another conversation. */
+  viewing?: boolean;
+  /** The current one, when something else is on screen: clicking brings it back. */
+  canReturn?: boolean;
 }
 
 interface Props {
@@ -69,12 +73,12 @@ export function SessionList({ rows, error, emptyText, onUse, onRename, onDelete 
           <div key={r.key} className="group flex items-center gap-0.5 rounded-md hover:bg-hover">
             <button
               type="button"
-              disabled={r.current}
+              disabled={r.current && !r.canReturn}
               onClick={run(() => onUse(r.key))}
               className="grid min-w-0 flex-1 justify-items-start px-2 py-1.5 text-left disabled:cursor-default"
             >
-              <span className={cn('max-w-full truncate', r.current && 'font-semibold text-accent')}>{r.title || '（无标题）'}</span>
-              <small className="text-[11.5px] text-muted">{r.current ? `${r.sub} · 当前` : r.sub}</small>
+              <span className={cn('max-w-full truncate', (r.current || r.viewing) && 'font-semibold text-accent')}>{r.title || '（无标题）'}</span>
+              <small className="text-[11.5px] text-muted">{r.current ? `${r.sub} · 当前` : r.viewing ? `${r.sub} · 查看中` : r.sub}</small>
             </button>
             <Button size="iconSm" variant="ghost" className="" title="重命名" aria-label="重命名" onClick={() => {
                 cancelled.current = false;

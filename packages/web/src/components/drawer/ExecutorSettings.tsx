@@ -23,7 +23,8 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
   const qc = useQueryClient();
   const confirm = useConfirm();
   const forceable = useForceable();
-  const { select, setDrawer, reloadConversation } = useUi.getState();
+  const { select, setDrawer, reloadConversation, setViewing } = useUi.getState();
+  const viewing = useUi((s) => s.viewing[m.key]);
   const { data: catalog } = useCatalog(m.type);
   const { data: sessions, error: sessionsError } = useExecutorSessions(m.key);
   const { data: templates = [] } = useTemplates();
@@ -144,10 +145,21 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
             await api('POST', `${base}/sessions`, {});
             await refreshAll();
           }}
-          rows={sessions?.map((s) => ({ key: s.sessionId, title: s.label || s.title || s.sessionId.slice(0, 8), sub: when(s.updatedAt), current: s.sessionId === active }))}
+          rows={sessions?.map((s) => ({ key: s.sessionId, title: s.label || s.title || s.sessionId.slice(0, 8), sub: when(s.updatedAt), current: s.sessionId === active, viewing: s.sessionId === viewing, canReturn: s.sessionId === active && viewing != null }))}
           error={sessionsError?.message}
           emptyText="还没有会话"
           onUse={async (id) => {
+            // Back to the one the executor is in.
+            if (id === active) {
+              setViewing(m.key, null);
+              return;
+            }
+            // While it works a switch would only wait behind the task: look at the conversation instead (read from the disk), without touching the executor.
+            if (m.busy || (m.waiting ?? 0) > 0) {
+              setViewing(m.key, id);
+              return;
+            }
+            setViewing(m.key, null);
             await api('POST', `${base}/use`, { sessionId: id });
             await refreshAll();
           }}

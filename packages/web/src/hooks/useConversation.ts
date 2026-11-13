@@ -261,7 +261,7 @@ export function useConversation(project: string, sel: string, member: Member | u
       const m = memberRef.current;
       if (!m) return commit();
       // The transcript is on disk, so showing it must not start the process: use the remembered session.
-      sessionId.current = m.preferSession;
+      sessionId.current = useUi.getState().viewing[m.key] ?? m.preferSession;
       if (!sessionId.current && m.alive) {
         const { sessions } = await api<{ sessions: Session[] }>('GET', `/api/agents/${enc(m.key)}/sessions`);
         if (g !== gen.current) return;
@@ -270,7 +270,8 @@ export function useConversation(project: string, sel: string, member: Member | u
       if (!sessionId.current) return commit();
       await pull();
       // Working now: show what it has said and thought so far at once, not after the first tick.
-      if (m.busy) {
+      if (useUi.getState().viewing[m.key]) putTurn(null); // another conversation than the one that is working: nothing here is "in progress"
+      else if (m.busy) {
         if (!turnRef.current) putTurn({ startedAt: m.activity?.startedAt ?? Date.now(), phase: '处理中' });
         await refreshLiveRef.current();
       }
@@ -289,9 +290,11 @@ export function useConversation(project: string, sel: string, member: Member | u
   // is not in the transcript yet). The live end is ONE place that is replaced every time: it used to be added again
   // whenever a tool call had been put after it, which showed the whole text over and over.
   const busy = Boolean(member?.busy);
+  // Looking at another conversation than the executor's own: what it says live is not this one's, so nothing live is drawn.
+  const viewingOther = useUi((s) => (member ? s.viewing[member.key] : undefined)) != null;
   async function refreshLive() {
     const key = memberRef.current?.key;
-    if (!key) return;
+    if (!key || viewingOther) return;
     const g = gen.current;
     await pull();
     const tail = await api<{ running?: boolean; pendingText?: string; text?: string; pendingThought?: string }>('GET', `/api/agents/${enc(key)}/tail`);
@@ -309,12 +312,12 @@ export function useConversation(project: string, sel: string, member: Member | u
   }
   refreshLiveRef.current = refreshLive;
   useEffect(() => {
-    if (isDispatcher || !busy || !memberKey) return;
+    if (isDispatcher || !busy || !memberKey || viewingOther) return;
     void refreshLive().catch(() => {});
     const t = setInterval(() => void refreshLive().catch(() => {}), 1500);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDispatcher, busy, memberKey, pull]);
+  }, [isDispatcher, busy, memberKey, pull, viewingOther]);
 
   // The turn is over when the server says nobody is working any more (the events normally say so first).
   useEffect(() => {

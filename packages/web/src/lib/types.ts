@@ -92,6 +92,8 @@ export interface Member {
   /** The reasoning level it should use (the CLI's own value), null: the CLI's default. */
   preferEffort?: string | null;
   preferSession: string | null;
+  /** The name of the conversation it is in (or will be in when it starts), when it has one. */
+  sessionLabel?: string | null;
   alive: boolean;
   busy: boolean;
   /** Its process had to be killed several times lately; it takes no work until a person recovers it. */

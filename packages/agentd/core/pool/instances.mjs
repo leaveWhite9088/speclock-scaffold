@@ -70,7 +70,8 @@ export function listInstances() {
     sessionId: a.sessionId,
     /** The name given to the conversation it is in now (a block, when the dispatcher opened it for one). */
     provider: typeof a.spec.provider === 'function' ? a.spec.provider() : (a.spec.provider ?? null),
-    sessionLabel: a.sessionId ? (saved(a.name, a.sessionId)?.label ?? null) : null,
+    // also while the process is not running: the conversation it will be in when it starts again
+    sessionLabel: a.sessionId || a.preferSession ? (saved(a.name, a.sessionId ?? a.preferSession)?.label ?? null) : null,
     /** Every conversation that has a name, newest first, read from agentd's own records (no CLI is started for it): the dispatcher's roster lists them. */
     sessionNames: Object.entries(savedAll(a.name))
       .filter(([, m]) => m.label && !m.hidden)

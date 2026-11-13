@@ -6,7 +6,7 @@ import { ContextRing } from '@/components/ui/context-ring';
 import { IconButton } from '@/components/ui/icon-button';
 import { Tag } from '@/components/ui/tag';
 import { toast } from '@/components/ui/toast';
-import { useCatalog, useDispatcherModels, useProviderName, useSelectedMember } from '@/hooks/queries';
+import { useCatalog, useDispatcherModels, useExecutorSessions, useProviderName, useSelectedMember } from '@/hooks/queries';
 import { useActivity } from '@/hooks/useActivity';
 import { api, enc } from '@/lib/api';
 import { memberLlm, modelLabel, took } from '@/lib/format';
@@ -38,6 +38,18 @@ export function ChatHeader() {
   const providerName = useProviderName();
   const [starting, setStarting] = useState(false);
   const live = useActivity(!isDispatcher && member?.busy ? member.key : undefined);
+  // The conversation on screen: the executor's own, or one being looked at while it works in another.
+  const viewingId = useUi((s) => (member ? s.viewing[member.key] : undefined));
+  const looking = Boolean(member && viewingId && viewingId !== member.preferSession);
+  const { data: sessions } = useExecutorSessions(member?.key ?? '', looking);
+  const sessionName = !member
+    ? null
+    : looking
+      ? (() => {
+          const s = sessions?.find((x) => x.sessionId === viewingId);
+          return s?.label || s?.title || `未命名 ${viewingId!.slice(0, 8)}`;
+        })()
+      : member.sessionLabel || (member.preferSession ? `未命名 ${member.preferSession.slice(0, 8)}` : null);
 
   if (!project) {
     return (
@@ -91,6 +103,12 @@ export function ChatHeader() {
       <div className="flex min-w-0 items-center gap-2.5">
         <h1 className="m-0 text-[15px] font-semibold whitespace-nowrap">{isDispatcher ? '调度器' : (member?.id ?? '')}</h1>
         <Tag type={isDispatcher ? 'pi' : (member?.type ?? '')} llm={llm.text} faint={llm.faint} />
+        {!isDispatcher && sessionName ? (
+          <span className={`min-w-0 truncate rounded-md border px-2 py-0.5 text-[12.5px] ${looking ? 'border-accent text-accent' : 'border-line text-ink-2'}`} title={`会话：${sessionName}${looking ? '（查看中，执行者不在这个会话里）' : ''}`}>
+            会话：{sessionName}
+            {looking ? '（查看中）' : ''}
+          </span>
+        ) : null}
       </div>
       <div className="flex min-w-0 items-center gap-2.5">
         <ContextRing c={context} />
