@@ -12,6 +12,12 @@ import { RULES_IN_PROMPT, packageDir } from './lib.mjs';
 
 const PKG = '@deepseek-ai/dsh';
 
+/**
+ * The levels offered for a provider's model. dsh keeps a model's reasoning only when its own catalog knows the id; a model
+ * written here without this is a non-reasoning one, which has the one level "off". `off:` with no value means "send nothing".
+ */
+const REASONING_EFFORTS = ['            reasoningEfforts:', '              off:', '              low: low', '              medium: medium', '              high: high', '              max: max'];
+
 export default {
   type: 'dsh',
   label: 'DeepSeek Harness',
@@ -46,8 +52,11 @@ export default {
         '        apiKeyEnv: SCAFFOLD_PROVIDER_KEY',
         '        api: openai-completions',
         `        baseURL: ${JSON.stringify(endpoint)}`,
+        // many compatible endpoints reject the `developer` role that reasoning models are sent by default
+        '        compat:',
+        '          supportsDeveloperRole: false',
         '        models:',
-        ...models.flatMap((m) => [`          - id: ${JSON.stringify(m)}`, `            name: ${JSON.stringify(m)}`, '            contextWindow: 200000']),
+        ...models.flatMap((m) => [`          - id: ${JSON.stringify(m)}`, `            name: ${JSON.stringify(m)}`, '            contextWindow: 200000', ...REASONING_EFFORTS]),
         '',
       ].join('\n');
       return {
