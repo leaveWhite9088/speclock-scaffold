@@ -20,8 +20,6 @@ interface Props {
   /** The context length of each chosen model, as typed ("1M"); what the endpoint states is filled in. */
   contexts: Record<string, string>;
   onContexts: (contexts: Record<string, string>) => void;
-  reasonings: string[];
-  onReasonings: (models: string[]) => void;
 }
 
 const ids = (text: string) => [...new Set(text.split(/[,\s]+/).map((x) => x.trim()).filter(Boolean))];
@@ -30,7 +28,7 @@ const ids = (text: string) => [...new Set(text.split(/[,\s]+/).map((x) => x.trim
  * The models of a provider, found by asking its endpoint (once the key and an address are filled in) instead of typed in.
  * The person ticks the ones to keep; when the endpoint has no listing, they can be typed.
  */
-export function ModelPicker({ id, apiKey, openai, anthropic, value, onChange, contexts, onContexts, reasonings, onReasonings }: Props) {
+export function ModelPicker({ id, apiKey, openai, anthropic, value, onChange, contexts, onContexts }: Props) {
   const [found, setFound] = useState<string[] | null>(null);
   const [finding, setFinding] = useState(false);
   const [error, setError] = useState('');
@@ -109,12 +107,6 @@ export function ModelPicker({ id, apiKey, openai, anthropic, value, onChange, co
               <Checkbox checked={chosen.includes(m)} onChange={(on) => toggle(m, on)}>
                 <span className="truncate">{m}</span>
               </Checkbox>
-              {chosen.includes(m) ? (
-                <label className="flex shrink-0 cursor-pointer items-center gap-1 text-[12px] text-muted" title="这个模型会推理：勾上后，执行者和调度器的设置里可以选推理强度（pi 只对声明了推理的模型提供强度）">
-                  <input type="checkbox" checked={reasonings.includes(m)} onChange={(e) => onReasonings(e.target.checked ? [...reasonings, m] : reasonings.filter((x) => x !== m))} />
-                  推理
-                </label>
-              ) : null}
               {chosen.includes(m) ? <Input className="h-6 w-20 shrink-0 px-2 text-[12px]" placeholder="上下文" aria-label={`${m} 的上下文长度`} title="上下文长度，如 1M、200K；不填则 CLI 按它自己的默认值（pi 是 128K）" value={contexts[m] ?? ''} onChange={(e) => onContexts({ ...contexts, [m]: e.target.value })} /> : null}
             </div>
           ))}

@@ -91,7 +91,7 @@ export function projectOps(ctx) {
 
     /** Models a CLI type offers (cached per type). */
     /** The reasoning levels of one model of a CLI (which levels there are depends on the model). */
-    'project.effort': ({ type, model, refresh }) => projects.probeEffort(type, model, { refresh: refresh === true }),
+    'project.effort': ({ type, model, refresh, provider }) => projects.probeEffort(type, model, { refresh: refresh === true, provider: provider ?? null }),
 
     'project.models': ({ type, refresh }) => projects.probeModels(type, { refresh: refresh === true }),
 

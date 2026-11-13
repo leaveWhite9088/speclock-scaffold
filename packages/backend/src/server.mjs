@@ -106,7 +106,7 @@ const routes = [
   ['POST', '/api/projects', ({ body }) => call('project.create', body)],
   ['DELETE', '/api/projects/:id', ({ params, query }) => call('project.remove', { project: params.id, force: query.force === '1' })],
   ['POST', '/api/projects/:id/stop', ({ params, body }) => call('project.stop', { project: params.id, force: body.force === true })],
-  ['GET', '/api/effort', ({ query }) => call('project.effort', { type: query.type, model: query.model || undefined, refresh: query.refresh === '1' })],
+  ['GET', '/api/effort', ({ query }) => call('project.effort', { type: query.type, model: query.model || undefined, refresh: query.refresh === '1', provider: query.provider ? { id: query.provider, model: query.providerModel || '' } : undefined })],
   ['GET', '/api/models', ({ query }) => call('project.models', { type: query.type, refresh: query.refresh === '1' })],
   [
     'GET',

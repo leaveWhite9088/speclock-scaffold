@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import type { FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { useConfirm } from '@/components/ui/confirm';
 import { Field } from '@/components/ui/field';
@@ -38,9 +38,12 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
 
   // The reasoning levels depend on the model in use: the default model's come with the model list, another model's are asked for.
   const chosenModel = v.provider ? '' : v.model;
-  const modelEffort = useModelEffort(m.type, chosenModel);
-  const providerReasons = v.provider ? providers.find((p) => p.id === v.provider)?.reasonings?.includes(v.providerModel) : true;
-  const effortSource = !providerReasons ? null : chosenModel ? modelEffort.data : catalog?.effort;
+  // A model of its own or a provider's model: asking means starting the CLI, so it happens when the list is opened, not when the page is.
+  const lazy = Boolean(chosenModel || v.provider);
+  const probeKey = `${chosenModel}|${v.provider}|${v.providerModel}`;
+  const [probed, setProbed] = useState('');
+  const modelEffort = useModelEffort(m.type, chosenModel, v.provider, v.providerModel, probed === probeKey);
+  const effortSource = lazy ? modelEffort.data : catalog?.effort;
 
   const options = [{ value: '', label: catalog?.default ? `默认（${modelName(catalog, catalog.default)}）` : '默认' }, ...(catalog?.models ?? []).map((x) => ({ value: x.value, label: modelLabel(x.value, x.name) }))];
   // The saved choice must show even when the model list could not be read.
@@ -127,7 +130,7 @@ export function ExecutorSettings({ m, projectId, root }: { m: Member; projectId:
           providerModel={v.providerModel}
           onProvider={(id, model) => draft.set({ provider: id, providerModel: model, effort: '' })}
           onProviderModel={(model) => draft.set({ providerModel: model, effort: '' })}
-          effort={{ value: v.effort, onChange: (x) => draft.set({ effort: x }), disabled: Boolean(chosenModel) && modelEffort.isPending, options: effortOptions(effortSource?.options, effortSource?.current, saved.effort) }}
+          effort={{ value: v.effort, onChange: (x) => draft.set({ effort: x }), disabled: lazy && modelEffort.isFetching, onOpen: lazy ? () => setProbed(probeKey) : undefined, options: effortOptions(effortSource?.options, effortSource?.current, saved.effort) }}
           base={{ value: v.model, options, onChange: (x) => draft.set({ model: x, effort: '' }) }}
         />
         <Field label="压缩">

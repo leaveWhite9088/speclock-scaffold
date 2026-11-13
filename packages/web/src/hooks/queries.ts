@@ -76,11 +76,11 @@ export const useTemplates = (enabled = true) => useQuery({ queryKey: ['templates
 
 /** SpecLock Core as agentd sees it: is it installed, set up, running, and where its own page is. */
 /** The reasoning levels of one model of a CLI: which there are depends on the model (opencode and mcode show them only for models that reason). */
-export const useModelEffort = (type: string | undefined, model: string) =>
+export const useModelEffort = (type: string | undefined, model: string, provider = '', providerModel = '', enabled = true) =>
   useQuery({
-    queryKey: ['effort', type, model],
-    queryFn: () => api<ModelCatalog['effort']>('GET', `/api/effort?type=${enc(type ?? '')}&model=${enc(model)}`),
-    enabled: Boolean(type) && Boolean(model),
+    queryKey: ['effort', type, model, provider, providerModel],
+    queryFn: () => api<ModelCatalog['effort']>('GET', `/api/effort?type=${enc(type ?? '')}&model=${enc(model)}${provider ? `&provider=${enc(provider)}&providerModel=${enc(providerModel)}` : ''}`),
+    enabled: enabled && Boolean(type) && (Boolean(model) || Boolean(provider)),
     staleTime: Infinity,
     retry: 1,
   });

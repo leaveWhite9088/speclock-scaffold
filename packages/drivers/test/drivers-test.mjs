@@ -3,6 +3,9 @@
  * No process, no model, nothing installed needed.
  */
 
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { dshFolderName, driverTypes, drivers, getDriver, piMcpServers, wantedPackages } from '../index.mjs';
 
 let failed = 0;
@@ -96,6 +99,22 @@ const oc = JSON.parse(getDriver('opencode').provider.apply({ provider: P, endpoi
 check('providers: opencode keeps the rules already in its configuration', oc.instructions[0] === 'rules.md' && oc.model === 'mm/m1' && oc.provider.mm.options.baseURL === 'https://e.example/x' && Object.keys(oc.provider.mm.models).join() === 'm1,m2');
 check('providers: dsh gets a patch file and selects the model through its option value', applied.dsh.args.join(' ') === '--patch C:/cfg/dsh-patch.yml' && applied.dsh.files[0].name === 'dsh-patch.yml' && applied.dsh.model === '["mm","m1"]');
 check('providers: pi gets a folder of its own, the key only by name', applied.pi.env.PI_CODING_AGENT_DIR === 'C:/cfg' && JSON.parse(applied.pi.files[0].content).providers.mm.apiKey === '$SCAFFOLD_PROVIDER_KEY');
+// pi: the levels of a model come from pi's own catalog when it knows the model, else the default
+const fakePi = mkdtempSync(join(tmpdir(), 'fake-pi-'));
+const dataDir = join(fakePi, 'node_modules', '@earendil-works', 'pi-ai', 'dist', 'providers', 'data');
+mkdirSync(dataDir, { recursive: true });
+writeFileSync(join(dataDir, 'acme.json'), JSON.stringify({ 'openai-completions': {
+  'chat:Known-1': { id: 'Known-1', reasoning: true, thinkingLevelMap: { off: 'none', minimal: null, low: 'low', medium: null, high: 'high', xhigh: null, max: 'max' } },
+  'chat:org/Plain': { id: 'org/Plain', reasoning: false },
+} }));
+const piEntries = (models, cli) => JSON.parse(getDriver('pi').provider.apply({ provider: { ...P, models }, endpoint: 'https://e.example/x', model: models[0], dir: 'C:/cfg', env: cli ? { PI_CLI: join(fakePi, 'dist', 'bundle', 'cli.js') } : {} }).files[0].content).providers.mm.models;
+const dflt = piEntries(['m1'], true)[0];
+check('providers: pi gives a model it does not know the default levels (off to high, and max)', dflt.reasoning === true && JSON.stringify(dflt.thinkingLevelMap) === JSON.stringify({ minimal: null, max: 'max' }));
+check('providers: pi gives the default when its catalog cannot be found', piEntries(['m1'], false)[0].reasoning === true);
+const known = piEntries(['known-1'], true)[0];
+check('providers: pi keeps the levels it knows for a model, found ignoring case', JSON.stringify(known.thinkingLevelMap) === JSON.stringify({ minimal: null, medium: null, xhigh: null, max: 'max' }), JSON.stringify(known.thinkingLevelMap));
+check('providers: pi keeps "does not reason" for a model it knows, found by the part after the slash', piEntries(['Plain'], true)[0].reasoning === false);
+check('providers: pi refuses a model the provider does not list', (() => { try { getDriver('pi').provider.apply({ provider: P, endpoint: 'https://e.example/x', model: 'M1', dir: 'C:/cfg', env: {} }); return false; } catch { return true; } })());
 check('providers: mcode gives the commands to add and remove it, under its own prefix', applied.mcode.global.add.includes('speclock-mm') && applied.mcode.global.remove.includes('custom_provider:speclock-mm'));
 
 // the packages the preflight has to find

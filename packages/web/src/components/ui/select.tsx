@@ -18,13 +18,15 @@ interface Props {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  /** Called when the list opens or closes. */
+  onOpenChange?: (open: boolean) => void;
 }
 
 /** Same look as Input, with a list that matches the page instead of the operating system's. */
-export function Select({ value, onChange, options, placeholder, disabled, className }: Props) {
+export function Select({ value, onChange, options, placeholder, disabled, className, onOpenChange }: Props) {
   const shown = options.some((o) => o.value === value) ? (value === '' ? EMPTY : value) : undefined;
   return (
-    <RS.Root value={shown} onValueChange={(v) => onChange(v === EMPTY ? '' : v)} disabled={disabled}>
+    <RS.Root value={shown} onValueChange={(v) => onChange(v === EMPTY ? '' : v)} disabled={disabled} onOpenChange={onOpenChange}>
       <RS.Trigger className={cn(fieldClass, 'flex items-center justify-between gap-2 text-left disabled:opacity-60', className)}>
         <span className="min-w-0 flex-1 truncate">
           <RS.Value placeholder={placeholder} />

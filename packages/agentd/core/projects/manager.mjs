@@ -360,12 +360,14 @@ const effortCache = new Map();
  * The reasoning levels a CLI offers for one model. Some CLIs (opencode, mcode) only show the option once a model that
  * reasons is the one in use, so the probe session is moved to that model first. Null when that model has none.
  */
-export async function probeEffort(type, model, { refresh = false } = {}) {
+export async function probeEffort(type, model, { refresh = false, provider = null } = {}) {
   if (!AGENTS[type]) throw new Error(`unknown type "${type}"; available: ${Object.keys(AGENTS).join(', ')}`);
-  const key = `${type}|${model ?? ''}`;
+  // With a provider the levels are those of its model (the CLI's own list is for its own models), so the probe starts with it.
+  const choice = provider ? cleanInstanceProvider(provider, type) : null;
+  const key = `${type}|${model ?? ''}|${choice ? `${choice.id}/${choice.model}` : ''}`;
   if (effortCache.has(key) && !refresh) return effortCache.get(key);
   mkdirSync(PROBE_DIR, { recursive: true });
-  const tmp = buildInstance({ id: `probe-${type}-e`, type, cwd: PROBE_DIR });
+  const tmp = buildInstance({ id: `probe-${type}-e`, type, cwd: PROBE_DIR, provider: choice });
   try {
     if (model) await tmp.setConfigOption('model', model);
     const out = effortOf((await tmp.describeModels()).configOptions);
@@ -387,7 +389,7 @@ export async function probeSessions(projectId, type, dir = '.') {
   if (disk) return { sessions: disk.sessions.filter((x) => !taken0.has(x.sessionId)), remoteError: null };
   const tmp = buildInstance({ id: `probe-${type}-s`, type, cwd: abs });
   try {
-    const r = await tmp.listSessions();
+    const r = await tmp.listSessions({ remote: true });
     // Sessions another instance of this project already owns are not offered twice.
     const taken = new Set(project.instances.map((i) => i.sessionId).filter(Boolean));
     return {

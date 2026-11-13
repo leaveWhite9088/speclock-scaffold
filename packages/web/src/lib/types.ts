@@ -35,8 +35,6 @@ export interface Provider {
   models: string[];
   /** Context length in tokens per model, where known. */
   contexts?: Record<string, number>;
-  /** The models that reason (pi offers reasoning levels only for those). */
-  reasonings?: string[];
   /** The CLIs it may be used with. */
   types: string[];
   support: ProviderSupport[];

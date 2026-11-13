@@ -13,6 +13,7 @@
 
 import { join } from 'node:path';
 import { NO_RULES, RULES_IN_PROMPT, packageDir } from './lib.mjs';
+import { reasoningFor } from './pi-catalog.mjs';
 
 const PKG = '@earendil-works/pi-coding-agent';
 
@@ -79,11 +80,14 @@ export default {
   provider: {
     protocol: 'openai',
     scope: 'process',
-    apply({ provider, endpoint, model, dir }) {
+    apply({ provider, endpoint, model, dir, env = {} }) {
       // `contextWindow` is the provider's figure when it has one; left out, pi assumes 128K whatever the model really takes.
-      const models = (provider.models?.length ? provider.models : [model]).filter(Boolean).map((id) => ({ id, ...(provider.contexts?.[id] ? { contextWindow: provider.contexts[id] } : {}), ...(provider.reasonings?.includes(id) ? { reasoning: true } : {}) }));
+      const models = (provider.models?.length ? provider.models : [model]).filter(Boolean).map((id) => ({ id, ...(provider.contexts?.[id] ? { contextWindow: provider.contexts[id] } : {}), ...reasoningFor(id, env.PI_CLI, provider.id), compat: { supportsDeveloperRole: false } }));
       const modelsJson = { providers: { [provider.id]: { baseUrl: endpoint, api: 'openai-completions', apiKey: '$SCAFFOLD_PROVIDER_KEY', models } } };
-      const settings = { defaultProvider: provider.id, ...(model ? { defaultModel: model } : {}) };
+      // pi falls back silently to its own default (an Anthropic model) when defaultModel is not in models.json, so refuse a model that is not listed.
+      const exact = model ? models.find((m) => m.id === model)?.id : null;
+      if (model && !exact) throw new Error(`model "${model}" is not one of provider "${provider.id}"'s models: ${models.map((m) => m.id).join(', ')}`);
+      const settings = { defaultProvider: provider.id, ...(exact ? { defaultModel: exact } : {}) };
       return {
         env: { PI_CODING_AGENT_DIR: dir, SCAFFOLD_PROVIDER_KEY: provider.apiKey },
         args: [],
@@ -91,7 +95,7 @@ export default {
           { name: 'models.json', content: JSON.stringify(modelsJson, null, 2) },
           { name: 'settings.json', content: JSON.stringify(settings, null, 2) },
         ],
-        model: null,
+        model: exact ? `${provider.id}/${exact}` : null,
       };
     },
   },
