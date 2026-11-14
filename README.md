@@ -7,7 +7,7 @@
 ## 为什么用它
 
 **每个模型用自己家的 harness。**
-MiniMax 用 MiniMax Code，DeepSeek 用 DeepSeek Harness，Claude 用 Claude Code，GPT 用 Codex，另外还有 OpenCode 和 pi。不用一个通用壳去套所有模型，每个模型都在最熟悉的环境里干活，一个项目里随便混用。要接别家的模型，填一次地址和 Key，各个 harness 都能用。
+MiniMax 用 MiniMax Code，DeepSeek 用 DeepSeek Harness，Kimi 用 Kimi Code，Claude 用 Claude Code，GPT 用 Codex，另外还有 OpenCode 和 pi。不用一个通用壳去套所有模型，每个模型都在最熟悉的环境里干活，一个项目里随便混用。要接别家的模型，填一次地址和 Key，各个 harness 都能用。
 
 **和 SpecLock 深度集成，规格是唯一依据。**
 业务按「大业务 → 小业务 → 模块」组织，每个模块有规则（R-n）、验收条件（AC-n）和接口。需求怎么变、谁来批准、哪个版本生效，都由规格库记录和把关。执行者只按锁定版本的规格干活，不猜；实现者不能验收自己的活，必须由独立的测试执行者逐条验收。工具、身份和权限由脚手架配好，执行者碰不到钥匙。

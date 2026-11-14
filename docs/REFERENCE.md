@@ -6,7 +6,7 @@ SpecLock 的调度脚手架：在一台机器上调度多个 CLI agent。**一�
 规格本身（版本、审核单、权限）由独立的 [SpecLock Core](https://github.com/leaveWhite9088/speclock-core) 负责，本仓库不含 Core 代码。
 
 ```
-看板 ──► 项目的调度器（pi + 扩展） ──►  agentd（常驻单例）  ──ACP──►  项目里的执行者：mcode / dsh / opencode / claude / codex / pi
+看板 ──► 项目的调度器（pi + 扩展） ──►  agentd（常驻单例）  ──ACP──►  项目里的执行者：mcode / dsh / opencode / claude / codex / pi / kimi
 ```
 
 | agent | 是什么 | 怎么接入 | 版本（实测） | 启动目录 |
@@ -17,6 +17,7 @@ SpecLock 的调度脚手架：在一台机器上调度多个 CLI agent。**一�
 | `claude` | Claude Code | 官方适配器 | `@agentclientprotocol/claude-agent-acp` 0.94.0 + `@anthropic-ai/claude-code` 2.1.295 | 项目里的一个子目录 |
 | `codex` | Codex | 官方适配器 | `@agentclientprotocol/codex-acp` 2.2.2（依赖 `@openai/codex` 0.160.1；本机另装的 codex-cli 为 0.163.0） | 项目里的一个子目录 |
 | `pi` | 另一个 pi 实例 | 自带适配器 `pi-adapter/acp-adapter.mjs`（走 pi 的 RPC） | `@earendil-works/pi-coding-agent` 1.3.0 | 基准目录 |
+| `kimi` | Kimi Code | 原生 ACP（`kimi acp`） | `@moonshot-ai/kimi-code` 2.4.1 | 项目里的一个子目录 |
 
 版本是 2026-10-23 在本机（Windows 11、Node v24.19.0）实测时安装的，升级后行为可能不同。
 claude 的接口地址、模型和密钥读取你自己的 `~/.claude/settings.json`（cc-switch 切换后，下次启动进程时生效）。
@@ -33,6 +34,7 @@ claude 的接口地址、模型和密钥读取你自己的 `~/.claude/settings.j
 | claude | ✓ | ✓ | ✓ | ✓ |
 | codex | ✓ | ✓ | 只有退出码 | 这次没有 |
 | pi | ✓ | ✓ | ✓ | ✓ |
+| kimi | ✓ | ✓ | ✓ | ✓ |
 
 - **mcode** 的协议不提供工具的输入，只有标题和输出。
 - **codex** 的命令在终端里执行，输出不经过协议，只能拿到退出码。
@@ -55,6 +57,7 @@ claude 的接口地址、模型和密钥读取你自己的 `~/.claude/settings.j
 | codex | `session/new` 的 `_meta.jetbrains.air.customInstructions` | ✓ | ✓ | 0 |
 | opencode | 环境变量 `OPENCODE_CONFIG_CONTENT` 里的 `instructions` | ✓ | ✓ | 0 |
 | dsh | 没有入口：规则放在每个会话第一条消息前面（压缩后再补一次） | ✓ | ✓ | 0 |
+| kimi | 没有入口：规则放在每个会话第一条消息前面（压缩后再补一次） | ✓ | ✓ | 0 |
 
 这只验证了「规则能送到、重启后还在」，用的是一条很简单的规则；复杂规则（比如「不要 git push」）遵不遵守，
 取决于模型，而且规则始终是提示词层面的约束，不是强制。
@@ -330,8 +333,8 @@ npm run preflight -- core --yes          # 真的下载：把验证过的那个�
 - 状态里只显示服务器的名字和种类（`mcp`），不显示 `env` 和 `headers`——里面可能有密钥。
 - **每次开会话或恢复会话时都会重新交一遍**：实测 CLI 只会启动「这次请求里」带的服务器，`session/resume` 不带就没有。
   所以改了列表，下次启动进程或下次恢复会话时生效，正在跑的会话不变。
-- 六种 CLI 都实测过（`npm run preflight -- probe`，模型真的调用了工具；`test/live/mcp-live-test.mjs` 经 agentd 再测一遍）：
-  mcode、dsh、opencode、claude、codex 走 `session/new` / `session/resume` 的 `mcpServers`。mcode 是用到时才启动服务器，别的是会话一建好就启动。
+- 七种 CLI 都实测过（`npm run preflight -- probe`，模型真的调用了工具；`test/live/mcp-live-test.mjs` 经 agentd 再测一遍）：
+  mcode、dsh、opencode、claude、codex、kimi 走 `session/new` / `session/resume` 的 `mcpServers`。mcode 是用到时才启动服务器，别的是会话一建好就启动。
 - pi 没有这个参数，走另一条路：agentd 把服务器放进环境变量 `AGENTD_MCP_SERVERS`，适配器改用 `-e builtin:mcp -e pi-adapter/mcp-bridge.ts` 启动内层 pi
   （去掉 `--no-mcp`，仍然 `--no-extensions`，所以不会加载别的扩展；没配服务器时仍是 `--no-mcp`）。
   注意：pi 内置的 MCP 客户端**还会读它自己的** `~/.pi/agent/mcp.json` 和项目里的 `.pi/mcp.json`，所以这两个文件里的服务器也会出现在 pi 执行者里
@@ -344,7 +347,7 @@ npm run preflight -- core --yes          # 真的下载：把验证过的那个�
 再**逐个启动能用它的 CLI**，让它通过这个供应商回答一个词，列出哪些真的能用。通过后，到执行者的设置里选这个供应商。
 
 - **按设备保存**：存在 `data/global/providers.json`（不进 git，只有本机用户可读），所有项目共用。Key 只出不进：列表和接口只返回末四位。
-- **每个供应商自己选「可用的 CLI」**：保存时勾选，默认勾上不碰各 CLI 全局配置的五个，**mcode 默认不勾**。只有勾上的 CLI 才会被测试、才能在执行者里选这个供应商；
+- **每个供应商自己选「可用的 CLI」**：保存时勾选，默认勾上不碰各 CLI 全局配置的六个，**mcode 默认不勾**。只有勾上的 CLI 才会被测试、才能在执行者里选这个供应商；
   每个 CLI 一行有「只测它」按钮，「测试全部已启用的」只测勾上的。已有执行者在用的 CLI 不能取消勾选。
 - **两种地址**：Claude Code 和 MiniMax Code 说 Anthropic 协议，其余说 OpenAI 兼容协议（Codex 还要求地址支持 `/responses`）。
   两个地址都填就都能测；缺哪个，用那个协议的 CLI 就显示「需要 … 地址」。
@@ -357,6 +360,7 @@ npm run preflight -- core --yes          # 真的下载：把验证过的那个�
   | opencode | `OPENCODE_CONFIG_CONTENT` 里加一个 provider（OpenAI 兼容），和规则合并 |
   | dsh | `--patch` 一个 yaml（llm-pi-ai 的 providers），Key 按环境变量名取；启动后选这个模型 |
   | pi | 私有的 `PI_CODING_AGENT_DIR`（`models.json` 用 `$变量` 引用 Key），所以它看不到 pi 自己的登录 |
+  | kimi | 私有的 `KIMI_CODE_HOME`（`config.toml` 用 `api_key_env` 引用环境变量里的 Key），所以它看不到 `~/.kimi-code` 里的登录 |
   | mcode | **不行用环境变量**：它的供应商存在自己的配置里。测试时临时加一个 `speclock-…` 的供应商、测完删除，不留痕迹；**执行者暂时不能用**，选不了 |
 
 - 以上都只作用于这个执行者的进程，不改你机器上各 CLI 自己的配置（mcode 的测试除外，见上）。改了执行者的供应商会让它的进程重启，下次使用时生效。

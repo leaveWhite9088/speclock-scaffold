@@ -415,7 +415,7 @@ B 终端设了 `AGENTD_PORT` 连 TCP，于是出现两个 daemon，两套 agent�
 调度器的 LLM 可能写出别的项目的实例名。靠提示词约束不可靠，所以 daemon 对带 `project` 的调用统一改写 agent 名、
 把 `cwd` 限定在根目录内，并拒绝含分隔符 `~` 的名字——**能力边界放在入口，不放在模型的自觉里**。
 
-## 24. 换供应商：五个 CLI 能用环境，一个只能改它自己的配置
+## 24. 换供应商：六个 CLI 能用环境，一个只能改它自己的配置
 
 用同一个 MiniMax Key 逐个实测（每个都用错误的 Key 对照过，错的必须失败）：
 
@@ -424,6 +424,7 @@ B 终端设了 `AGENTD_PORT` 连 TCP，于是出现两个 daemon，两套 agent�
 - **opencode**：`OPENCODE_CONFIG_CONTENT` 加 provider；第一次用 OpenAI 兼容适配器比平时慢（测试超时要放宽）。
 - **dsh**：`--patch` 的 yaml 只是把路由加进模型列表，默认模型不变，启动后要再选一次。
 - **pi**：`apiKey` 写成裸变量名会被当字面值，要写 `$变量`。我们的适配器遇到供应商报错时返回**空回答**而不是错误，所以测试把「没有文字」也算失败（以后应该让适配器把错误传出来）。
+- **kimi**：给进程单独的 `KIMI_CODE_HOME` 并生成 `config.toml`（用 `api_key_env` 引用环境变量，文件里不落密钥），既隔离了 `~/.kimi-code` 里的 OAuth 登录，又能声明供应商下所有模型的 `max_context_size`；默认把 `thinking.enabled` 关掉，不推理的兼容模型也不会报参数错误，面板里手动打开推理强度时才带 `reasoning_effort`。
 - **mcode**：供应商存在它自己的配置里，`MCODE_CONFIG_DIR` 不管用，`mcode provider add` 会**直接改用户的全局配置**。第一次试的时候就改到了用户的配置（马上用 `provider remove` 还原）。教训：**试一个 CLI 的配置命令之前，先确认它写到哪里**；测试里的「加 + 删」要放在 finally 里，并用带前缀的名字。
 
 通用的一条：**对照实验比成功更重要**。「换了错的 Key 还是能回答」才暴露出两处第一次「成功」时看不出来的问题：codex 的参数被忽略，以及我们自己的 `project.updateInstance` 没把 `provider` 传下去。
