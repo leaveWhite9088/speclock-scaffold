@@ -98,7 +98,7 @@ packages/agentd/
 
 | 组 | 入口导出的 | 里面有什么 |
 | --- | --- | --- |
-| `core/base` | 数据目录的路径、`CONFIG` | `data-dir.mjs`：数据放哪（`AGENTD_DATA_DIR` 可改，私有测试守护进程靠它）；`app-config.mjs`：读 `agentd.config.json`。没有任何依赖 |
+| `core/base` | 数据目录的路径、`CONFIG`、`killTree` | `data-dir.mjs`：数据放哪（`AGENTD_DATA_DIR` 可改，私有测试守护进程靠它）；`app-config.mjs`：读 `agentd.config.json`；`process.mjs`：结束子进程及其整棵进程树。没有任何依赖 |
 | `core/records` | 对话记录、任务与重试、在途日志 | `transcripts.mjs`：经手的每一轮追加成对话记录；`tasks.mjs`：任务身份、第几次尝试、重试上限；`journal.mjs`：在途任务的预写日志，重启后对账；`reply.mjs`：长回复裁剪（给调度器的只有头尾，全文存文件） |
 | `core/prompts` | 规则文本、模板 | `rules.mjs`：调度器和执行者的规则（来源 `contexts/`）；`templates.mjs`：执行者模板（`contexts/templates/*.md`，文件头 + 系统提示词）的增删改查，执行者规则 = 通用规则 + 模板提示词，每次启动重读 |
 | `core/pi` | pi 的 RPC 客户端、pi 的模型清单 | `rpc.mjs`：和 pi RPC 通话的唯一一份实现（调度器和 pi 适配器共用，只依赖 node 内置模块）；`models.mjs`：读写 pi 的 `models.json`，写前备份 |
@@ -120,7 +120,6 @@ packages/agentd/
 | `mcp.mjs` | 每个实例的 MCP 服务器配置（密钥不进状态输出） |
 | `providers.mjs` | 供应商（另一个地址和 Key），按设备存 `data/global/providers.json`：存取、列表不带 Key、测试（先测地址，再逐个 CLI 用它回答）、给将要启动的进程算出环境变量、参数和文件。每个 CLI 怎么接受它由驱动的 `provider` 决定（协议 anthropic/openai，作用域 process/global），测试代码在 `packages/drivers/probes/provider.mjs` |
 | `install.mjs` | 本机装了什么：读预检的清单（`data/global/clis.json`），没有就在 node 旁边找；给驱动 `{ node, dir(包), version(包) }`。每次调用都重新算，清单改了不用重启 |
-| `process.mjs` | 结束子进程及其整棵进程树 |
 | `tool-text.mjs` | 工具的输入输出变成对话记录里的短文本 |
 | `acp/` | 一个常驻 ACP 进程（入口 `acp/index.mjs` 只放出 `AcpClient`），见下 |
 

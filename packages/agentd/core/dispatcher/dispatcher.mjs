@@ -17,7 +17,7 @@
 import { PiRpc } from '../pi/index.mjs';
 import { dispatcherRules } from '../prompts/index.mjs';
 import { nodeBin, piMcpServers, piPaths } from '../pool/index.mjs';
-import { killTree } from '../pool/process.mjs';
+import { killTree } from '../base/index.mjs';
 import { injectionFor, providerForDispatcher } from '../pool/index.mjs';
 import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';

@@ -14,7 +14,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { killTree } from '../pool/process.mjs';
+import { killTree } from '../base/index.mjs';
 
 const defaultLog = (...a) => process.stderr.write(`[pi-rpc] ${a.join(' ')}\n`);
 
