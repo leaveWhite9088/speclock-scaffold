@@ -6,7 +6,7 @@ SpecLock 的调度脚手架：在一台机器上调度多个 CLI agent。**一�
 规格本身（版本、审核单、权限）由独立的 [SpecLock Core](https://github.com/leaveWhite9088/speclock-core) 负责，本仓库不含 Core 代码。
 
 ```
-看板 ──► 项目的调度器（pi + 扩展） ──►  agentd（常驻单例）  ──ACP──►  项目里的执行者：mcode / dsh / opencode / claude / codex / pi / kimi
+看板 ──► 项目的调度器（pi + 扩展） ──►  agentd（常驻单例）  ──ACP──►  项目里的执行者：mcode / dsh / opencode / claude / codex / pi / kimi / agy
 ```
 
 | agent | 是什么 | 怎么接入 | 版本（实测） | 启动目录 |
@@ -18,6 +18,7 @@ SpecLock 的调度脚手架：在一台机器上调度多个 CLI agent。**一�
 | `codex` | Codex | 官方适配器 | `@agentclientprotocol/codex-acp` 2.2.2（依赖 `@openai/codex` 0.160.1；本机另装的 codex-cli 为 0.163.0） | 项目里的一个子目录 |
 | `pi` | 另一个 pi 实例 | 自带适配器 `pi-adapter/acp-adapter.mjs`（走 pi 的 RPC） | `@earendil-works/pi-coding-agent` 1.3.0 | 基准目录 |
 | `kimi` | Kimi Code | 原生 ACP（`kimi acp`） | `@moonshot-ai/kimi-code` 2.4.1 | 项目里的一个子目录 |
+| `agy` | Google Antigravity CLI | 原生 ACP（`agy acp --dangerously-skip-permissions`） | 独立可执行文件 `agy` 1.5.9 | 项目里的一个子目录 |
 
 版本是 2026-10-23 在本机（Windows 11、Node v24.19.0）实测时安装的，升级后行为可能不同。
 claude 的接口地址、模型和密钥读取你自己的 `~/.claude/settings.json`（cc-switch 切换后，下次启动进程时生效）。
@@ -35,6 +36,7 @@ claude 的接口地址、模型和密钥读取你自己的 `~/.claude/settings.j
 | codex | ✓ | ✓ | 只有退出码 | 这次没有 |
 | pi | ✓ | ✓ | ✓ | ✓ |
 | kimi | ✓ | ✓ | ✓ | ✓ |
+| agy | ✓ | ✓ | ✓ | ✓ |
 
 - **mcode** 的协议不提供工具的输入，只有标题和输出。
 - **codex** 的命令在终端里执行，输出不经过协议，只能拿到退出码。
@@ -55,6 +57,7 @@ claude 的接口地址、模型和密钥读取你自己的 `~/.claude/settings.j
 | pi | `--append-system-prompt <文件>`（适配器加到 pi 命令行） | ✓ | ✓ | 0 |
 | claude | `session/new` 的 `_meta.systemPrompt.append` | ✓ | ✓ | 0 |
 | codex | `session/new` 的 `_meta.jetbrains.air.customInstructions` | ✓ | ✓ | 0 |
+| agy | `session/new` / `session/resume` 的 `_meta.antigravity.systemPrompt.append` | ✓ | ✓ | 0 |
 | opencode | 环境变量 `OPENCODE_CONFIG_CONTENT` 里的 `instructions` | ✓ | ✓ | 0 |
 | dsh | 没有入口：规则放在每个会话第一条消息前面（压缩后再补一次） | ✓ | ✓ | 0 |
 | kimi | 没有入口：规则放在每个会话第一条消息前面（压缩后再补一次） | ✓ | ✓ | 0 |
@@ -278,8 +281,8 @@ agentd 操作：projects | project.create {id,name?,root,instances?} | project.a
   有没有 `/compact`、会话能不能直接从磁盘读。daemon 里不再有「如果是 pi 就……」的判断，只问驱动的 `capabilities`。
   `test/drivers-test.mjs` 检查每个驱动都符合约定；`packages/drivers/probes` 里的行为探针（规则、MCP、恢复会话）是升级后重新验证行为的办法，用 `npm run preflight -- probe` 运行。
   **某个 CLI 升级后行为变了，主要改它的驱动**；驱动对外的约定不变，别的部分就不用动。
-- **预检**（`packages/preflight`）：在 daemon 之外运行，找出各 CLI 的 npm 包装在哪、什么版本，和驱动里验证过的版本对照，
-  结果写成清单 `data/global/clis.json`（daemon 只读这个文件；没有它就在 node 旁边的 `node_modules` 里找）。
+- **预检**（`packages/preflight`）：在 daemon 之外运行，找出各 CLI 的 npm 包装在哪、独立可执行文件（如 `agy`）在哪、什么版本，和驱动里验证过的版本对照，
+  结果写成清单 `data/global/clis.json`（daemon 只读这个文件；没有它就在 node 旁边的 `node_modules` 与 `PATH` 里找）。
 
 ```powershell
 npm run preflight                          # 检查，只读，什么都不改
@@ -333,8 +336,8 @@ npm run preflight -- core --yes          # 真的下载：把验证过的那个�
 - 状态里只显示服务器的名字和种类（`mcp`），不显示 `env` 和 `headers`——里面可能有密钥。
 - **每次开会话或恢复会话时都会重新交一遍**：实测 CLI 只会启动「这次请求里」带的服务器，`session/resume` 不带就没有。
   所以改了列表，下次启动进程或下次恢复会话时生效，正在跑的会话不变。
-- 七种 CLI 都实测过（`npm run preflight -- probe`，模型真的调用了工具；`test/live/mcp-live-test.mjs` 经 agentd 再测一遍）：
-  mcode、dsh、opencode、claude、codex、kimi 走 `session/new` / `session/resume` 的 `mcpServers`。mcode 是用到时才启动服务器，别的是会话一建好就启动。
+- 八种 CLI 都实测过（`npm run preflight -- probe`，模型真的调用了工具；`test/live/mcp-live-test.mjs` 经 agentd 再测一遍）：
+  mcode、dsh、opencode、claude、codex、kimi、agy 走 `session/new` / `session/resume` 的 `mcpServers`。mcode 是用到时才启动服务器，别的是会话一建好就启动（`agy` 需要 `--dangerously-skip-permissions`，否则默认权限模式会拦下新会话传入的 MCP 工具调用）。
 - pi 没有这个参数，走另一条路：agentd 把服务器放进环境变量 `AGENTD_MCP_SERVERS`，适配器改用 `-e builtin:mcp -e pi-adapter/mcp-bridge.ts` 启动内层 pi
   （去掉 `--no-mcp`，仍然 `--no-extensions`，所以不会加载别的扩展；没配服务器时仍是 `--no-mcp`）。
   注意：pi 内置的 MCP 客户端**还会读它自己的** `~/.pi/agent/mcp.json` 和项目里的 `.pi/mcp.json`，所以这两个文件里的服务器也会出现在 pi 执行者里
@@ -362,6 +365,7 @@ npm run preflight -- core --yes          # 真的下载：把验证过的那个�
   | pi | 私有的 `PI_CODING_AGENT_DIR`（`models.json` 用 `$变量` 引用 Key），所以它看不到 pi 自己的登录 |
   | kimi | 私有的 `KIMI_CODE_HOME`（`config.toml` 用 `api_key_env` 引用环境变量里的 Key），所以它看不到 `~/.kimi-code` 里的登录 |
   | mcode | **不行用环境变量**：它的供应商存在自己的配置里。测试时临时加一个 `speclock-…` 的供应商、测完删除，不留痕迹；**执行者暂时不能用**，选不了 |
+  | agy | **不支持第三方供应商**：它只走 Google 账号登录、Gemini API Key 或 Vertex ADC，无法替换成任意 OpenAI / Anthropic 接口地址；执行者里只提供「自带登录」 |
 
 - 以上都只作用于这个执行者的进程，不改你机器上各 CLI 自己的配置（mcode 的测试除外，见上）。改了执行者的供应商会让它的进程重启，下次使用时生效。
 - 失败时界面显示原因：地址被拒（带状态码和服务端原话）、CLI 没装、CLI 启动失败、没有这个模型、答不出来。Key 不会出现在任何一条里。
