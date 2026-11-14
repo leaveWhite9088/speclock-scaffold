@@ -12,7 +12,7 @@ export const runTool = defineTool({
 	name: "agent_run",
 	label: "Agent run",
 	description:
-		"Send a prompt to a resident coding agent (mcode, dsh, pi, opencode, claude or codex). " +
+		"Send a prompt to a resident coding agent (mcode, dsh, pi, opencode, claude, codex or kimi). " +
 		"By default the task is sent and this call returns at once: the agent works in the background, and its answer arrives later as a new message starting with 【执行者回报】, which you then check and report on. Do not wait, poll or invent a result in the meantime; tell the user the task was sent and end your turn. Send several tasks to different agents in one turn when they do not depend on each other. " +
 		"Only when you cannot go on without the answer inside this turn (it is short, and the next step needs it), set wait to true. " +
 		"Call agent_instances first: each instance has a role that says what it is for. " +

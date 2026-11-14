@@ -73,10 +73,10 @@ d = detectPackages(wanted, roots);
 check('a global copy at the verified version wins over a scaffold copy at another one', d['@deepseek-ai/dsh'].status === 'ok' && d['@deepseek-ai/dsh'].source === 'global');
 
 // per CLI
-const rows = summarize(drivers, d, { CLAUDE_CONFIG_DIR: join(base, 'no-claude'), PI_CODING_AGENT_DIR: join(base, 'no-pi') });
+const rows = summarize(drivers, d, { CLAUDE_CONFIG_DIR: join(base, 'no-claude'), PI_CODING_AGENT_DIR: join(base, 'no-pi'), KIMI_CODE_HOME: join(base, 'no-kimi') });
 const row = (t) => rows.find((r) => r.type === t);
 check('a CLI is as bad as its worst package', row('opencode').status === 'newer' && row('mcode').status === 'ok' && worst(['ok', 'older', 'newer']) === 'older');
-check('hints for what no version check sees (claude settings, pi credentials)', row('claude').hints.length === 1 && row('pi').hints.length === 1 && row('mcode').hints.length === 0);
+check('hints for what no version check sees (claude settings, pi credentials, kimi config)', row('claude').hints.length === 1 && row('pi').hints.length === 1 && row('kimi').hints.length === 1 && row('mcode').hints.length === 0);
 
 // the manifest
 const manifest = buildManifest({ node: 'N:\\node.exe', detected: noGlobal, now: new Date('2026-11-10T00:00:00Z') });
@@ -90,7 +90,7 @@ check('the manifest is written as JSON (folders created)', JSON.parse(readFileSy
 // the install plan
 const empty = detectPackages(wanted, [{ label: 'global', path: join(base, 'empty') }]);
 const all = installPlan({ detected: empty, prefix: join(base, 'tools') });
-check('everything missing: all seven packages, pinned', all.packages.length === 7 && all.command.args.includes('@deepseek-ai/dsh@0.1.5-rc.2') && all.command.args.includes('--prefix'));
+check('everything missing: all eight packages, pinned', all.packages.length === 8 && all.command.args.includes('@deepseek-ai/dsh@0.1.5-rc.2') && all.command.args.includes('--prefix'));
 check('the plan installs into the prefix, never globally', !all.command.args.includes('-g') && !all.command.args.includes('--global'));
 const onlyPi = installPlan({ detected: empty, prefix: 'X', types: ['pi'] });
 check('--type narrows it to the packages that CLI needs', onlyPi.packages.length === 1 && onlyPi.packages[0].name === '@earendil-works/pi-coding-agent');

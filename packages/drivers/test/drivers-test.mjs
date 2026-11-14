@@ -21,7 +21,7 @@ const full = { node: 'N:/node.exe', dir: (n) => `P:/modules/${n}`, version: () =
 const empty = { node: 'N:/node.exe', dir: () => null, version: () => null };
 const ctx = { agentdRoot: 'A:/agentd' };
 
-check('the six CLIs have a driver', driverTypes.join() === 'mcode,dsh,opencode,claude,codex,pi', driverTypes.join());
+check('the seven CLIs have a driver', driverTypes.join() === 'mcode,dsh,opencode,claude,codex,pi,kimi', driverTypes.join());
 
 for (const d of Object.values(drivers)) {
   const ok =
@@ -51,6 +51,7 @@ check('claude: the adapter, with the installed Claude Code as the executable', L
 check('codex: the adapter', L('codex').args[0] === 'P:/modules/@agentclientprotocol/codex-acp/dist/index.js');
 check('pi: the scaffold adapter, told where pi is', /agentd[\\/]pi-adapter[\\/]acp-adapter\.mjs$/.test(L('pi').args[0]) && L('pi').env.PI_CLI === 'P:/modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js' && L('pi').env.PI_NODE_BIN === 'N:/node.exe');
 check('pi: paths() gives its cli.js for the dispatcher', getDriver('pi').paths(full).cli.endsWith('pi-coding-agent/dist/bundle/cli.js'));
+check('kimi: node main.mjs acp, with auto-update off and workspace trusted', L('kimi').cmd === 'N:/node.exe' && L('kimi').args.join(' ') === 'P:/modules/@moonshot-ai/kimi-code/dist/main.mjs acp' && L('kimi').env.KIMI_CODE_NO_AUTO_UPDATE === '1' && L('kimi').env.KIMI_CODE_TRUST_WORKSPACE === '1');
 
 // How each is handed the rules: as before.
 const R = (t, env = {}) => getDriver(t).rules({ text: 'RULES', file: 'R:/rules.md', env });
@@ -64,6 +65,7 @@ check('opencode: keeps what the user already passes that way', (() => {
   return c.model === 'x' && c.instructions.join() === 'a.md,R:/rules.md';
 })());
 check('dsh: no channel, the text goes in front of the first prompt', R('dsh').prefix === true && R('dsh').args.length === 0);
+check('kimi: no channel, the text goes in front of the first prompt', R('kimi').prefix === true && R('kimi').args.length === 0);
 
 // What the rest of the scaffold may rely on.
 check('compaction: every CLI but dsh has /compact', driverTypes.every((t) => (getDriver(t).capabilities.compact === '/compact') === (t !== 'dsh')));
@@ -99,6 +101,7 @@ const oc = JSON.parse(getDriver('opencode').provider.apply({ provider: P, endpoi
 check('providers: opencode keeps the rules already in its configuration', oc.instructions[0] === 'rules.md' && oc.model === 'mm/m1' && oc.provider.mm.options.baseURL === 'https://e.example/x' && Object.keys(oc.provider.mm.models).join() === 'm1,m2');
 check('providers: dsh gets a patch file and selects the model through its option value', applied.dsh.args.join(' ') === '--patch C:/cfg/dsh-patch.yml' && applied.dsh.files[0].name === 'dsh-patch.yml' && applied.dsh.model === '["mm","m1"]');
 check('providers: pi gets a folder of its own, the key only by name', applied.pi.env.PI_CODING_AGENT_DIR === 'C:/cfg' && JSON.parse(applied.pi.files[0].content).providers.mm.apiKey === '$SCAFFOLD_PROVIDER_KEY');
+check('providers: kimi gets a home of its own with config.toml, the key only by variable name', applied.kimi.env.KIMI_CODE_HOME === 'C:/cfg' && applied.kimi.files[0].name === 'config.toml' && applied.kimi.files[0].content.includes('api_key_env = "SCAFFOLD_PROVIDER_KEY"') && applied.kimi.model === 'm1');
 // pi: the levels of a model come from pi's own catalog when it knows the model, else the default
 const fakePi = mkdtempSync(join(tmpdir(), 'fake-pi-'));
 const dataDir = join(fakePi, 'node_modules', '@earendil-works', 'pi-ai', 'dist', 'providers', 'data');
@@ -115,12 +118,13 @@ const known = piEntries(['known-1'], true)[0];
 check('providers: pi keeps the levels it knows for a model, found ignoring case', JSON.stringify(known.thinkingLevelMap) === JSON.stringify({ minimal: null, medium: null, xhigh: null, max: 'max' }), JSON.stringify(known.thinkingLevelMap));
 check('providers: pi keeps "does not reason" for a model it knows, found by the part after the slash', piEntries(['Plain'], true)[0].reasoning === false);
 check('providers: pi refuses a model the provider does not list', (() => { try { getDriver('pi').provider.apply({ provider: P, endpoint: 'https://e.example/x', model: 'M1', dir: 'C:/cfg', env: {} }); return false; } catch { return true; } })());
+check('providers: kimi refuses a model the provider does not list', (() => { try { getDriver('kimi').provider.apply({ provider: P, endpoint: 'https://e.example/x', model: 'M1', dir: 'C:/cfg', env: {} }); return false; } catch { return true; } })());
 check('providers: mcode gives the commands to add and remove it, under its own prefix', applied.mcode.global.add.includes('speclock-mm') && applied.mcode.global.remove.includes('custom_provider:speclock-mm'));
 
 // the packages the preflight has to find
 const wanted = wantedPackages();
 check('each npm package is listed once, with the CLIs that use it', new Set(wanted.map((p) => p.name)).size === wanted.length && wanted.some((p) => p.name === '@anthropic-ai/claude-code' && p.types.join() === 'claude'));
-check('seven packages in all', wanted.length === 7, String(wanted.length));
+check('eight packages in all', wanted.length === 8, String(wanted.length));
 
 console.log(failed ? `\n=> ✗ ${failed} FAILED` : '\n=> ✓ DRIVERS OK');
 process.exit(failed ? 1 : 0);

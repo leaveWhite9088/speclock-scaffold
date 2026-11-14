@@ -24,6 +24,10 @@ export function hintsFor(type, env = process.env) {
     const dir = env.PI_CODING_AGENT_DIR || join(home, '.pi', 'agent');
     return existsSync(join(dir, 'auth.json')) || existsSync(join(dir, 'models.json')) ? [] : [`pi has no credentials or custom models in ${dir}`];
   }
+  if (type === 'kimi') {
+    const dir = env.KIMI_CODE_HOME || join(home, '.kimi-code');
+    return existsSync(join(dir, 'config.toml')) || existsSync(join(dir, 'credentials')) ? [] : [`kimi has no login or config in ${dir}`];
+  }
   return [];
 }
 

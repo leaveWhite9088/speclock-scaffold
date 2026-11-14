@@ -61,7 +61,7 @@ check('pi and mcode take nothing in the session request', Object.keys(make('pi',
 check('where they go is said in words', make('pi', 'rc-g').via() === 'AGENTD_APPEND_SYSTEM_PROMPT_FILE' && make('mcode', 'rc-h').via() === '--append-system-prompt-file' && claude.via() === '_meta.systemPrompt');
 
 const dsh = make('dsh', 'rc-dsh');
-check('a CLI with no channel is marked as getting them in the first message', dsh.via() === 'first message');
+check('a CLI with no channel is marked as getting them in the first message', dsh.via() === 'first message' && make('kimi', 'rc-kimi').via() === 'first message');
 const first = dsh.withRules('do the thing', 'S1');
 check('its first prompt of a session has the rules in front', first === 'THE RULES\n\n---\n\ndo the thing');
 check('the second one does not', dsh.withRules('and more', 'S1') === 'and more');

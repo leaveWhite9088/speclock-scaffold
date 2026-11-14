@@ -54,8 +54,8 @@ saveProvider({ ...spec, apiKey: '', name: 'Acme 2' });
 check('saving again without a key keeps the old one', getProvider('acme').apiKey === KEY && getProvider('acme').name === 'Acme 2');
 
 // 2b: which CLIs may use it
-check('by default a provider is enabled for the CLIs that take it per process, not for mcode', JSON.stringify(getProvider('acme').types.sort()) === JSON.stringify(['claude', 'codex', 'dsh', 'opencode', 'pi']), getProvider('acme').types.join());
-check('the list says which CLIs there are to choose from', providerClis().length === 6 && providerClis().find((c) => c.type === 'mcode').scope === 'global');
+check('by default a provider is enabled for the CLIs that take it per process, not for mcode', JSON.stringify(getProvider('acme').types.sort()) === JSON.stringify(['claude', 'codex', 'dsh', 'kimi', 'opencode', 'pi']), getProvider('acme').types.join());
+check('the list says which CLIs there are to choose from', providerClis().length === 7 && providerClis().find((c) => c.type === 'mcode').scope === 'global');
 check('a CLI that cannot take a provider is refused in the choice', /cannot take a provider/.test(throws(() => saveProvider({ ...spec, apiKey: '', types: ['nope'] })) ?? ''));
 saveProvider({ ...spec, apiKey: '', types: ['dsh'] });
 check('the choice is kept', getProvider('acme').types.join() === 'dsh');
@@ -63,11 +63,11 @@ saveProvider({ ...spec, apiKey: '' });
 check('saving without a choice keeps the one it had', getProvider('acme').types.join() === 'dsh');
 check('an executor of a CLI it is not enabled for is refused', /not enabled for opencode/.test(throws(() => cleanInstanceProvider({ id: 'acme' }, 'opencode')) ?? ''));
 check('the support list says enabled or not', providerSupport(getProvider('acme')).find((s) => s.type === 'dsh').enabled === true && providerSupport(getProvider('acme')).find((s) => s.type === 'opencode').enabled === false);
-saveProvider({ ...spec, apiKey: '', types: ['claude', 'codex', 'dsh', 'opencode', 'pi'] });
+saveProvider({ ...spec, apiKey: '', types: ['claude', 'codex', 'dsh', 'kimi', 'opencode', 'pi'] });
 
 // 3
 const support = Object.fromEntries(providerSupport(getProvider('acme')).map((s) => [s.type, s]));
-check('support says which CLIs can take it: the OpenAI ones yes, the Anthropic ones no (no such endpoint)', support.opencode.supported && support.dsh.supported && support.codex.supported && support.pi.supported && !support.claude.supported && !support.mcode.supported, JSON.stringify(Object.entries(support).map(([k, v]) => `${k}:${v.supported}`)));
+check('support says which CLIs can take it: the OpenAI ones yes, the Anthropic ones no (no such endpoint)', support.opencode.supported && support.dsh.supported && support.codex.supported && support.pi.supported && support.kimi.supported && !support.claude.supported && !support.mcode.supported, JSON.stringify(Object.entries(support).map(([k, v]) => `${k}:${v.supported}`)));
 check('an executor may be given it when its CLI can start with it', cleanInstanceProvider({ id: 'acme', model: 'm2' }, 'opencode').model === 'm2');
 check('the first model is the default', cleanInstanceProvider({ id: 'acme' }, 'dsh').model === 'm1');
 check('no provider is no provider', cleanInstanceProvider(null, 'dsh') === null && cleanInstanceProvider({ id: '' }, 'dsh') === null);
@@ -139,6 +139,9 @@ check('saving without saying keeps what was there', kept.contexts.big === 1_000_
 const piApplied = getDriver('pi').provider.apply({ provider: { id: 'ctx-demo', apiKey: KEY, models: ['big', 'small'], contexts: { big: 1_000_000 } }, endpoint: 'https://x.example/v1', model: 'big', dir: '/tmp/x' });
 const piModels = JSON.parse(piApplied.files.find((x) => x.name === 'models.json').content).providers['ctx-demo'].models;
 check("pi's models carry the context length, and a model without one is left to pi's default", piModels[0].contextWindow === 1_000_000 && piModels[1].contextWindow === undefined, JSON.stringify(piModels));
+const kimiApplied = getDriver('kimi').provider.apply({ provider: { id: 'ctx-demo', apiKey: KEY, models: ['big', 'small'], contexts: { big: 1_000_000 } }, endpoint: 'https://x.example/v1', model: 'big', dir: '/tmp/x' });
+const kimiToml = kimiApplied.files.find((x) => x.name === 'config.toml').content;
+check("kimi's config.toml carries the context length, and defaults when none is given", kimiToml.includes('max_context_size = 1000000') && kimiToml.includes('max_context_size = 262144'), kimiToml);
 
 server.close();
 const down = await checkEndpoint({ protocol: 'openai', endpoint: 'http://127.0.0.1:1/v1', apiKey: KEY, model: 'm1', timeoutMs: 3000 });

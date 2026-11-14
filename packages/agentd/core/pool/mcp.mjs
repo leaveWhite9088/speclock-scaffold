@@ -7,7 +7,7 @@
  *   http   { type: "http", name, url, headers: [{ name, value }] }
  *
  * A CLI starts the servers of a session only if it was handed them in that very request (`session/resume` included),
- * which the drivers' probes (packages/drivers/probes) check for mcode, dsh, opencode, claude and codex. pi has no such parameter: its
+ * which the drivers' probes (packages/drivers/probes) check for mcode, dsh, opencode, claude, codex and kimi. pi has no such parameter: its
  * driver turns the servers into AGENTD_MCP_SERVERS and the adapter loads them through `pi-adapter/mcp-bridge.ts`.
  */
 

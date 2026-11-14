@@ -24,11 +24,12 @@
 import claude from './claude.mjs';
 import codex from './codex.mjs';
 import dsh from './dsh.mjs';
+import kimi from './kimi.mjs';
 import mcode from './mcode.mjs';
 import opencode from './opencode.mjs';
 import pi from './pi.mjs';
 
-export const drivers = { mcode, dsh, opencode, claude, codex, pi };
+export const drivers = { mcode, dsh, opencode, claude, codex, pi, kimi };
 export const driverTypes = Object.keys(drivers);
 export const getDriver = (type) => drivers[type] ?? null;
 

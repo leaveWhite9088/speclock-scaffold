@@ -1,11 +1,11 @@
 /**
- * Live check of the newer CLI types (opencode, claude, codex) as project executors.
+ * Live check of the newer CLI types (opencode, claude, codex, kimi) as project executors.
  *
  * One project, one executor per type, each in its own folder. For each: the guide and skill files land where that
  * CLI reads them, the executor really writes a file in its own folder, the context figure shows up, the session
  * survives a daemon restart, and a second turn remembers the first.
  *
- * Usage: node test/live/executors-live-test.mjs [type ...]      (default: opencode claude codex)
+ * Usage: node test/live/executors-live-test.mjs [type ...]      (default: opencode claude codex kimi)
  */
 
 import { existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Scheduler, check, stopDaemon } from '../lib/scheduler.mjs';
 
-const TYPES = process.argv.slice(2).length ? process.argv.slice(2) : ['opencode', 'claude', 'codex'];
+const TYPES = process.argv.slice(2).length ? process.argv.slice(2) : ['opencode', 'claude', 'codex', 'kimi'];
 console.log(`\n=== live executors: ${TYPES.join(', ')} ===\n`);
 
 const P = `lv${Date.now().toString(36)}`;
@@ -32,7 +32,7 @@ try {
   for (const t of TYPES) {
     const dir = join(root, t);
     console.log(`\n-- ${t}`);
-    check(`${t}: no guide or skill file is written into the project`, ['AGENTS.md', 'CLAUDE.md', '.agents', '.claude', '.opencode', '.minimax'].every((f) => !existsSync(join(dir, f))));
+    check(`${t}: no guide or skill file is written into the project`, ['AGENTS.md', 'CLAUDE.md', '.agents', '.claude', '.opencode', '.minimax', '.kimi-code'].every((f) => !existsSync(join(dir, f))));
     const via = (await s.status(key(t))).rules?.via;
     check(`${t}: the rules are handed over as system instructions`, Boolean(via), String(via));
 
@@ -45,7 +45,7 @@ try {
 
     const row = (await call('projects')).projects.find((p) => p.id === P).instances.find((i) => i.id === t);
     check(`${t}: context figure is reported`, row?.context?.used > 0, JSON.stringify(row?.context));
-    check(`${t}: canCompact is ${['claude', 'codex', 'opencode'].includes(t)}`, row?.canCompact === ['claude', 'codex', 'opencode'].includes(t));
+    check(`${t}: canCompact is ${['claude', 'codex', 'opencode', 'kimi'].includes(t)}`, row?.canCompact === ['claude', 'codex', 'opencode', 'kimi'].includes(t));
 
     const r2 = await s.run(key(t), 'What word was in the file you just created? Reply with only that word.', { timeoutMs: 240_000 });
     check(`${t}: second turn remembers the first`, r2.text.includes(`BANANA-${t}`) && r2.sessionId === sessions[t], JSON.stringify(r2.text.trim().slice(0, 60)));
