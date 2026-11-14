@@ -215,7 +215,7 @@ function ProviderRow({ p, expanded, onToggle, testing, result, onTest, onEdit, o
             const r = running ? undefined : byType.get(s.type);
             const state = running ? 'run' : !s.enabled || !s.supported ? 'off' : !r ? 'idle' : r.ok ? 'ok' : r.skipped ? 'off' : 'bad';
             const tone = { off: 'text-muted', idle: 'text-muted', run: 'text-ink', ok: 'text-ink', bad: 'text-danger' }[state];
-            const note = running ? '测试中…' : !s.enabled ? '未启用' : !s.supported ? (s.reason ?? '不支持') : !r ? '' : r.ok ? `${(r.ms / 1000).toFixed(0)}s` : r.detail;
+            const note = running ? '测试中…' : s.enabled === false ? '未启用' : !s.supported ? (s.reason ?? '不支持') : !r ? '' : r.ok ? `${(r.ms / 1000).toFixed(0)}s` : r.detail;
             return (
               <li key={s.type} className={`grid grid-cols-[1.2em_9.5em_minmax(0,1fr)_auto] items-baseline gap-x-2 ${tone}`}>
                 <span className="flex justify-center">{state === 'run' ? <Spinner className="translate-y-0.5" /> : state === 'ok' ? <Check className="size-3.5 translate-y-0.5 text-ok" /> : state === 'bad' ? '✗' : '–'}</span>
