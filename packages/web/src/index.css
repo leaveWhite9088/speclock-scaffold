@@ -36,6 +36,8 @@
   --claude-ink: #9a5b34;
   --codex-bg: #e6e3da;
   --codex-ink: #5e5c54;
+  --kimi-bg: #f4dde6;
+  --kimi-ink: #8a4162;
   --other-bg: #e9e6dc;
   --other-ink: #6b6960;
 }
@@ -72,6 +74,8 @@
     --claude-ink: #f0c5a7;
     --codex-bg: #3a3935;
     --codex-ink: #cac7bc;
+    --kimi-bg: #4a2e3a;
+    --kimi-ink: #ebbad0;
     --other-bg: #3a3936;
     --other-ink: #b1aea4;
   }
@@ -155,6 +159,7 @@
   .cli-chip[data-cli='opencode'] { background: var(--opencode-bg); color: var(--opencode-ink); }
   .cli-chip[data-cli='claude'] { background: var(--claude-bg); color: var(--claude-ink); }
   .cli-chip[data-cli='codex'] { background: var(--codex-bg); color: var(--codex-ink); }
+  .cli-chip[data-cli='kimi'] { background: var(--kimi-bg); color: var(--kimi-ink); }
   /* A block of text or code set off from the page, like the code blocks of the old Claude desktop: neutral by default, tinted
      green (.ok) or red (.bad) when it is a result that worked or one that did not. The letters stay dark: only the ground changes. */
   .tint-block { @apply m-0 max-h-64 overflow-auto rounded-md border border-line bg-code px-3 py-2 font-mono text-xs leading-[1.55] wrap-anywhere whitespace-pre-wrap text-ink-2; }
