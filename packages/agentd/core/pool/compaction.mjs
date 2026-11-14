@@ -6,8 +6,8 @@ import { entry, noteSession, saved } from './store.mjs';
 
 /**
  * How to compact a conversation, per CLI type: the CLI does the compacting, we only say when. The command is in the
- * driver's capabilities (mcode, pi, claude, codex, opencode and kimi have one; dsh offers none over ACP, so a compaction
- * threshold does nothing for it).
+ * driver's capabilities (mcode, pi, claude, codex, opencode, kimi and agy have one; dsh offers none over ACP, so a
+ * compaction threshold does nothing for it).
  */
 export const COMPACT_PROMPT = Object.fromEntries(driverTypes.map((t) => [t, getDriver(t).capabilities.compact]).filter(([, c]) => c));
 export const canCompact = (type) => Boolean(COMPACT_PROMPT[type]);

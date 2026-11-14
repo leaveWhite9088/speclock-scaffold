@@ -11,10 +11,14 @@ import { join } from 'node:path';
 const base = mkdtempSync(join(tmpdir(), 'agentd-install-'));
 const manifestFile = join(base, 'clis.json');
 const nodeModules = join(base, 'nm');
+const binDir = join(base, 'bins');
+mkdirSync(binDir, { recursive: true });
 process.env.AGENTD_CLIS_FILE = manifestFile;
 process.env.AGENTD_NODE_MODULES = nodeModules;
+process.env.AGENTD_BIN_PATH = binDir;
 process.env.AGENTD_DATA_DIR = join(base, 'data');
 delete process.env.MCODE_NODE_BIN;
+delete process.env.AGY_BIN;
 
 const { currentInstall, nodeBin, readManifest, piPaths } = await import('../../core/pool/install.mjs');
 const { AGENTS } = await import('../../core/pool/config.mjs');
@@ -64,6 +68,19 @@ check('a CLI that is not installed says what is missing, and does not throw', AG
 check('piPaths names what is missing for the dispatcher', piPaths().missing[0] === '@earendil-works/pi-coding-agent');
 put(nodeModules, '@earendil-works/pi-coding-agent', '1.3.0');
 check('and gives pi\'s cli.js once it is there', piPaths().missing.length === 0 && piPaths().cli.endsWith('pi-coding-agent/dist/bundle/cli.js'));
+
+// standalone binaries (e.g. agy)
+check('a standalone binary CLI that is not installed says what is missing', AGENTS.agy.launch().missing[0] === 'agy');
+const agyFallback = join(binDir, process.platform === 'win32' ? 'agy.exe' : 'agy');
+writeFileSync(agyFallback, '');
+check('no manifest: standalone binaries are looked for on the bin path', currentInstall().bin('agy') === agyFallback && AGENTS.agy.launch().missing.length === 0);
+const agyManifest = join(base, 'custom-bin', process.platform === 'win32' ? 'agy.exe' : 'agy');
+mkdirSync(join(base, 'custom-bin'), { recursive: true });
+writeFileSync(agyManifest, '');
+writeFileSync(manifestFile, JSON.stringify({ schema: 1, binaries: { agy: { path: agyManifest, version: '1.5.9' } } }));
+const later3 = new Date(Date.now() + 20_000);
+utimesSync(manifestFile, later3, later3);
+check('a manifest binary path and version win over the fallback', currentInstall().bin('agy') === agyManifest && currentInstall().binVersion('agy') === '1.5.9');
 
 console.log(failed ? `\n=> ✗ ${failed} FAILED` : '\n=> ✓ INSTALL OK');
 process.exit(failed ? 1 : 0);

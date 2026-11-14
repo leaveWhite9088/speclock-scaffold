@@ -67,7 +67,8 @@ saveProvider({ ...spec, apiKey: '', types: ['claude', 'codex', 'dsh', 'kimi', 'o
 
 // 3
 const support = Object.fromEntries(providerSupport(getProvider('acme')).map((s) => [s.type, s]));
-check('support says which CLIs can take it: the OpenAI ones yes, the Anthropic ones no (no such endpoint)', support.opencode.supported && support.dsh.supported && support.codex.supported && support.pi.supported && support.kimi.supported && !support.claude.supported && !support.mcode.supported, JSON.stringify(Object.entries(support).map(([k, v]) => `${k}:${v.supported}`)));
+check('support says which CLIs can take it: the OpenAI ones yes, the Anthropic ones no (no such endpoint), and agy never', support.opencode.supported && support.dsh.supported && support.codex.supported && support.pi.supported && support.kimi.supported && !support.claude.supported && !support.mcode.supported && !support.agy.supported && /no way/.test(support.agy.reason), JSON.stringify(Object.entries(support).map(([k, v]) => `${k}:${v.supported}`)));
+check('a CLI that cannot take another provider is refused on an executor', /cannot use another provider/.test(throws(() => cleanInstanceProvider({ id: 'acme' }, 'agy')) ?? ''));
 check('an executor may be given it when its CLI can start with it', cleanInstanceProvider({ id: 'acme', model: 'm2' }, 'opencode').model === 'm2');
 check('the first model is the default', cleanInstanceProvider({ id: 'acme' }, 'dsh').model === 'm1');
 check('no provider is no provider', cleanInstanceProvider(null, 'dsh') === null && cleanInstanceProvider({ id: '' }, 'dsh') === null);

@@ -6,7 +6,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { dshFolderName, driverTypes, drivers, getDriver, piMcpServers, wantedPackages } from '../index.mjs';
+import { applyProvider, dshFolderName, driverTypes, drivers, getDriver, piMcpServers, wantedBinaries, wantedPackages } from '../index.mjs';
 
 let failed = 0;
 const check = (name, ok, extra = '') => {
@@ -16,18 +16,22 @@ const check = (name, ok, extra = '') => {
 
 console.log('\n=== drivers ===\n');
 
-// An install with every package present, and one with nothing.
-const full = { node: 'N:/node.exe', dir: (n) => `P:/modules/${n}`, version: () => '1.0.0' };
-const empty = { node: 'N:/node.exe', dir: () => null, version: () => null };
+// An install with every package and standalone binary present, and one with nothing.
+const full = { node: 'N:/node.exe', dir: (n) => `P:/modules/${n}`, version: () => '1.0.0', bin: (n) => `B:/bin/${n}.exe`, binVersion: () => '1.0.0' };
+const empty = { node: 'N:/node.exe', dir: () => null, version: () => null, bin: () => null, binVersion: () => null };
 const ctx = { agentdRoot: 'A:/agentd' };
 
-check('the seven CLIs have a driver', driverTypes.join() === 'mcode,dsh,opencode,claude,codex,pi,kimi', driverTypes.join());
+check('the eight CLIs have a driver', driverTypes.join() === 'mcode,dsh,opencode,claude,codex,pi,kimi,agy', driverTypes.join());
 
 for (const d of Object.values(drivers)) {
+  const deps = [...d.packages, ...(d.binaries ?? [])];
   const ok =
     typeof d.label === 'string' &&
     typeof d.description === 'string' &&
-    Array.isArray(d.packages) && d.packages.length > 0 && d.packages.every((p) => p.name && /^\d+\.\d+\.\d+/.test(p.version)) &&
+    Array.isArray(d.packages) &&
+    (d.binaries === undefined || Array.isArray(d.binaries)) &&
+    deps.length > 0 &&
+    deps.every((p) => p.name && /^\d+\.\d+\.\d+/.test(p.version)) &&
     d.verified?.on && d.verified?.note &&
     d.capabilities && 'compact' in d.capabilities && d.capabilities.rules && d.capabilities.mcp &&
     typeof d.launch === 'function' && typeof d.rules === 'function';
@@ -35,7 +39,7 @@ for (const d of Object.values(drivers)) {
   const l = d.launch(full, ctx);
   check(`${d.type}: launch gives cmd, args and env, and nothing is missing when everything is installed`, Boolean(l.cmd) && Array.isArray(l.args) && typeof l.env === 'object' && l.missing.length === 0, JSON.stringify(l));
   const m = d.launch(empty, ctx);
-  check(`${d.type}: launch does not throw when nothing is installed, and names what is missing`, m.missing.length >= 1 && m.missing.every((n) => d.packages.some((p) => p.name === n)), JSON.stringify(m.missing));
+  check(`${d.type}: launch does not throw when nothing is installed, and names what is missing`, m.missing.length >= 1 && m.missing.every((n) => deps.some((p) => p.name === n)), JSON.stringify(m.missing));
   const r = d.rules({ text: 'RULES', file: 'R:/rules.md', env: {} });
   check(`${d.type}: rules() returns args, env, meta and prefix`, Array.isArray(r.args) && typeof r.env === 'object' && 'meta' in r && typeof r.prefix === 'boolean');
   const nofile = d.rules({ text: 'RULES', file: null, env: {} });
@@ -52,6 +56,7 @@ check('codex: the adapter', L('codex').args[0] === 'P:/modules/@agentclientproto
 check('pi: the scaffold adapter, told where pi is', /agentd[\\/]pi-adapter[\\/]acp-adapter\.mjs$/.test(L('pi').args[0]) && L('pi').env.PI_CLI === 'P:/modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js' && L('pi').env.PI_NODE_BIN === 'N:/node.exe');
 check('pi: paths() gives its cli.js for the dispatcher', getDriver('pi').paths(full).cli.endsWith('pi-coding-agent/dist/bundle/cli.js'));
 check('kimi: node main.mjs acp, with auto-update off and workspace trusted', L('kimi').cmd === 'N:/node.exe' && L('kimi').args.join(' ') === 'P:/modules/@moonshot-ai/kimi-code/dist/main.mjs acp' && L('kimi').env.KIMI_CODE_NO_AUTO_UPDATE === '1' && L('kimi').env.KIMI_CODE_TRUST_WORKSPACE === '1');
+check('agy: its own binary, acp with permissions skipped for headless runs', L('agy').cmd === 'B:/bin/agy.exe' && L('agy').args.join(' ') === 'acp --dangerously-skip-permissions');
 
 // How each is handed the rules: as before.
 const R = (t, env = {}) => getDriver(t).rules({ text: 'RULES', file: 'R:/rules.md', env });
@@ -59,6 +64,7 @@ check('mcode: a flag with the file', R('mcode').args.join() === '--append-system
 check('pi: an environment variable with the file', R('pi').env.AGENTD_APPEND_SYSTEM_PROMPT_FILE === 'R:/rules.md');
 check('claude: _meta.systemPrompt.append', R('claude').meta.systemPrompt.append === 'RULES');
 check('codex: _meta.jetbrains.air.customInstructions', R('codex').meta.jetbrains.air.customInstructions === 'RULES');
+check('agy: _meta.antigravity.systemPrompt.append', R('agy').meta.antigravity.systemPrompt.append === 'RULES');
 check('opencode: OPENCODE_CONFIG_CONTENT.instructions', JSON.parse(R('opencode').env.OPENCODE_CONFIG_CONTENT).instructions.join() === 'R:/rules.md');
 check('opencode: keeps what the user already passes that way', (() => {
   const c = JSON.parse(R('opencode', { OPENCODE_CONFIG_CONTENT: '{"model":"x","instructions":["a.md"]}' }).env.OPENCODE_CONFIG_CONTENT);
@@ -88,12 +94,18 @@ check('dsh: non-ASCII becomes ~UTF16HEX', dshFolderName('D:\\a\\研究') === '--
 
 // providers: another endpoint and key
 const P = { id: 'mm', apiKey: 'sk-test-0123456789', models: ['m1', 'm2'] };
-const applied = Object.fromEntries(driverTypes.map((t) => [t, getDriver(t).provider.apply({ provider: P, endpoint: 'https://e.example/x', model: 'm1', dir: 'C:/cfg', env: {} })]));
-check('providers: every CLI says which protocol it speaks and where the provider lives', driverTypes.every((t) => ['anthropic', 'openai'].includes(getDriver(t).provider.protocol) && ['process', 'global'].includes(getDriver(t).provider.scope)));
-check('providers: only mcode keeps them in its own configuration', driverTypes.every((t) => (getDriver(t).provider.scope === 'global') === (t === 'mcode')));
-check('providers: only claude and mcode speak the Anthropic protocol', driverTypes.every((t) => (getDriver(t).provider.protocol === 'anthropic') === (t === 'claude' || t === 'mcode')));
-check('providers: apply gives env, args and files, and the key is in the environment', driverTypes.every((t) => applied[t].env && Array.isArray(applied[t].args) && Array.isArray(applied[t].files) && Object.values(applied[t].env).some((v) => String(v).includes(P.apiKey))));
-check('providers: no file written for a CLI carries the key', driverTypes.every((t) => applied[t].files.every((f) => !f.content.includes(P.apiKey))));
+const withProvider = driverTypes.filter((t) => getDriver(t).provider);
+check('providers: every CLI except agy takes a custom provider', withProvider.join() === 'mcode,dsh,opencode,claude,codex,pi,kimi' && !getDriver('agy').provider);
+check('providers: applyProvider skips a CLI that takes none', (() => {
+  const r = applyProvider({ driver: getDriver('agy'), provider: { ...P, endpoints: { openai: 'https://e.example/x' } }, model: 'm1', dir: 'C:/cfg', env: {} });
+  return r.ok === false && /no way/.test(r.skipped ?? '');
+})());
+const applied = Object.fromEntries(withProvider.map((t) => [t, getDriver(t).provider.apply({ provider: P, endpoint: 'https://e.example/x', model: 'm1', dir: 'C:/cfg', env: {} })]));
+check('providers: every CLI with one says which protocol it speaks and where the provider lives', withProvider.every((t) => ['anthropic', 'openai'].includes(getDriver(t).provider.protocol) && ['process', 'global'].includes(getDriver(t).provider.scope)));
+check('providers: only mcode keeps them in its own configuration', withProvider.every((t) => (getDriver(t).provider.scope === 'global') === (t === 'mcode')));
+check('providers: only claude and mcode speak the Anthropic protocol', withProvider.every((t) => (getDriver(t).provider.protocol === 'anthropic') === (t === 'claude' || t === 'mcode')));
+check('providers: apply gives env, args and files, and the key is in the environment', withProvider.every((t) => applied[t].env && Array.isArray(applied[t].args) && Array.isArray(applied[t].files) && Object.values(applied[t].env).some((v) => String(v).includes(P.apiKey))));
+check('providers: no file written for a CLI carries the key', withProvider.every((t) => applied[t].files.every((f) => !f.content.includes(P.apiKey))));
 check('providers: claude points every model alias at the model', applied.claude.env.ANTHROPIC_BASE_URL === 'https://e.example/x' && applied.claude.env.ANTHROPIC_DEFAULT_OPUS_MODEL === 'm1');
 check('providers: codex names the provider and the Responses protocol', JSON.parse(applied.codex.env.CODEX_CONFIG).model_providers.mm.wire_api === 'responses' && applied.codex.env.MODEL_PROVIDER === 'mm');
 const ocBase = JSON.stringify({ instructions: ['rules.md'] });
@@ -121,10 +133,12 @@ check('providers: pi refuses a model the provider does not list', (() => { try {
 check('providers: kimi refuses a model the provider does not list', (() => { try { getDriver('kimi').provider.apply({ provider: P, endpoint: 'https://e.example/x', model: 'M1', dir: 'C:/cfg', env: {} }); return false; } catch { return true; } })());
 check('providers: mcode gives the commands to add and remove it, under its own prefix', applied.mcode.global.add.includes('speclock-mm') && applied.mcode.global.remove.includes('custom_provider:speclock-mm'));
 
-// the packages the preflight has to find
+// the packages and standalone binaries the preflight has to find
 const wanted = wantedPackages();
 check('each npm package is listed once, with the CLIs that use it', new Set(wanted.map((p) => p.name)).size === wanted.length && wanted.some((p) => p.name === '@anthropic-ai/claude-code' && p.types.join() === 'claude'));
-check('eight packages in all', wanted.length === 8, String(wanted.length));
+check('eight npm packages in all', wanted.length === 8, String(wanted.length));
+const bins = wantedBinaries();
+check('standalone binaries are listed separately from npm packages', bins.length === 1 && bins[0].name === 'agy' && bins[0].types.join() === 'agy');
 
 console.log(failed ? `\n=> ✗ ${failed} FAILED` : '\n=> ✓ DRIVERS OK');
 process.exit(failed ? 1 : 0);

@@ -24,3 +24,16 @@ export function packageDir(install, name, missing) {
   }
   return slash(dir);
 }
+
+/**
+ * The path of a standalone executable in the install, or a marker path when it is not installed. Symmetric with
+ * `packageDir`: records `name` in `missing` instead of throwing.
+ */
+export function binaryPath(install, name, missing) {
+  const file = install.bin?.(name) ?? null;
+  if (!file) {
+    missing.push(name);
+    return `<${name}: not installed>`;
+  }
+  return slash(file);
+}

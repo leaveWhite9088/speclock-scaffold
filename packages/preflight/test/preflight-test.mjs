@@ -6,8 +6,8 @@
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { drivers, wantedPackages } from '@speclock-scaffold/drivers';
-import { detectPackages, readPackage } from '../src/detect.mjs';
+import { drivers, wantedBinaries, wantedPackages } from '@speclock-scaffold/drivers';
+import { detectBinaries, detectPackages, readPackage } from '../src/detect.mjs';
 import { installPlan, runInstall, windowsCommandLine } from '../src/install.mjs';
 import { buildManifest, writeManifest } from '../src/manifest.mjs';
 import { behaviourOf, readProbes, runProbes } from '../src/probe.mjs';
@@ -72,17 +72,28 @@ put(scaffold, '@deepseek-ai/dsh', '0.0.1');
 d = detectPackages(wanted, roots);
 check('a global copy at the verified version wins over a scaffold copy at another one', d['@deepseek-ai/dsh'].status === 'ok' && d['@deepseek-ai/dsh'].source === 'global');
 
+// standalone binaries (e.g. agy)
+const wantedBins = wantedBinaries();
+const binDir = join(base, 'bins');
+mkdirSync(binDir, { recursive: true });
+const agyExe = join(binDir, process.platform === 'win32' ? 'agy.exe' : 'agy');
+writeFileSync(agyExe, '');
+const bOk = detectBinaries(wantedBins, [{ label: 'PATH', path: binDir }], { env: {}, readVersion: () => wantedBins[0].version });
+check('standalone binary at the verified version is ok', bOk.agy.status === 'ok' && bOk.agy.source === 'PATH' && bOk.agy.dir === agyExe);
+const bMissing = detectBinaries(wantedBins, [{ label: 'PATH', path: join(base, 'empty') }], { env: {}, readVersion: () => null });
+check('a missing standalone binary is missing, with no path', bMissing.agy.status === 'missing' && bMissing.agy.dir === null);
+
 // per CLI
-const rows = summarize(drivers, d, { CLAUDE_CONFIG_DIR: join(base, 'no-claude'), PI_CODING_AGENT_DIR: join(base, 'no-pi'), KIMI_CODE_HOME: join(base, 'no-kimi') });
+const rows = summarize(drivers, d, { CLAUDE_CONFIG_DIR: join(base, 'no-claude'), PI_CODING_AGENT_DIR: join(base, 'no-pi'), KIMI_CODE_HOME: join(base, 'no-kimi'), AGY_CONFIG_DIR: join(base, 'no-agy') }, null, bOk);
 const row = (t) => rows.find((r) => r.type === t);
-check('a CLI is as bad as its worst package', row('opencode').status === 'newer' && row('mcode').status === 'ok' && worst(['ok', 'older', 'newer']) === 'older');
-check('hints for what no version check sees (claude settings, pi credentials, kimi config)', row('claude').hints.length === 1 && row('pi').hints.length === 1 && row('kimi').hints.length === 1 && row('mcode').hints.length === 0);
+check('a CLI is as bad as its worst package or binary', row('opencode').status === 'newer' && row('mcode').status === 'ok' && row('agy').status === 'ok' && worst(['ok', 'older', 'newer']) === 'older');
+check('hints for what no version check sees (claude settings, pi credentials, kimi config, agy login)', row('claude').hints.length === 1 && row('pi').hints.length === 1 && row('kimi').hints.length === 1 && row('agy').hints.length === 1 && row('mcode').hints.length === 0);
 
 // the manifest
-const manifest = buildManifest({ node: 'N:\\node.exe', detected: noGlobal, now: new Date('2026-11-10T00:00:00Z') });
-check('the manifest leaves out what was not found', Object.keys(manifest.packages).length === 0 && manifest.schema === 1 && manifest.node === 'N:/node.exe');
-const manifest2 = buildManifest({ node: 'N:/node.exe', detected: d });
-check('the manifest holds dir, version and source of what was found', manifest2.packages['@minimax-ai/code'].dir.endsWith('/scaffold/node_modules/@minimax-ai/code') && manifest2.packages['@minimax-ai/code'].source === 'scaffold' && !manifest2.packages['@minimax-ai/code'].dir.includes('\\'));
+const manifest = buildManifest({ node: 'N:\\node.exe', detected: noGlobal, binaries: bMissing, now: new Date('2026-11-10T00:00:00Z') });
+check('the manifest leaves out what was not found', Object.keys(manifest.packages).length === 0 && Object.keys(manifest.binaries).length === 0 && manifest.schema === 1 && manifest.node === 'N:/node.exe');
+const manifest2 = buildManifest({ node: 'N:/node.exe', detected: d, binaries: bOk });
+check('the manifest holds dir, version and source of what was found, and path of standalone binaries', manifest2.packages['@minimax-ai/code'].dir.endsWith('/scaffold/node_modules/@minimax-ai/code') && manifest2.packages['@minimax-ai/code'].source === 'scaffold' && !manifest2.packages['@minimax-ai/code'].dir.includes('\\') && manifest2.binaries.agy.path.endsWith(process.platform === 'win32' ? '/bins/agy.exe' : '/bins/agy') && !manifest2.binaries.agy.path.includes('\\'));
 const file = join(base, 'global', 'clis.json');
 writeManifest(file, manifest2);
 check('the manifest is written as JSON (folders created)', JSON.parse(readFileSync(file, 'utf8')).packages['@minimax-ai/code'].version === want('@minimax-ai/code'));

@@ -19,12 +19,14 @@
  */
 
 import { existsSync } from 'node:fs';
-import { drivers, wantedPackages } from '@speclock-scaffold/drivers';
+import { drivers, wantedBinaries, wantedPackages } from '@speclock-scaffold/drivers';
 import {
   CORE,
   buildManifest,
   corePlan,
+  defaultBinDirs,
   defaultRoots,
+  detectBinaries,
   detectPackages,
   formatCore,
   formatReport,
@@ -95,13 +97,18 @@ const node = process.env.MCODE_NODE_BIN || process.execPath;
 function look() {
   const roots = defaultRoots(node);
   const detected = detectPackages(wantedPackages(), roots);
-  return { roots: roots.map((r) => ({ ...r, exists: existsSync(r.path) })), detected };
+  const binaries = detectBinaries(wantedBinaries(), defaultBinDirs());
+  return { roots: roots.map((r) => ({ ...r, exists: existsSync(r.path) })), detected, binaries };
 }
 
-let { roots, detected } = look();
+let { roots, detected, binaries } = look();
 
 if (command === 'install') {
   const plan = installPlan({ detected, prefix: ownPrefix(), types, pin: flag('pin') });
+  const missingBins = Object.values(binaries).filter((b) => b.status === 'missing' && (!types || b.types.some((t) => types.includes(t))));
+  if (missingBins.length) {
+    console.log(`note: ${missingBins.map((b) => b.name).join(', ')} is a standalone binary (not an npm package): install it with its own installer.`);
+  }
   if (!plan.packages.length) {
     console.log('nothing to install' + (flag('pin') ? '' : ' (packages found at another version are left alone; --pin installs the verified one too)'));
   } else {
@@ -117,7 +124,7 @@ if (command === 'install') {
       console.error(`\nnpm exited with ${code}; nothing was recorded`);
       process.exit(code);
     }
-    ({ roots, detected } = look());
+    ({ roots, detected, binaries } = look());
   }
 }
 
@@ -125,7 +132,7 @@ if (command === 'probe') {
   const chosen = Object.values(drivers).filter((d) => !types || types.includes(d.type));
   console.log(`probing ${chosen.map((d) => d.type).join(', ')} (real models, a few short prompts each; this takes a minute or two)
 `);
-  const results = await runProbes({ drivers: chosen, detected, node, log: (l) => console.log(l) });
+  const results = await runProbes({ drivers: chosen, detected, binaries, node, log: (l) => console.log(l) });
   console.log('');
   for (const r of results) {
     console.log(r.skipped ? `- ${r.type.padEnd(9)} skipped, ${r.skipped}` : `${r.ok ? '✓' : '✗'} ${r.type.padEnd(9)} ${r.checks.map((c) => `${c.ok ? '✓' : '✗'}${c.id}`).join('  ')}`);
@@ -134,11 +141,11 @@ if (command === 'probe') {
   if (results.some((r) => !r.skipped && !r.ok)) process.exitCode = 1;
 }
 
-const rows = summarize(drivers, detected, process.env, readProbes());
+const rows = summarize(drivers, detected, process.env, readProbes(), binaries);
 const core = inspectCore();
 
 if (command === 'write' || command === 'install') {
-  const file = writeManifest(manifestPath(), buildManifest({ node, detected }));
+  const file = writeManifest(manifestPath(), buildManifest({ node, detected, binaries }));
   if (!flag('json')) console.log(`\nmanifest written: ${file}`);
 }
 

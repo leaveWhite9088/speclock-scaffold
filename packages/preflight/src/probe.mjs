@@ -17,10 +17,12 @@ export const probesPath = () => process.env.AGENTD_PROBES_FILE || join(dataDir()
 export const agentdRoot = () => process.env.AGENTD_ROOT || join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'agentd');
 
 /** What the detection found, in the shape the drivers ask for. */
-export const installFrom = (detected, node) => ({
+export const installFrom = (detected, node, binaries = {}) => ({
   node,
   dir: (name) => detected[name]?.dir ?? null,
   version: (name) => detected[name]?.version ?? null,
+  bin: (name) => binaries[name]?.dir ?? null,
+  binVersion: (name) => binaries[name]?.version ?? null,
 });
 
 export function readProbes(file = probesPath()) {
@@ -44,8 +46,8 @@ export function saveProbes(record, file = probesPath()) {
  * Probe the given drivers at the same time (each is a process and a few prompts, mostly waiting), keep each result,
  * and return them. A CLI that is not installed is skipped, not failed.
  */
-export async function runProbes({ drivers, detected, node, log = () => {}, probe = probeDriver, file = probesPath() }) {
-  const install = installFrom(detected, node);
+export async function runProbes({ drivers, detected, binaries = {}, node, log = () => {}, probe = probeDriver, file = probesPath() }) {
+  const install = installFrom(detected, node, binaries);
   const results = await Promise.all(
     drivers.map((driver) =>
       probe({

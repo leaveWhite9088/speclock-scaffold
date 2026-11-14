@@ -32,7 +32,7 @@ export const createInstanceTool = defineTool({
 		"Use it when the work needs one that does not exist yet.",
 	parameters: Type.Object({
 		id: Type.String({ description: "New instance name: letters, digits, - or _, starts with a letter." }),
-		type: Type.String({ description: "mcode, dsh, pi, opencode, claude, codex or kimi." }),
+		type: Type.String({ description: "mcode, dsh, pi, opencode, claude, codex, kimi or agy." }),
 		cwd: Type.String({
 			description: "Directory the executor works in, relative to the project root.",
 		}),

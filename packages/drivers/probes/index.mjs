@@ -35,7 +35,10 @@ export async function probeDriver({ driver, install, agentdRoot, workRoot, log =
   const result = {
     type,
     at: new Date().toISOString(),
-    versions: Object.fromEntries(driver.packages.map((p) => [p.name, install.version(p.name)])),
+    versions: Object.fromEntries([
+      ...driver.packages.map((p) => [p.name, install.version(p.name)]),
+      ...(driver.binaries ?? []).map((b) => [b.name, install.binVersion?.(b.name) ?? null]),
+    ]),
     ok: false,
     checks: [],
   };

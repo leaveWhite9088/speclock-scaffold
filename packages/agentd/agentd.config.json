@@ -3,7 +3,8 @@
     "mcode": "MiniMax Code: general coding agent",
     "dsh": "DeepSeek Harness: general coding agent, good for long reads and reviews",
     "pi": "pi worker: general coding agent",
-    "kimi": "Kimi Code: general coding agent"
+    "kimi": "Kimi Code: general coding agent",
+    "agy": "Antigravity: Google coding agent"
   },
   "limits": {
     "maxProcesses": 12,

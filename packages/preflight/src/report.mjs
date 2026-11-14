@@ -28,21 +28,27 @@ export function hintsFor(type, env = process.env) {
     const dir = env.KIMI_CODE_HOME || join(home, '.kimi-code');
     return existsSync(join(dir, 'config.toml')) || existsSync(join(dir, 'credentials')) ? [] : [`kimi has no login or config in ${dir}`];
   }
+  if (type === 'agy') {
+    const dir = env.AGY_CONFIG_DIR || join(home, '.gemini', 'antigravity-cli');
+    return existsSync(join(dir, 'settings.json')) || existsSync(join(dir, 'jetski_state.pbtxt')) ? [] : [`agy has no login or settings in ${dir}`];
+  }
   return [];
 }
 
-/** @param {Record<string, any>} detected from detectPackages; `probes` is what readProbes gave (or null) */
-export function summarize(drivers, detected, env = process.env, probes = null) {
+/** @param {Record<string, any>} detected from detectPackages; `probes` is what readProbes gave (or null); `binaries` from detectBinaries */
+export function summarize(drivers, detected, env = process.env, probes = null, binaries = {}) {
   return Object.values(drivers).map((d) => {
     const pkgs = d.packages.map((p) => detected[p.name]);
-    const status = worst(pkgs.map((p) => p.status));
+    const bins = (d.binaries ?? []).map((b) => binaries[b.name] ?? { name: b.name, wanted: b.version, version: null, status: 'missing', source: null, dir: null });
+    const items = [...pkgs, ...bins];
+    const status = worst(items.map((p) => p.status));
     return {
       type: d.type,
       status,
-      packages: pkgs.map((p) => ({ name: p.name, wanted: p.wanted, version: p.version, status: p.status, source: p.source, dir: p.dir })),
+      packages: items.map((p) => ({ name: p.name, wanted: p.wanted, version: p.version, status: p.status, source: p.source, dir: p.dir })),
       verified: d.verified,
       hints: hintsFor(d.type, env),
-      behaviour: behaviourOf(probes, d.type, pkgs),
+      behaviour: behaviourOf(probes, d.type, items),
     };
   });
 }

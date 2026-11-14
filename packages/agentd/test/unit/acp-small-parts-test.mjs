@@ -57,6 +57,7 @@ check('opencode: its config in the environment', Object.keys(make('opencode', 'r
 const claude = make('claude', 'rc-d');
 check('claude: the session request carries them, appended to its own prompt', claude.meta()._meta?.systemPrompt?.append === 'THE RULES');
 check('codex: the session request carries them as instructions', make('codex', 'rc-e').meta()._meta?.jetbrains?.air?.customInstructions === 'THE RULES');
+check('agy: the session request carries them under _meta.antigravity', make('agy', 'rc-agy').meta()._meta?.antigravity?.systemPrompt?.append === 'THE RULES' && make('agy', 'rc-agy2').via() === '_meta.antigravity');
 check('pi and mcode take nothing in the session request', Object.keys(make('pi', 'rc-f').meta()).length === 0);
 check('where they go is said in words', make('pi', 'rc-g').via() === 'AGENTD_APPEND_SYSTEM_PROMPT_FILE' && make('mcode', 'rc-h').via() === '--append-system-prompt-file' && claude.via() === '_meta.systemPrompt');
 
