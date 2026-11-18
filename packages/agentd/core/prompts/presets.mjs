@@ -32,6 +32,13 @@ const BUILTINS = [
     dispatcherFile: 'presets/multi-agent-arena/project.md',
     executorFile: 'presets/multi-agent-arena/executor.md',
   },
+  {
+    id: 'media-studio',
+    name: '自媒体内容工坊',
+    description: '选题调研、多模型钩子赛马、口播分镜与代码动画制作、挑刺审稿去 AI 腔',
+    dispatcherFile: 'presets/media-studio/project.md',
+    executorFile: 'presets/media-studio/executor.md',
+  },
 ];
 
 const BUILTIN_MAP = new Map(BUILTINS.map((b) => [b.id, b]));

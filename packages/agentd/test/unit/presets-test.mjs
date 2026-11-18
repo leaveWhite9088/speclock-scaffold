@@ -43,9 +43,10 @@ const throws = (fn) => {
 
 // 1. Built-in presets
 const initial = listPresets();
-check('two built-in presets exist by default (software-dev and multi-agent-arena)', initial.map((p) => p.id).join() === 'software-dev,multi-agent-arena');
+check('three built-in presets exist by default (software-dev, multi-agent-arena, media-studio)', initial.map((p) => p.id).join() === 'software-dev,multi-agent-arena,media-studio');
 check('built-ins start unmodified with full dispatcher & executor rules', initial.every((p) => p.builtIn && !p.modified && p.dispatcherPrompt.length > 200 && p.executorPrompt.length > 200));
 check('arena preset carries anti-cheat sandbox and omniscient commentary rules', /防作弊|全知/.test(getPreset('multi-agent-arena').dispatcherPrompt) && /严禁窥探/.test(getPreset('multi-agent-arena').executorPrompt));
+check('media-studio preset carries editorial pipeline and fact-checking anti-AI-cliche rules', /执行主编/.test(getPreset('media-studio').dispatcherPrompt) && /事实可溯源/.test(getPreset('media-studio').executorPrompt));
 
 // 2. Editing & resetting a built-in preset
 const edited = savePreset({
@@ -71,7 +72,7 @@ const custom = savePreset({
   dispatcherPrompt: '# 辩论主席规则',
   executorPrompt: '# 辩手通用底规',
 });
-check('custom preset is listed after built-ins', !custom.builtIn && listPresets().map((p) => p.id).join() === 'software-dev,multi-agent-arena,debate-club');
+check('custom preset is listed after built-ins', !custom.builtIn && listPresets().map((p) => p.id).join() === 'software-dev,multi-agent-arena,media-studio,debate-club');
 
 // 4. Project-level switching, append & override
 const workA = join(root, 'work-a');
@@ -94,6 +95,13 @@ projects.addInstance('arena', { id: 'team1', type: 'dsh', dir: '.', template: 'a
 const teamAgent = projects.instancesOf('arena')[0];
 check('executor in arena project gets arena base rules + arena-competitor template rules', /严禁窥探与越界作弊/.test(teamAgent.rules) && /博弈参赛席位的工作方式/.test(teamAgent.rules) && !/规格里的业务规则/.test(teamAgent.rules));
 
+const workC = join(root, 'work-c');
+mkdirSync(workC, { recursive: true });
+projects.createProject({ id: 'studio', name: 'Studio', root: workC, preset: 'media-studio' });
+projects.addInstance('studio', { id: 'animator', type: 'dsh', dir: '.', template: 'media-animator' });
+const animAgent = projects.instancesOf('studio')[0];
+check('executor in media-studio project gets media base rules + media-animator template rules', /事实可溯源/.test(animAgent.rules) && /代码动画工程师的工作方式/.test(animAgent.rules));
+
 // Live switch of project preset + override mode updates both dispatcher rules and existing executor rules immediately
 projects.setProjectPrompts('arena', {
   preset: 'debate-club',
@@ -104,7 +112,7 @@ check('switching project preset & append updates executor rules immediately', te
 check('presetUsers tracks projects using a preset', projects.presetUsers('debate-club').map((u) => u.id).join() === 'arena');
 
 projects.setProjectPrompts('arena', { preset: 'software-dev', prompts: null });
-check('custom preset can be removed once unused', removePreset('debate-club').removed && listPresets().length === 2);
+check('custom preset can be removed once unused', removePreset('debate-club').removed && listPresets().length === 3);
 
 // 5. Security: dispatcher may not touch presets
 for (const op of ['preset.save', 'preset.reset', 'preset.remove']) {
