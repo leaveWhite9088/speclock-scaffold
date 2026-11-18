@@ -1,7 +1,8 @@
 import * as RD from '@radix-ui/react-dialog';
-import { FileText, KeyRound, X } from 'lucide-react';
+import { FileText, KeyRound, ScrollText, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { PresetsPanel } from './PresetsPanel';
 import { ProvidersPanel } from './ProvidersPanel';
 import { TemplatesPanel } from './TemplatesPanel';
 
@@ -15,6 +16,7 @@ interface Section {
 /** The pages of the settings; a new one is one more entry here. */
 const SECTIONS: Section[] = [
   { id: 'providers', label: '供应商', icon: <KeyRound className="size-4" />, panel: ProvidersPanel },
+  { id: 'presets', label: '场景预设', icon: <ScrollText className="size-4" />, panel: PresetsPanel },
   { id: 'templates', label: '执行者模板', icon: <FileText className="size-4" />, panel: TemplatesPanel },
 ];
 

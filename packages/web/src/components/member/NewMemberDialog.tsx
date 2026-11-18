@@ -8,7 +8,7 @@ import { Select } from '@/components/ui/select';
 import { toast } from '@/components/ui/toast';
 import { RuntimeFields } from '@/components/drawer/RuntimeFields';
 import { SPEC_ROLE_OPTIONS } from '@/lib/format';
-import { useCatalog, useDirs, useInstanceTypes, useModelEffort, useProbeSessions, useProject, useTemplates } from '@/hooks/queries';
+import { useCatalog, useDirs, useInstanceTypes, useModelEffort, usePresets, useProbeSessions, useProject, useTemplates } from '@/hooks/queries';
 import { api, enc } from '@/lib/api';
 import { effortOptions, modelLabel, modelName, relDir, when } from '@/lib/format';
 import { useUi } from '@/store';
@@ -24,6 +24,13 @@ export function NewMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
 
   const { data: types = [] } = useInstanceTypes();
   const { data: templates = [] } = useTemplates(open);
+  const { data: presets = [] } = usePresets(open);
+  const currentPreset = project?.preset || 'software-dev';
+  const presetLabel = (id?: string) => presets.find((p) => p.id === id)?.name ?? id;
+  const sortedTemplates = [...templates].sort((a, b) => {
+    const rank = (p?: string) => (p === currentPreset ? 0 : !p ? 1 : 2);
+    return rank(a.preset) - rank(b.preset) || a.name.localeCompare(b.name);
+  });
   const tpl = templates.find((t) => t.id === form.template);
   // A template fills in what it knows; everything stays editable.
   const pick = (id: string) => {
@@ -83,7 +90,17 @@ export function NewMemberDialog({ open, onOpenChange }: { open: boolean; onOpenC
       <DialogContent title="新建执行者">
         <form onSubmit={submit} className="grid gap-2.5">
           <Field label="模板">
-            <Select value={form.template} onChange={pick} options={[{ value: '', label: '不使用模板' }, ...templates.map((t) => ({ value: t.id, label: t.name }))]} />
+            <Select
+              value={form.template}
+              onChange={pick}
+              options={[
+                { value: '', label: '不使用模板' },
+                ...sortedTemplates.map((t) => ({
+                  value: t.id,
+                  label: t.preset && t.preset !== currentPreset ? `${t.name}（${presetLabel(t.preset)}）` : t.name,
+                })),
+              ]}
+            />
           </Field>
           <Field label="名称">
             <Input required autoFocus value={form.id} onChange={(e) => set({ id: e.target.value })} />

@@ -6,8 +6,9 @@ import { useConfirm } from '@/components/ui/confirm';
 import { Empty } from '@/components/ui/empty';
 import { Input } from '@/components/ui/input';
 import { MenuItem, Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select } from '@/components/ui/select';
 import { toast } from '@/components/ui/toast';
-import { useProject, useProjectsQuery } from '@/hooks/queries';
+import { usePresets, useProject, useProjectsQuery } from '@/hooks/queries';
 import { useForceable } from '@/hooks/useForceable';
 import { api, enc } from '@/lib/api';
 import { slug } from '@/lib/format';
@@ -24,10 +25,11 @@ export function ProjectBar() {
   const confirm = useConfirm();
   const forceable = useForceable();
   const { data } = useProjectsQuery();
+  const { data: presets = [] } = usePresets();
   const project = useProject();
   const setProject = useUi((s) => s.setProject);
   const [open, setOpen] = useState<Open>(null);
-  const [form, setForm] = useState({ name: '', root: '' });
+  const [form, setForm] = useState({ name: '', root: '', preset: 'software-dev' });
   const bind = (which: Exclude<Open, null>) => ({ open: open === which, onOpenChange: (o: boolean) => setOpen(o ? which : null) });
   const refresh = () => qc.invalidateQueries({ queryKey: ['projects'] });
 
@@ -35,10 +37,11 @@ export function ProjectBar() {
     e.preventDefault();
     try {
       const id = slug(form.name, data?.projects.map((p) => p.id), 'project');
-      await api('POST', '/api/projects', { id, name: form.name.trim(), root: form.root.trim() });
-      setForm({ name: '', root: '' });
+      await api('POST', '/api/projects', { id, name: form.name.trim(), root: form.root.trim(), preset: form.preset || 'software-dev' });
+      setForm({ name: '', root: '', preset: 'software-dev' });
       setOpen(null);
       await refresh();
+      await qc.invalidateQueries({ queryKey: ['presets'] });
       setProject(id);
       toast('项目已创建');
     } catch (err) {
@@ -109,10 +112,22 @@ export function ProjectBar() {
             <Plus className="size-4" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-64 p-2.5">
+        <PopoverContent align="end" className="w-72 p-2.5">
           <form onSubmit={create} className="grid gap-2">
             <Input autoFocus placeholder="名称" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             <Input placeholder="根目录" required value={form.root} onChange={(e) => setForm({ ...form, root: e.target.value })} />
+            <Select
+              value={form.preset}
+              onChange={(v) => setForm({ ...form, preset: v })}
+              options={
+                presets.length
+                  ? presets.map((p) => ({ value: p.id, label: `场景：${p.name}` }))
+                  : [
+                      { value: 'software-dev', label: '场景：软件工程研发' },
+                      { value: 'multi-agent-arena', label: '场景：多智能体竞技博弈' },
+                    ]
+              }
+            />
             <div className="flex justify-end gap-2">
               <Button onClick={() => setOpen(null)}>取消</Button>
               <Button type="submit" variant="primary">

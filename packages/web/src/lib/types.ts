@@ -56,6 +56,28 @@ export interface ProviderTest {
   results: ProviderTestResult[];
 }
 
+/** A reusable scene preset: the base system prompts for a project's dispatcher and executors. */
+export interface Preset {
+  id: string;
+  name: string;
+  description: string;
+  dispatcherPrompt: string;
+  executorPrompt: string;
+  builtIn: boolean;
+  modified: boolean;
+  updatedAt?: string;
+  usedBy?: { id: string; name: string }[];
+}
+
+export type PromptMode = 'inherit' | 'append' | 'override';
+
+export interface ProjectPrompts {
+  dispatcherMode: PromptMode;
+  dispatcherPrompt: string;
+  executorMode: PromptMode;
+  executorPrompt: string;
+}
+
 /** A kind of executor: what it is for, where it works and the system prompt that makes it so. A markdown file on the server. */
 export interface Template {
   id: string;
@@ -67,6 +89,8 @@ export interface Template {
   model: string;
   /** The role in the spec library it suggests when an executor is made from it (empty: none). */
   spec?: SpecRole | '';
+  /** Optional scene preset id this template belongs to (empty: any scene). */
+  preset?: string;
   prompt: string;
   /** Executors made from it. */
   usedBy?: { project: string; id: string }[];
@@ -132,6 +156,8 @@ export interface Project {
   id: string;
   name: string;
   root: string;
+  preset?: string;
+  prompts?: ProjectPrompts;
   instances: Member[];
   dispatcher?: DispatcherInfo;
 }

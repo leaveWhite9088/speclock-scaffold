@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { api, enc, pq } from '@/lib/api';
-import type { DispatcherModels, DispatcherSession, Llm, ModelCatalog, Project, ProjectsResponse, Provider, ProviderCli, Session, Template } from '@/lib/types';
+import type { DispatcherModels, DispatcherSession, Llm, ModelCatalog, Preset, Project, ProjectsResponse, Provider, ProviderCli, Session, Template } from '@/lib/types';
 import { DISPATCHER, useUi } from '@/store';
 
 /** Server state lives in TanStack Query; the SSE stream invalidates `projects` when something changes. */
@@ -73,6 +73,7 @@ export function useProviderName() {
   return (id: string) => list.find((p) => p.id === id)?.name ?? id;
 }
 export const useTemplates = (enabled = true) => useQuery({ queryKey: ['templates'], queryFn: async () => (await api<{ templates: Template[] }>('GET', '/api/templates')).templates, enabled });
+export const usePresets = (enabled = true) => useQuery({ queryKey: ['presets'], queryFn: async () => (await api<{ presets: Preset[] }>('GET', '/api/presets')).presets, enabled });
 
 /** SpecLock Core as agentd sees it: is it installed, set up, running, and where its own page is. */
 /** The reasoning levels of one model of a CLI: which there are depends on the model (opencode and mcode show them only for models that reason). */
