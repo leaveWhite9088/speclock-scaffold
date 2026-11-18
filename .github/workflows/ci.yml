@@ -1,0 +1,50 @@
+name: CI & Delivery Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  gate-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (full history for secret scan)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Run quality gate (make check)
+        run: make check
+
+      - name: Run security gate (make check-security)
+        run: make check-security
+
+      - name: Build multi-stage Docker image tagged with commit SHA
+        run: |
+          docker build --build-arg GIT_SHA=${{ github.sha }} -t speclock-scaffold:${{ github.sha }} .
+          REV=$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' speclock-scaffold:${{ github.sha }})
+          echo "Image revision label: $REV"
+          test "$REV" = "${{ github.sha }}"
+
+      - name: Verify Compose stack readiness & SHA traceability
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          docker compose up -d --wait
+          docker compose ps
+          HEALTH=$(curl -fsS http://127.0.0.1:8080/api/health)
+          echo "Health response: $HEALTH"
+          echo "$HEALTH" | grep -q "${{ github.sha }}"
+          curl -fsS "http://127.0.0.1:8080/api/metrics?format=prom" | head -n 15
+          docker compose down -v

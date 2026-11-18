@@ -1,0 +1,11 @@
+.git
+.github
+node_modules
+packages/*/node_modules
+packages/web/dist
+packages/agentd/data
+logs
+reports
+.env
+.env.*
+*.log

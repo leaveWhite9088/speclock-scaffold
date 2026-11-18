@@ -12,6 +12,7 @@
     "test:ci": "npm test -w @speclock-scaffold/drivers && npm test -w @speclock-scaffold/preflight && npm run test:unit -w @speclock-scaffold/agentd",
     "check:security": "node scripts/check-security.mjs",
     "check": "npm run check:security && npm run test:ci",
+    "bench": "node scripts/bench.mjs",
     "daemon": "npm run daemon -w @speclock-scaffold/agentd",
     "daemon:stop": "npm run daemon:stop -w @speclock-scaffold/agentd",
     "backend": "npm start -w @speclock-scaffold/backend",
