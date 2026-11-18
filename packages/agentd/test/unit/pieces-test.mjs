@@ -70,6 +70,8 @@ process.stdin.on('data', async (d) => {
         say('second part so far');
         await wait(800);
         send({ id: m.id, result: { stopReason: 'end_turn' } });
+      } else {
+        send({ id: m.id, result: { stopReason: 'end_turn' } });
       }
     } else if (m.id != null) send({ id: m.id, result: {} });
   }
@@ -99,8 +101,9 @@ check('the caller still gets the whole reply', r.text === "I'll start by looking
 const p = a.startPrompt('slow', { timeoutMs: 20_000 });
 await new Promise((res) => setTimeout(res, 400));
 const tail = a.tail(p.jobId);
-check('the live tail offers only what is not in the transcript yet', tail.pendingText === 'second part so far' && tail.text === 'first part. second part so far', JSON.stringify(tail.pendingText));
 await p.done;
+const doneTail = a.tail(p.jobId);
+check('the live tail offers only what is not in the transcript yet (full text only once finished)', tail.pendingText === 'second part so far' && !('text' in tail) && doneTail.text === 'first part. second part so far', JSON.stringify(tail.pendingText));
 
 // 5
 const e1 = await run('ends-on-tool');
@@ -118,4 +121,4 @@ check('and ends with the error', entries(a.sessionId).at(-1).role === 'error' &&
 
 await a.shutdown();
 console.log(process.exitCode ? '\n=> ✗ PIECES BROKEN' : '\n=> ✓ PIECES OK');
-process.exit(process.exitCode ?? 0);
+process.exitCode = process.exitCode ?? 0;
