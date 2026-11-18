@@ -73,3 +73,33 @@ npm run check:security
 => ✓ CHECK-SECURITY PASSED (退出码 0)
 EXIT_GREEN=0
 ```
+
+---
+
+## 三、功能总门禁 `make check`（`npm run check`）先红后绿证据
+
+### 1. 红屏阻断（`pieces-test.mjs` 因流式裁剪与追问机制演进失配被总门禁拦截，退出码 `1`）
+
+```text
+> @speclock-scaffold/agentd@1.0.0 test:pieces
+> node test/unit/pieces-test.mjs
+
+  ✗ the live tail offers only what is not in the transcript yet  ("second part so far")
+  ✗ a run that ends on a tool call still gets its final entry, with no text  (tool:in_progress | tool:completed | error)
+
+=> ✗ PIECES BROKEN
+npm error code 1
+```
+
+### 2. 修复后全量转绿（修复提交 `7ff86b0`：对齐运行态仅传增量 `pendingText` 契约并补齐模拟脚本追问回包，退出码 `0`）
+
+执行 `npm run check`（等价于 `make check`）：
+```text
+=> ✓ CHECK-SECURITY PASSED (退出码 0)
+=> ✓ DRIVERS OK
+=> ✓ PREFLIGHT OK
+...（agentd 全部 22 个单元与契约套件）...
+=> ✓ PIECES OK
+=> ✓ EXTENSION PARTS OK
+=> ✓ REPORTS OK
+```

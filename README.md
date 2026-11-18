@@ -62,6 +62,12 @@ npm run backend      # 终端 1：网关，第一次请求时自动拉起 agentd
 npm run web          # 终端 2：看板，浏览器打开 http://127.0.0.1:5234
 ```
 
+也可以通过容器一键启动整套服务（守护进程 + 网关 + 看板，按健康检查顺序自动就绪，浏览器打开 `http://127.0.0.1:8080`）：
+
+```powershell
+docker compose up -d --wait
+```
+
 不确定本机装了哪些 CLI？运行 `npm run preflight`，它只检查、不改任何东西。要用规格库，装好 `git` 和 `uv` 后运行一次：
 
 ```powershell
@@ -87,6 +93,7 @@ npm run preflight -- core --yes
 | 踩过的坑和实测数据 | [LESSONS.md](LESSONS.md) |
 | AI 工程规则与七类代码核查清单 | [AGENTS.md](AGENTS.md) |
 | AI 代码评审表、三分法结论与主干准入规程 | [docs/ai-review-rubric.md](docs/ai-review-rubric.md) |
+| 项目最终交付报告与 `reports/` 证据总索引 | [report.md](report.md) |
 
 ## 开发
 
@@ -95,6 +102,7 @@ npm run preflight -- core --yes
 ```powershell
 npm run check:security     # 安全门禁（等价于 make check-security：密钥扫描 + 依赖审计 + 越权与注入反例）
 npm run check              # 无外部模型依赖的全套门禁（等价于 make check：安全门禁 + 分层/单元/队列回归）
+npm run bench              # 隔离守护进程与网关并发压测（输出吞吐 QPS、P50/P95 延迟与错误率）
 npm test                   # 在私有守护进程上跑整套端到端回归，不碰你正在用的那个
 npm run restart-daemon     # 让守护进程用上新代码；有任务在跑就拒绝
 ```
