@@ -58,6 +58,7 @@ export function getDispatcher(project) {
     },
     compactAt: projects.dispatcherCompactAt(project),
     provider: () => projects.dispatcherProvider(project),
+    systemPrompt: () => projects.projectDispatcherRules(project),
     // SpecLock Core with the project admin key, once the project has a place there
     mcpServers: () => [specs.dispatcherServer(project)].filter(Boolean),
   });

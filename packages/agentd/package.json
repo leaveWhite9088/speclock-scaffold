@@ -58,6 +58,7 @@
     "test:dispatcher-compact": "node test/unit/dispatcher-compact-test.mjs",
     "test:pieces": "node test/unit/pieces-test.mjs",
     "test:rules": "node test/unit/rules-test.mjs",
+    "test:presets": "node test/unit/presets-test.mjs",
     "test:isolated": "node scripts/run-isolated.mjs",
     "test:templates": "node test/live/templates-test.mjs",
     "test:data-layout": "node test/unit/data-layout-test.mjs",

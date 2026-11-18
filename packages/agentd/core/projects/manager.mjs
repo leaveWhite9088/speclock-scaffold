@@ -26,7 +26,16 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { GLOBAL_DIR, PROJECT_SEP, projectDir, projectIdsOnDisk } from '../base/index.mjs';
 import { forgetProject as forgetRecords } from '../records/index.mjs';
-import { executorRulesFor, getTemplate } from '../prompts/index.mjs';
+import {
+  DEFAULT_PRESET_ID,
+  cleanProjectPrompts,
+  executorRulesFor,
+  getTemplate,
+  hasPreset,
+  resolveDispatcherRules,
+  resolveExecutorBaseRules,
+  viewProjectPrompts,
+} from '../prompts/index.mjs';
 import { AGENTS, buildInstance, driverOf, cleanInstanceProvider, cleanMcpServers, defaultModelFor, describeMcpServers, effortOf, forgetProject as forgetSessions, listInstances, pool } from '../pool/index.mjs';
 
 export const SEP = PROJECT_SEP;
@@ -149,8 +158,13 @@ function register(project, inst) {
     mcpServers: () => [...(inst.mcpServers ?? []), ...(inst.spec?.mcp ? [specMcp(inst.spec.mcp)] : [])],
     // Same for the provider: a change applies the next time the process starts.
     provider: () => inst.provider ?? null,
-    // A function: the rules are read again whenever the agent starts, so an edited template applies at once.
-    systemPrompt: () => executorRulesFor(inst.template, inst.spec?.role) || null,
+    // A function: the rules are read again whenever the agent starts, so an edited template or preset applies at once.
+    systemPrompt: () =>
+      executorRulesFor(
+        inst.template,
+        inst.spec?.role,
+        resolveExecutorBaseRules({ presetId: project.preset, prompts: project.prompts }),
+      ) || null,
     // The instance comes back to the session it last used, also after a daemon restart.
     onSession: (sid) => {
       inst.sessionId = sid;
@@ -204,6 +218,8 @@ export function listProjects() {
       id: p.id,
       name: p.name,
       root: p.root,
+      preset: p.preset || DEFAULT_PRESET_ID,
+      prompts: viewProjectPrompts(p.prompts),
       createdAt: p.createdAt,
       instances: rows.map((r) => ({
         ...r,
@@ -224,16 +240,21 @@ export function listProjects() {
 
 // -- changes ----------------------------------------------------------------
 
-export function createProject({ id, name, root, instances = [] }) {
+export function createProject({ id, name, root, preset, prompts, instances = [] }) {
   checkId('project', id);
   if (projects.some((p) => p.id === id)) throw new Error(`project "${id}" already exists`);
   if (!root || typeof root !== 'string' || !isAbsolute(root)) throw new Error('root must be an absolute path');
   if (!isDir(root)) throw new Error(`root does not exist: ${root}`);
+  const presetId = preset ? String(preset).trim() : DEFAULT_PRESET_ID;
+  if (!hasPreset(presetId)) throw new Error(`unknown preset "${presetId}"`);
+  const cleanedPrompts = cleanProjectPrompts(prompts);
 
   const project = {
     id,
     name: String(name || id),
     root: resolve(root),
+    ...(presetId !== DEFAULT_PRESET_ID ? { preset: presetId } : {}),
+    ...(cleanedPrompts ? { prompts: cleanedPrompts } : {}),
     createdAt: new Date().toISOString(),
     instances: [],
   };
@@ -323,6 +344,43 @@ export function addInstance(projectId, spec, { persist = true } = {}) {
 /** Executors (in any project) made from a template: [{ project, id }]. */
 export function templateUsers(templateId) {
   return projects.flatMap((p) => p.instances.filter((i) => i.template === templateId).map((i) => ({ project: p.id, id: i.id })));
+}
+
+/** Projects using a given scene preset: [{ id, name }]. */
+export function presetUsers(presetId) {
+  return projects.filter((p) => (p.preset || DEFAULT_PRESET_ID) === presetId).map((p) => ({ id: p.id, name: p.name }));
+}
+
+export function projectPreset(projectId) {
+  return find(projectId).preset || DEFAULT_PRESET_ID;
+}
+
+export function projectPrompts(projectId) {
+  return viewProjectPrompts(find(projectId).prompts);
+}
+
+/** Resolved dispatcher system prompt for a project (its preset plus any project-level append/override). */
+export function projectDispatcherRules(projectId) {
+  const p = find(projectId);
+  return resolveDispatcherRules({ presetId: p.preset, prompts: p.prompts });
+}
+
+/** Update a project's scene preset and/or project-level prompt overrides. */
+export function setProjectPrompts(projectId, { preset, prompts }) {
+  const project = find(projectId);
+  if (preset !== undefined) {
+    const next = String(preset ?? '').trim() || DEFAULT_PRESET_ID;
+    if (!hasPreset(next)) throw new Error(`unknown preset "${next}"`);
+    if (next === DEFAULT_PRESET_ID) delete project.preset;
+    else project.preset = next;
+  }
+  if (prompts !== undefined) {
+    const next = cleanProjectPrompts(prompts);
+    if (next) project.prompts = next;
+    else delete project.prompts;
+  }
+  save();
+  return { preset: project.preset || DEFAULT_PRESET_ID, prompts: viewProjectPrompts(project.prompts) };
 }
 
 // -- probes: what can I pick before the instance exists? -----------------------------

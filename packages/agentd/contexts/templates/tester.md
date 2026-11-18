@@ -5,6 +5,7 @@ dir: .
 type:
 model:
 spec: tester
+preset: software-dev
 ---
 
 ## 测试工程师的工作方式

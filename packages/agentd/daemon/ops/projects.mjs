@@ -8,7 +8,16 @@ import { projectPath } from '../../core/base/index.mjs';
 import { savedContext } from '../../core/dispatcher/index.mjs';
 import * as projects from '../../core/projects/index.mjs';
 import * as specs from '../../core/specs/index.mjs';
-import { getTemplate, listTemplates, removeTemplate, saveTemplate } from '../../core/prompts/index.mjs';
+import {
+  getTemplate,
+  listPresets,
+  listTemplates,
+  removePreset,
+  removeTemplate,
+  resetPreset,
+  savePreset,
+  saveTemplate,
+} from '../../core/prompts/index.mjs';
 import { dispatchers, wireAgent } from '../dispatchers.mjs';
 import { withInterrupted } from '../startup.mjs';
 
@@ -30,6 +39,15 @@ async function refreshDispatcher(project) {
   if (d?.child && !d.busy && !d.startedWithMcp && specs.dispatcherServer(project)) await d.restart();
 }
 
+/** Restart idle dispatcher and stop idle executors of a project so updated prompt rules take effect immediately. */
+async function reloadIdleProjectAgents(project) {
+  const d = dispatchers.get(project);
+  if (d?.child && !d.busy) await d.restart();
+  for (const a of projects.instancesOf(project)) {
+    if (a.child && !a.busy && !(a.inflight > 0)) await a.shutdown().catch(() => {});
+  }
+}
+
 /** @param {{ protocol: number, startedAt: string, idleInstanceMs: number }} ctx */
 export function projectOps(ctx) {
   return {
@@ -44,10 +62,11 @@ export function projectOps(ctx) {
       limits: { maxProcesses: MAX_PROCESSES, alive: aliveCount(), idleMinutes: ctx.idleInstanceMs / 60_000 },
     }),
 
-    /** The size at which the project's dispatcher compacts its conversation (null: never). */
-    'project.updateDispatcher': async ({ project, compactAt, provider }) => {
+    /** The size at which the project's dispatcher compacts, its provider, and the project's scene preset / prompt overrides. */
+    'project.updateDispatcher': async ({ project, compactAt, provider, preset, prompts }) => {
       const d = dispatchers.get(project);
       const out = { project };
+      let needRestart = false;
       if (compactAt !== undefined) {
         out.compactAt = projects.setDispatcherCompactAt(project, compactAt);
         if (d) d.compactAt = out.compactAt;
@@ -56,9 +75,18 @@ export function projectOps(ctx) {
         const next = projects.checkDispatcherProvider(provider); // a bad choice is refused whatever the dispatcher is doing
         if (d?.busy) throw new Error('the dispatcher is working on a prompt; abort it first');
         out.provider = projects.setDispatcherProvider(project, next);
-        // a running pi keeps the models it started with: start it again so the next turn uses the new provider
-        if (d?.child) await d.restart();
+        needRestart = true;
       }
+      if (preset !== undefined || prompts !== undefined) {
+        if (d?.busy) throw new Error('the dispatcher is working on a prompt; abort it first');
+        const nextPrompts = projects.setProjectPrompts(project, { preset, prompts });
+        out.preset = nextPrompts.preset;
+        out.prompts = nextPrompts.prompts;
+        await reloadIdleProjectAgents(project);
+        needRestart = false; // reloadIdleProjectAgents already restarted the dispatcher when alive
+      }
+      // a running pi keeps the models it started with: start it again so the next turn uses the new provider
+      if (needRestart && d?.child) await d.restart();
       return out;
     },
 
@@ -136,6 +164,30 @@ export function projectOps(ctx) {
     'template.remove': ({ id }) => {
       const users = projects.templateUsers(id);
       return { ...removeTemplate(id), usedBy: users };
+    },
+
+    'preset.list': () => ({ presets: listPresets().map((p) => ({ ...p, usedBy: projects.presetUsers(p.id) })) }),
+
+    'preset.save': async (args) => {
+      const p = savePreset(args);
+      const users = projects.presetUsers(p.id);
+      for (const u of users) await reloadIdleProjectAgents(u.id);
+      return { ...p, usedBy: users };
+    },
+
+    'preset.reset': async ({ id }) => {
+      const p = resetPreset(id);
+      const users = projects.presetUsers(p.id);
+      for (const u of users) await reloadIdleProjectAgents(u.id);
+      return { ...p, usedBy: users };
+    },
+
+    'preset.remove': ({ id }) => {
+      const users = projects.presetUsers(id);
+      if (users.length) {
+        throw new Error(`cannot remove preset "${id}": still used by ${users.map((u) => u.name).join(', ')}`);
+      }
+      return { ...removePreset(id), usedBy: [] };
     },
 
     'project.removeInstance': async ({ project, id, force }) => {

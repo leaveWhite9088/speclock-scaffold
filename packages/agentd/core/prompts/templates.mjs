@@ -23,6 +23,7 @@ import { CONTEXTS, executorRules, isSpecRole, specRules, stripComments } from '.
 const DIR = process.env.AGENTD_TEMPLATES_DIR || join(CONTEXTS, 'templates');
 const ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/;
 const KEYS = ['name', 'role', 'dir', 'type', 'model', 'spec'];
+const ALL_KEYS = [...KEYS, 'preset'];
 
 function checkId(id) {
   if (!ID.test(String(id ?? ''))) throw new Error('a template id is letters, digits, "-" and "_", at most 40, starting with a letter or digit');
@@ -31,14 +32,14 @@ function checkId(id) {
 /** `---` block of `key: value` lines, then the body. A file without the block is all body. */
 function parse(id, raw) {
   const text = String(raw).replace(/\r\n/g, '\n');
-  const out = { id, name: id, role: '', dir: '.', type: '', model: '', spec: '', prompt: text.trim() };
+  const out = { id, name: id, role: '', dir: '.', type: '', model: '', spec: '', preset: '', prompt: text.trim() };
   const m = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/.exec(text);
   if (!m) return out;
   for (const line of m[1].split('\n')) {
     const at = line.indexOf(':');
     if (at < 0) continue;
     const key = line.slice(0, at).trim();
-    if (KEYS.includes(key)) out[key] = line.slice(at + 1).trim();
+    if (ALL_KEYS.includes(key)) out[key] = line.slice(at + 1).trim();
   }
   out.prompt = m[2].trim();
   if (!out.name) out.name = id;
@@ -50,8 +51,9 @@ function parse(id, raw) {
 const oneLine = (v) => String(v ?? '').replace(/\s+/g, ' ').trim();
 
 function render(t) {
-  const head = KEYS.map((k) => `${k}: ${oneLine(t[k])}`).join('\n');
-  return `---\n${head}\n---\n\n${String(t.prompt ?? '').trim()}\n`;
+  const lines = KEYS.map((k) => `${k}: ${oneLine(t[k])}`);
+  if (oneLine(t.preset)) lines.push(`preset: ${oneLine(t.preset)}`);
+  return `---\n${lines.join('\n')}\n---\n\n${String(t.prompt ?? '').trim()}\n`;
 }
 
 function read(id) {
@@ -77,11 +79,11 @@ export function getTemplate(id) {
   return read(id);
 }
 
-/** Create or replace a template. `type`, `model` and `prompt` may be empty. */
-export function saveTemplate({ id, name, role, dir, type, model, spec, prompt }) {
+/** Create or replace a template. `type`, `model`, `preset` and `prompt` may be empty. */
+export function saveTemplate({ id, name, role, dir, type, model, spec, preset, prompt }) {
   checkId(id);
   if (spec && !isSpecRole(spec)) throw new Error(`unknown spec role "${spec}"; use requirements, executor, tester, scanner, or leave it empty`);
-  const t = { id, name: oneLine(name) || id, role: oneLine(role).slice(0, 500), dir: oneLine(dir) || '.', type: oneLine(type), model: oneLine(model).slice(0, 200), spec: oneLine(spec), prompt: String(prompt ?? '') };
+  const t = { id, name: oneLine(name) || id, role: oneLine(role).slice(0, 500), dir: oneLine(dir) || '.', type: oneLine(type), model: oneLine(model).slice(0, 200), spec: oneLine(spec), preset: oneLine(preset).slice(0, 40), prompt: String(prompt ?? '') };
   if (/^(\/|[A-Za-z]:|\\)/.test(t.dir) || t.dir.split(/[\\/]/).includes('..')) throw new Error('a template directory is inside the project: "." or a relative path');
   mkdirSync(DIR, { recursive: true });
   const file = join(DIR, `${id}.md`);
@@ -99,9 +101,9 @@ export function removeTemplate(id) {
   return { removed: id };
 }
 
-/** The rules of an executor: the common ones, then (when it was made from a template) the template's prompt. */
-export function executorRulesFor(templateId, specRole = null) {
-  const base = executorRules();
+/** The rules of an executor: the common ones (from its project's preset/override, or the default), then the template's prompt, then any SpecLock role prompt. */
+export function executorRulesFor(templateId, specRole = null, baseRules = null) {
+  const base = baseRules !== null ? baseRules : executorRules();
   const t = templateId ? getTemplate(templateId) : null;
   const extra = t ? stripComments(t.prompt) : '';
   return [base, extra, specRules(specRole)].filter(Boolean).join('\n\n---\n\n');

@@ -5,6 +5,7 @@ dir: .
 type:
 model:
 spec: scanner
+preset: software-dev
 ---
 
 ## 规格审查员的工作方式

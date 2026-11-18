@@ -20,7 +20,7 @@ export const AGENT_ARG_OPS = new Set([
  * active one cannot go), but resetting one through `run` and changing an executor's directory stay with a person. Replacing a conversation because its context drifted is the confirmed
  * handoff, which runs inside agentd and never goes through these ops.
  */
-export const DISPATCHER_DENIED = new Set(['agent.recover', 'audits', 'metrics', 'project.updateDispatcher', 'project.updateInstance', 'project.addInstance', 'project.create', 'provider.list', 'provider.save', 'provider.remove', 'provider.test', 'provider.discover', 'template.save', 'template.remove', 'daemon.shutdown', 'handoff.generate', 'handoff.apply', 'handoff.cancel']);
+export const DISPATCHER_DENIED = new Set(['agent.recover', 'audits', 'metrics', 'project.updateDispatcher', 'project.updateInstance', 'project.addInstance', 'project.create', 'provider.list', 'provider.save', 'provider.remove', 'provider.test', 'provider.discover', 'template.save', 'template.remove', 'preset.save', 'preset.reset', 'preset.remove', 'daemon.shutdown', 'handoff.generate', 'handoff.apply', 'handoff.cancel']);
 function checkCaller(op, args) {
   if (args?.caller !== 'dispatcher') return;
   const sessionArgs = op === 'run' && (args.reset || args.sessionId || args.cwd);

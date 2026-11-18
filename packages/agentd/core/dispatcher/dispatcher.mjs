@@ -61,7 +61,9 @@ export class Dispatcher {
    * With `project` set, the extension runs scoped: every tool call it makes carries
    * that project, and agentd refuses anything outside it.
    */
-  constructor({ cwd, project = null, sessionDir = SESSION_DIR ?? projectPath(project ?? '_', 'dispatcher-sessions'), onEvent, compactAt = null, provider = null, mcpServers = null }) {
+  constructor({ cwd, project = null, sessionDir = SESSION_DIR ?? projectPath(project ?? '_', 'dispatcher-sessions'), onEvent, compactAt = null, provider = null, mcpServers = null, systemPrompt = null }) {
+    /** System prompt text (or a function returning it, read at every start); defaults to the global dispatcher rules. */
+    this.systemPrompt = systemPrompt;
     /** MCP servers (ACP's shape) it starts with, or a function giving them; read at every start. SpecLock Core is one of them. */
     this.mcpServers = mcpServers;
     /** Whether the process now running was started with servers (a change in what it should have is applied by a restart). */
@@ -169,7 +171,8 @@ export class Dispatcher {
     ];
     // The project's rules for the dispatcher go in as extra system instructions, not as a file in the project.
     if (this.project) {
-      const rules = injectionFor('pi', dispatcherRules(), `dispatcher-${this.project}`);
+      const text = typeof this.systemPrompt === 'function' ? this.systemPrompt() : (this.systemPrompt ?? dispatcherRules());
+      const rules = injectionFor('pi', text, `dispatcher-${this.project}`);
       if (rules.file) args.push('--append-system-prompt', rules.file);
     }
     this.spawnCount += 1;

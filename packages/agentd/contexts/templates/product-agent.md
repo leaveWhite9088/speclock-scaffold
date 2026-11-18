@@ -5,6 +5,7 @@ dir: .
 type:
 model:
 spec: requirements
+preset: software-dev
 ---
 
 ## 产品经理的工作方式

@@ -145,6 +145,10 @@ check('afterSeq passes through', after.body.entries.length >= 1 && after.body.en
   check('GET /api/projects lists it with instances and limits', Boolean(mine?.instances.some((i) => i.key === `${pid}~one`)) && pl.body.limits.maxProcesses > 0);
   const patch = await api('PATCH', `/api/projects/${pid}/instances/one`, { role: 'edited' });
   check('PATCH project instance edits it', patch.status === 200 && patch.body.role === 'edited');
+  const presetsRes = await api('GET', '/api/presets');
+  check('GET /api/presets lists built-in software-dev and multi-agent-arena presets', presetsRes.status === 200 && presetsRes.body.presets.some((p) => p.id === 'software-dev') && presetsRes.body.presets.some((p) => p.id === 'multi-agent-arena'));
+  const patchDisp = await api('PATCH', `/api/projects/${pid}/dispatcher`, { preset: 'multi-agent-arena', prompts: { dispatcherMode: 'append', dispatcherPrompt: '补充规则', executorMode: 'inherit', executorPrompt: '' } });
+  check('PATCH /api/projects/:id/dispatcher switches scene preset and project prompt rules', patchDisp.status === 200 && patchDisp.body.preset === 'multi-agent-arena' && patchDisp.body.prompts?.dispatcherMode === 'append');
   const dsess = await api('GET', `/api/dispatcher/sessions?project=${pid}`);
   check('dispatcher sessions route answers', dsess.status === 200 && Array.isArray(dsess.body.sessions));
   const pd = await api('GET', `/api/dispatcher/models?project=${pid}`);

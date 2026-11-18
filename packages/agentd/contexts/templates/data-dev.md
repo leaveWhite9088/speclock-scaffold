@@ -5,6 +5,7 @@ dir: .
 type:
 model:
 spec: executor
+preset: software-dev
 ---
 
 ## 数据开发工程师的工作方式

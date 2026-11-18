@@ -5,6 +5,7 @@ dir: .
 type:
 model:
 spec: requirements
+preset: software-dev
 ---
 
 ## 业务分析师的工作方式
