@@ -6,7 +6,7 @@
 import { AGENTS, getAgent, pool } from '../../core/pool/index.mjs';
 import { dispatchers } from '../dispatchers.mjs';
 import { EPOCH, RING_MAX, eventsSince, subscribe, unsubscribe } from '../events.mjs';
-import { readReceipts } from '../receipts.mjs';
+import { readAudits, readReceipts } from '../receipts.mjs';
 
 /** @param {{ protocol: number, startedAt: string, idleInstanceMs: number, shutdown: (code: number) => Promise<void> }} ctx */
 export function systemOps(ctx) {
@@ -23,8 +23,11 @@ export function systemOps(ctx) {
     /** Replay durable events after a known id (Last-Event-ID semantics). */
     'events.since': ({ afterId, limit } = {}) => eventsSince(afterId, Math.min(Number(limit) || 500, RING_MAX)),
 
-    /** Recent receipts, newest last. */
-    receipts: ({ limit } = {}) => ({ receipts: readReceipts(Math.min(Number(limit) || 50, 500)) }),
+    /** Recent receipts, newest last (scoped to `project` when given). */
+    receipts: ({ limit, project } = {}) => ({ receipts: readReceipts(Math.min(Number(limit) || 50, 500), project ?? null) }),
+
+    /** Recent security and rejection audit records, newest last. */
+    audits: ({ limit, project } = {}) => ({ audits: readAudits(Math.min(Number(limit) || 50, 500), project ?? null) }),
 
     /** Agent health view: liveness + last run's inferred attention. */
     health: async () => {

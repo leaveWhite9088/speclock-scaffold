@@ -4,6 +4,7 @@
  */
 
 import * as projects from '../core/projects/index.mjs';
+import { appendAudit } from './receipts.mjs';
 
 /**
  * Requests from a project's dispatcher carry `project`. Everything it names is
@@ -19,12 +20,14 @@ export const AGENT_ARG_OPS = new Set([
  * active one cannot go), but resetting one through `run` and changing an executor's directory stay with a person. Replacing a conversation because its context drifted is the confirmed
  * handoff, which runs inside agentd and never goes through these ops.
  */
-export const DISPATCHER_DENIED = new Set(['agent.recover', 'project.updateDispatcher', 'project.updateInstance', 'project.addInstance', 'project.create', 'provider.list', 'provider.save', 'provider.remove', 'provider.test', 'provider.discover', 'template.save', 'template.remove', 'daemon.shutdown', 'handoff.generate', 'handoff.apply', 'handoff.cancel']);
+export const DISPATCHER_DENIED = new Set(['agent.recover', 'audits', 'project.updateDispatcher', 'project.updateInstance', 'project.addInstance', 'project.create', 'provider.list', 'provider.save', 'provider.remove', 'provider.test', 'provider.discover', 'template.save', 'template.remove', 'daemon.shutdown', 'handoff.generate', 'handoff.apply', 'handoff.cancel']);
 function checkCaller(op, args) {
   if (args?.caller !== 'dispatcher') return;
   const sessionArgs = op === 'run' && (args.reset || args.sessionId || args.cwd);
   if (DISPATCHER_DENIED.has(op) || sessionArgs) {
-    throw new Error(`the dispatcher cannot do "${op}": resetting a session and changing an executor's directory are done by a person. Send the task with agent_run, or ask the user.`);
+    const msg = `the dispatcher cannot do "${op}": resetting a session and changing an executor's directory are done by a person. Send the task with agent_run, or ask the user.`;
+    appendAudit({ actor: 'dispatcher', project: args?.project ?? null, op, target: args?.agent ?? null, status: 'denied', detail: msg });
+    throw new Error(msg);
   }
 }
 
@@ -32,13 +35,28 @@ export function scopeArgs(op, args) {
   checkCaller(op, args);
   const project = args?.project;
   if (!project || !AGENT_ARG_OPS.has(op)) return args;
-  if (!projects.hasProject(project)) throw new Error(`unknown project "${project}"`);
+  if (!projects.hasProject(project)) {
+    const msg = `unknown project "${project}"`;
+    appendAudit({ actor: args?.caller ?? 'user', project, op, target: args?.agent ?? null, status: 'denied', detail: msg });
+    throw new Error(msg);
+  }
   const agent = args.agent;
   if (!agent) throw new Error('agent is required inside a project');
-  if (String(agent).includes(projects.SEP)) throw new Error(`agent "${agent}" is outside project "${project}"`);
+  if (String(agent).includes(projects.SEP)) {
+    const msg = `agent "${agent}" is outside project "${project}"`;
+    appendAudit({ actor: args?.caller ?? 'user', project, op, target: String(agent), status: 'denied', detail: msg });
+    throw new Error(msg);
+  }
   const scoped = { ...args, agent: `${project}${projects.SEP}${agent}` };
   // A directory the dispatcher names must stay inside the project root.
-  if (args.cwd) scoped.cwd = projects.resolveInside(projects.projectRoot(project), args.cwd);
+  if (args.cwd) {
+    try {
+      scoped.cwd = projects.resolveInside(projects.projectRoot(project), args.cwd);
+    } catch (err) {
+      appendAudit({ actor: args?.caller ?? 'user', project, op, target: String(args.cwd), status: 'denied', detail: err?.message ?? String(err) });
+      throw err;
+    }
+  }
   return scoped;
 }
 

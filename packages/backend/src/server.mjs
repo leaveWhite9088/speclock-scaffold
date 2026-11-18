@@ -79,6 +79,8 @@ const routes = [
   ['GET', '/api/health', () => call('health')],
   ['GET', '/api/agents', () => call('agents')],
   ['GET', '/api/instances', () => call('instances')],
+  ['GET', '/api/receipts', ({ query }) => call('receipts', { limit: num(query.limit), project: query.project || undefined })],
+  ['GET', '/api/audits', ({ query }) => call('audits', { limit: num(query.limit), project: query.project || undefined })],
 
   ['GET', '/api/agents/:id/status', ({ params }) => call('status', { agent: params.id })],
   ['GET', '/api/agents/:id/sessions', ({ params }) => call('sessions', { agent: params.id })],

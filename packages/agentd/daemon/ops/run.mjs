@@ -30,7 +30,7 @@ export function runOps(ctx) {
       }
       // Which task is this an attempt at? Refused here when the task has used up its attempts.
       const plan = planRun({ agent: a.name, prompt, retryOf, counted: caller === 'dispatcher' });
-      const task = { taskId: plan.taskId, attempt: plan.attempt, retryOf: plan.retryOf, maxAttempts: plan.maxAttempts };
+      const task = { taskId: plan.taskId, attempt: plan.attempt, retryOf: plan.retryOf, maxAttempts: plan.maxAttempts, caller: caller ?? 'user' };
       if (model) await a.setConfigOption('model', model, sessionId);
       const started = a.startPrompt(prompt, { timeoutMs, cwd, reset, sessionId, meta: { taskId: task.taskId, attempt: task.attempt, retryOf: task.retryOf } });
       recordRun(plan, started.jobId);
