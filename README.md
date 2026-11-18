@@ -85,13 +85,17 @@ npm run preflight -- core --yes
 | 全部工具、配置项、环境变量、预检、供应商细节、运维命令 | [docs/REFERENCE.md](docs/REFERENCE.md) |
 | 代码怎么分层、每个包做什么 | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | 踩过的坑和实测数据 | [LESSONS.md](LESSONS.md) |
+| AI 工程规则与七类代码核查清单 | [AGENTS.md](AGENTS.md) |
+| AI 代码评审表、三分法结论与主干准入规程 | [docs/ai-review-rubric.md](docs/ai-review-rubric.md) |
 
 ## 开发
 
 仓库是 npm workspaces：`agentd`（调度守护进程）、`drivers`（每个 CLI 一个驱动）、`preflight`（预检）、`backend`（网关）、`web`（看板，React + Vite）。
 
 ```powershell
-npm test                   # 在私有守护进程上跑整套回归，不碰你正在用的那个
+npm run check:security     # 安全门禁（等价于 make check-security：密钥扫描 + 依赖审计 + 越权与注入反例）
+npm run check              # 无外部模型依赖的全套门禁（等价于 make check：安全门禁 + 分层/单元/队列回归）
+npm test                   # 在私有守护进程上跑整套端到端回归，不碰你正在用的那个
 npm run restart-daemon     # 让守护进程用上新代码；有任务在跑就拒绝
 ```
 

@@ -75,7 +75,9 @@
     "test:reports": "node test/unit/reports-test.mjs",
     "test:dispatcher-report": "node test/live/dispatcher-test.mjs --prompt",
     "test:reports-live": "node test/live/reports-live-test.mjs",
-    "test:stuck-tool": "node test/unit/stuck-tool-test.mjs"
+    "test:stuck-tool": "node test/unit/stuck-tool-test.mjs",
+    "test:security": "node test/unit/security-audit-test.mjs",
+    "test:unit": "npm run test:layers && npm run test:ops && npm run test:data-layout && npm run test:security && npm run test:queue && npm run test:prompt-queue && npm run test:turn-queue && npm run test:dispatcher-queue && npm run test:run-tracker && npm run test:reply && npm run test:mcp && npm run test:provider && npm run test:models-json && npm run test:forced && npm run test:stuck-tool && npm run test:idle && npm run test:start && npm run test:rules && npm run test:pieces && npm run test:router && npm run test:reports"
   },
   "dependencies": {
     "@speclock-scaffold/drivers": "*"

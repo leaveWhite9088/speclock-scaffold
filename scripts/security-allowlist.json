@@ -1,0 +1,15 @@
+{
+  "allowlist": [
+    {
+      "package": "picomatch",
+      "advisory": "GHSA-fc5q-39xc-vjpf",
+      "cwe": "CWE-1333",
+      "severity": "high",
+      "affectedChains": ["picomatch", "fdir", "tinyglobby", "vite", "@vitejs/plugin-react", "@tailwindcss/vite"],
+      "scope": "dev-build-only",
+      "reason": "Upstream picomatch latest release is 4.0.7 (fixAvailable: false). Used exclusively by Vite frontend build tooling at compile time; zero runtime presence in agentd, backend, drivers, or preflight, and no untrusted external extglob pattern input.",
+      "mitigation": "Frontend static assets are built locally/CI with trusted source paths only; backend HTTP gateway serves no glob matcher.",
+      "reviewBy": "2027-03-01"
+    }
+  ]
+}
