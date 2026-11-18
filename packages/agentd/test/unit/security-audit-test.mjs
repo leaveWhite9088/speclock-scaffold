@@ -165,5 +165,16 @@ check(
     audits.some((a) => a.op === 'run' && a.target === 'projB~coder'),
 );
 
+// -- 6. Observability metrics & 3-part alert trigger --------------------------
+const m = sys.metrics({ windowSec: 300 });
+check(
+  'Observability: metrics expose invocation counters by agent/status, P95 duration and Prometheus format',
+  m.invocations['projA~coder|done'] === 1 && m.p95DurationMs >= 310 && /agent_invocations_total\{agent="projA~coder",status="done"\} 1/.test(m.prometheus),
+);
+check(
+  'Alerting: repeated unauthorized calls trigger 3-part alert into FIRING state with action',
+  m.alert.state === 'FIRING' && m.alert.recentDenied >= 6 && /notify-maintainer/.test(m.alert.action) && /system_alert_firing 1/.test(m.prometheus),
+);
+
 console.log(process.exitCode ? '\n=> ✗ SECURITY & AUDIT BROKEN' : '\n=> ✓ SECURITY & AUDIT OK');
 process.exitCode = process.exitCode ?? 0;

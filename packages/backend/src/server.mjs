@@ -12,13 +12,19 @@
  */
 
 import http from 'node:http';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { extname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { call, onLive } from './daemon.mjs';
 
 const PORT = Number(process.env.BACKEND_PORT) || 8787;
 const HOST = process.env.BACKEND_HOST || '127.0.0.1';
+const GIT_SHA = process.env.APP_GIT_SHA || 'dev';
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '';
+const WEB_DIST = process.env.SERVE_WEB_DIST === '1' ? resolve(fileURLToPath(new URL('../../web/dist', import.meta.url))) : null;
 const MAX_BODY = 1_000_000;
 
-const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\]|gateway)(:\d+)?$/;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -55,10 +61,17 @@ async function readBody(req) {
   }
 }
 
-/** Reject non-local Host (DNS rebinding) and cross-site writes (CSRF). */
-function guard(req) {
+/** Reject non-local Host (DNS rebinding) and cross-site writes (CSRF), unless explicitly allowlisted for H5/CORS. */
+function guard(req, res) {
   if (!LOCAL_HOST.test(req.headers.host ?? '')) throw new HttpError(403, 'host not allowed');
   const origin = req.headers.origin;
+  if (origin && ALLOWED_ORIGIN && origin === ALLOWED_ORIGIN) {
+    res.setHeader('access-control-allow-origin', ALLOWED_ORIGIN);
+    res.setHeader('access-control-allow-methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('access-control-allow-headers', 'content-type');
+    res.setHeader('vary', 'Origin');
+    return;
+  }
   if (origin && req.method !== 'GET' && req.method !== 'HEAD') {
     let o;
     try {
@@ -76,7 +89,8 @@ function guard(req) {
 const num = (v) => (v == null || v === '' ? undefined : Number(v));
 
 const routes = [
-  ['GET', '/api/health', () => call('health')],
+  ['GET', '/api/health', async () => ({ ...(await call('health')), ok: true, gitSha: GIT_SHA })],
+  ['GET', '/api/metrics', ({ query }) => call('metrics', { windowSec: num(query.windowSec) })],
   ['GET', '/api/agents', () => call('agents')],
   ['GET', '/api/instances', () => call('instances')],
   ['GET', '/api/receipts', ({ query }) => call('receipts', { limit: num(query.limit), project: query.project || undefined })],
@@ -232,16 +246,47 @@ async function events(req, res) {
 
 // -- server ---------------------------------------------------------------
 
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'application/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+};
+
+function tryServeStatic(pathname, res) {
+  if (!WEB_DIST || pathname.startsWith('/api/') || pathname === '/api') return false;
+  const rel = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
+  let target = resolve(WEB_DIST, rel);
+  if (!target.startsWith(WEB_DIST)) return false;
+  if (!existsSync(target) || statSync(target).isDirectory()) target = join(WEB_DIST, 'index.html');
+  if (!existsSync(target)) return false;
+  res.writeHead(200, { 'content-type': MIME[extname(target)] || 'application/octet-stream' });
+  res.end(readFileSync(target));
+  return true;
+}
+
 const server = http.createServer(async (req, res) => {
   try {
-    guard(req);
+    guard(req, res);
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      return res.end();
+    }
     const url = new URL(req.url, 'http://local');
     if (req.method === 'GET' && url.pathname === '/api/events') return await events(req, res);
+    if (req.method === 'GET' && tryServeStatic(url.pathname, res)) return;
 
     const hit = match(req.method, url.pathname);
     if (!hit) throw new HttpError(404, `no route for ${req.method} ${url.pathname}`);
     const body = req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' ? await readBody(req) : {};
     const result = await hit.r.handler({ params: hit.params, query: Object.fromEntries(url.searchParams), body });
+    if (url.pathname === '/api/metrics' && url.searchParams.get('format') === 'prom' && typeof result?.prometheus === 'string') {
+      res.writeHead(200, { 'content-type': 'text/plain; version=0.0.4; charset=utf-8', 'cache-control': 'no-store' });
+      return res.end(result.prometheus);
+    }
     json(res, 200, result ?? {});
   } catch (err) {
     if (res.headersSent) return res.end();
