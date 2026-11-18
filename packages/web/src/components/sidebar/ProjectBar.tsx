@@ -125,6 +125,7 @@ export function ProjectBar() {
                   : [
                       { value: 'software-dev', label: '场景：软件工程研发' },
                       { value: 'multi-agent-arena', label: '场景：多智能体竞技博弈' },
+                      { value: 'media-studio', label: '场景：自媒体内容工坊' },
                     ]
               }
             />

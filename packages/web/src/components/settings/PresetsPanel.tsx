@@ -141,9 +141,6 @@ export function PresetsPanel() {
 
   return (
     <div className="grid gap-3">
-      <p className="m-0 text-[12.5px] text-muted">
-        每套场景预设包含「总调度器规则」与「执行者通用底规」两段底座提示词。新建项目或在项目的调度器设置中可随时切换场景，也可在单个项目内进一步追加或覆盖。
-      </p>
       <ul className="m-0 grid list-none gap-2 p-0">
         {presets.map((p) => {
           const users = p.usedBy?.length ?? 0;

@@ -106,6 +106,7 @@ export function DispatcherSettings({ projectId }: { projectId: string }) {
                 : [
                     { value: 'software-dev', label: '软件工程研发' },
                     { value: 'multi-agent-arena', label: '多智能体竞技博弈' },
+                    { value: 'media-studio', label: '自媒体内容工坊' },
                   ]
             }
           />
