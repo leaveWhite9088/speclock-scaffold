@@ -1,12 +1,15 @@
 /** Append-only log of finished runs (projects/<project>/receipts.jsonl), so receipts survive restarts and idle gaps. */
 
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { GLOBAL_DIR, projectDir, projectIdOf, projectIdsOnDisk } from '../core/base/index.mjs';
 
 const fileOf = (project) => join(projectDir(project), 'receipts.jsonl');
 const auditFile = () => join(GLOBAL_DIR, 'audit.jsonl');
 const log = (...a) => process.stderr.write(`[agentd] ${a.join(' ')}\n`);
+
+/** Per-project parsed receipt cache, invalidated on append or file size/mtime change. */
+const receiptCache = new Map();
 
 export function appendReceipt(agent, result, prompt, eventId = null, task = {}) {
   const m = result?.metrics ?? {};
@@ -36,7 +39,9 @@ export function appendReceipt(agent, result, prompt, eventId = null, task = {}) 
   try {
     const project = projectIdOf(agent);
     mkdirSync(projectDir(project), { recursive: true });
-    appendFileSync(fileOf(project), JSON.stringify(receipt) + '\n', 'utf8');
+    const f = fileOf(project);
+    appendFileSync(f, JSON.stringify(receipt) + '\n', 'utf8');
+    receiptCache.delete(project);
   } catch (err) {
     log('could not write receipt:', err.message);
   }
@@ -47,20 +52,28 @@ export function appendReceipt(agent, result, prompt, eventId = null, task = {}) 
 export function readReceipts(limit = 50, project = null) {
   const tail = (p) => {
     try {
-      return readFileSync(fileOf(p), 'utf8')
-        .trim()
-        .split('\n')
-        .filter(Boolean)
-        .slice(-limit)
-        .map((l) => {
-          try {
-            return JSON.parse(l);
-          } catch {
-            return null;
-          }
-        })
-        .filter(Boolean);
+      const f = fileOf(p);
+      const st = statSync(f);
+      let entry = receiptCache.get(p);
+      if (!entry || entry.size !== st.size || entry.mtimeMs !== st.mtimeMs) {
+        const rows = readFileSync(f, 'utf8')
+          .trim()
+          .split('\n')
+          .filter(Boolean)
+          .map((l) => {
+            try {
+              return JSON.parse(l);
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean);
+        entry = { size: st.size, mtimeMs: st.mtimeMs, rows };
+        receiptCache.set(p, entry);
+      }
+      return entry.rows.slice(-limit);
     } catch {
+      receiptCache.delete(p);
       return [];
     }
   };
