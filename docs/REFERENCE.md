@@ -11,16 +11,16 @@ SpecLock 的调度脚手架：在一台机器上调度多个 CLI agent。**一�
 
 | agent | 是什么 | 怎么接入 | 版本（实测） | 启动目录 |
 | --- | --- | --- | --- | --- |
-| `mcode` | MiniMax Code | 原生 ACP | `@minimax-ai/code` 0.7.6 | 项目里的一个子目录 |
-| `dsh` | DeepSeek Harness | 原生 ACP | `@deepseek-ai/dsh` 0.1.5-rc.2 | 项目里的一个子目录 |
-| `opencode` | OpenCode | 原生 ACP（`opencode acp`） | `opencode-ai` 1.19.1 | 项目里的一个子目录 |
-| `claude` | Claude Code | 官方适配器 | `@agentclientprotocol/claude-agent-acp` 0.94.0 + `@anthropic-ai/claude-code` 2.1.295 | 项目里的一个子目录 |
-| `codex` | Codex | 官方适配器 | `@agentclientprotocol/codex-acp` 2.2.2（依赖 `@openai/codex` 0.160.1；本机另装的 codex-cli 为 0.163.0） | 项目里的一个子目录 |
-| `pi` | 另一个 pi 实例 | 自带适配器 `pi-adapter/acp-adapter.mjs`（走 pi 的 RPC） | `@earendil-works/pi-coding-agent` 1.3.0 | 基准目录 |
-| `kimi` | Kimi Code | 原生 ACP（`kimi acp`） | `@moonshot-ai/kimi-code` 2.4.1 | 项目里的一个子目录 |
+| `mcode` | MiniMax Code | 原生 ACP | `@minimax-ai/code` 0.7.7 | 项目里的一个子目录 |
+| `dsh` | DeepSeek Harness | 原生 ACP | `@deepseek-ai/dsh` 0.2.2-rc.1 | 项目里的一个子目录 |
+| `opencode` | OpenCode | 原生 ACP（`opencode acp`） | `opencode-ai` 1.19.6 | 项目里的一个子目录 |
+| `claude` | Claude Code | 官方适配器 | `@agentclientprotocol/claude-agent-acp` 0.108.0 + `@anthropic-ai/claude-code` 2.1.327 | 项目里的一个子目录 |
+| `codex` | Codex | 官方适配器 | `@agentclientprotocol/codex-acp` 2.7.0 | 项目里的一个子目录 |
+| `pi` | 另一个 pi 实例 | 自带适配器 `pi-adapter/acp-adapter.mjs`（走 pi 的 RPC） | `@earendil-works/pi-coding-agent` 1.5.2 | 基准目录 |
+| `kimi` | Kimi Code | 原生 ACP（`kimi acp`） | `@moonshot-ai/kimi-code` 2.6.3 | 项目里的一个子目录 |
 | `agy` | Google Antigravity CLI | 原生 ACP（`agy acp --dangerously-skip-permissions`） | 独立可执行文件 `agy` 1.5.9 | 项目里的一个子目录 |
 
-版本是 2026-10-23 在本机（Windows 11、Node v24.19.0）实测时安装的，升级后行为可能不同。
+版本是 2026-11-18 在本机（Windows 11、Node v24.19.0）实测验证的，升级后行为可能不同。
 claude 的接口地址、模型和密钥读取你自己的 `~/.claude/settings.json`（cc-switch 切换后，下次启动进程时生效）。
 
 ### 各 CLI 能看到什么（实测）

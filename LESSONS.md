@@ -428,6 +428,14 @@ B 终端设了 `AGENTD_PORT` 连 TCP，于是出现两个 daemon，两套 agent�
 - **mcode**：供应商存在它自己的配置里，`MCODE_CONFIG_DIR` 不管用，`mcode provider add` 会**直接改用户的全局配置**。第一次试的时候就改到了用户的配置（马上用 `provider remove` 还原）。教训：**试一个 CLI 的配置命令之前，先确认它写到哪里**；测试里的「加 + 删」要放在 finally 里，并用带前缀的名字。
 - **agy**：只支持 Google 自家认证（Google 账号登录、Gemini API Key、Vertex ADC），不接受自定义 OpenAI / Anthropic 接口地址，驱动里省略 `provider` 即可自然落入「仅自带登录」分支。另外两点实测现象：(1) 裸跑 `agy acp` 时，默认权限模式会拦截 `session/new` 临时传入的 MCP 工具调用（模型直接看不见或调不动），无头执行者必须带 `--dangerously-skip-permissions`；(2) npm 上同名的 `antigravity@0.0.0` 是无关占位空包，`agy` 是独立安装包产出的原生可执行文件，所以预检与安装发现把 `binaries` 和 npm `packages` 分开处理，避免 `preflight install` 误装 npm 假包。
 
+## 25. 全量升级 CLI 时的三处实测暗坑（2026-11-18）
+
+把本机八种 CLI 一次性升到最新版再跑全量探针时，踩出三个靠单测发现不了、只有真机实测才能抓到的细节：
+
+- **npm 11 的 `allowScripts` 默认跳过原生二进制解包**：升级 `claude-code`、`opencode-ai`、`dsh`、`kimi-code`、`better-sqlite3`、`node-pty` 时，不带 `--allow-scripts=...` 虽然退出码是 0，但 `postinstall` 没有执行，原生可执行文件不会被放进包目录。全局手动升级时要留意 npm 的 `allow-scripts` 告警。
+- **dsh 0.2.2-rc.1 升级了磁盘会话文件名与事件结构**：磁盘会话文件从 `session.v3.jsonl.zstd` 升到了 `session.v4.jsonl.zstd`，并且首条用户消息事件从带 `role: "user"` 的 `agent/inbox/spliced` 改成了独立的 `user/message` / `session/title`。`dsh-sessions.mjs` 改为按最高 `vN` 版本号选文件并兼容新旧标题事件，新老会话都能直接列出；同时新版 `dsh` 内置的 `pi-ai` 也补上了 OpenCode Go 所需的 `x-opencode-session` 请求头。
+- **多进程并发冷启动时的 stdio MCP 注册竞态**：8 个 CLI 在同一毫秒并发 `session/new` 并挂载本地 stdio MCP 服务器时，`kimi` 与 `agy` 的 `session/new` 会在子进程完成 `tools/list` 之前先返回，若 0ms 紧跟着发第一条 prompt 会偶发看不见工具（`NO_TOOL`），而恢复会话则正常。在带 `mcpServers` 的新建会话后留出短暂的握手窗口即可彻底消除该竞态。
+
 通用的一条：**对照实验比成功更重要**。「换了错的 Key 还是能回答」才暴露出两处第一次「成功」时看不出来的问题：codex 的参数被忽略，以及我们自己的 `project.updateInstance` 没把 `provider` 传下去。
 
 ---
