@@ -40,7 +40,7 @@
     "test:specs-locate": "node test/unit/specs-locate-test.mjs",
     "test:nudge": "node test/unit/nudge-test.mjs",
     "test:layers": "node test/unit/layers-test.mjs",
-    "test:router": "node test/unit/router-test.mjs",
+    "test:router": "node --experimental-strip-types test/unit/router-test.mjs",
     "test:extension-live": "node test/live/dispatcher-tools-live-test.mjs",
     "test:shutdown": "node test/live/daemon-shutdown-test.mjs",
     "restart-daemon": "node scripts/restart-daemon.mjs",

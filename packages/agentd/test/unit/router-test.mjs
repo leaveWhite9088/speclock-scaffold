@@ -73,7 +73,7 @@ check('the project comes from the environment', PROJECT === 'demo');
 c.call('run', { agent: 'x', project: 'other', caller: 'person' }, { timeoutMs: 5 });
 check('a call carries the project, short names and the dispatcher as caller — whatever the model passed', calls[0].args.project === 'demo' && calls[0].args.short === true && calls[0].args.caller === 'dispatcher' && calls[0].args.agent === 'x' && calls[0].opts.timeoutMs === 5, JSON.stringify(calls[0].args));
 check('other methods and values still work', c.close() === 'closed' && c.other === 7);
-const child = spawnSync(process.execPath, ['-e', `import(${JSON.stringify(ext('daemon.ts'))}).then((m)=>{const o={call:()=>1};console.log(m.PROJECT===null && m.scoped(o)===o)})`], { env: { ...process.env, AGENTD_PROJECT: '' }, encoding: 'utf8' });
+const child = spawnSync(process.execPath, [...process.execArgv, '-e', `import(${JSON.stringify(ext('daemon.ts'))}).then((m)=>{const o={call:()=>1};console.log(m.PROJECT===null && m.scoped(o)===o)})`], { env: { ...process.env, AGENTD_PROJECT: '' }, encoding: 'utf8' });
 check('with no project the handle is left as it is', child.stdout.trim() === 'true', (child.stdout + child.stderr).trim().slice(0, 120));
 
 console.log(process.exitCode ? '\n=> ✗ EXTENSION PARTS BROKEN' : '\n=> ✓ EXTENSION PARTS OK');
