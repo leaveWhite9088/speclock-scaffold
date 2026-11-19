@@ -29,7 +29,7 @@ export class AcpTransport {
 
   spawn({ cmd, args, env }) {
     if (this.child) return;
-    const child = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, env });
+    const child = spawn(cmd, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, detached: process.platform !== 'win32', env });
     this.child = child;
     this.buf = '';
 

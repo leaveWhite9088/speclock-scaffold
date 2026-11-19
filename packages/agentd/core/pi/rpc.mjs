@@ -49,7 +49,7 @@ export class PiRpc {
   /** Start `cmd args...`. The caller decides every flag: pi is started differently for a dispatcher and an executor. */
   start({ cmd, args, cwd, env }) {
     if (this.child) throw new Error(`${this.label} is already running`);
-    const child = spawn(cmd, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
+    const child = spawn(cmd, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, detached: process.platform !== 'win32' });
     this.child = child;
     this.buf = '';
 
