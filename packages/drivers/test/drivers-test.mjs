@@ -6,7 +6,8 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { applyProvider, dshFolderName, driverTypes, drivers, getDriver, piMcpServers, wantedBinaries, wantedPackages } from '../index.mjs';
+import { zstdCompressSync } from 'node:zlib';
+import { applyProvider, dshFolderName, dshSessions, driverTypes, drivers, getDriver, piMcpServers, wantedBinaries, wantedPackages } from '../index.mjs';
 
 let failed = 0;
 const check = (name, ok, extra = '') => {
@@ -88,9 +89,34 @@ const parsed = JSON.parse(withServers.AGENTD_MCP_SERVERS);
 check('pi: servers become mcp.json entries', parsed.s.command === 'speclock' && parsed.s.env.K === 'v' && parsed.h.url === 'https://e.com/mcp' && parsed.h.headers.A === 'b' && !('AGENTD_BASE_CWD' in withServers));
 check('pi: piMcpServers is the same conversion', JSON.stringify(piMcpServers([stdio]).s.args) === '["mcp"]');
 
-// dsh's folder naming (a private format, so it is pinned here)
+// dsh's folder naming & on-disk session v3/v4 format (a private format, so it is pinned here)
 check('dsh: folder name for a Windows path', dshFolderName('D:\\a\\b') === '--D-a-b--', dshFolderName('D:\\a\\b'));
 check('dsh: non-ASCII becomes ~UTF16HEX', dshFolderName('D:\\a\\研究') === '--D-a-~7814~7A76--', dshFolderName('D:\\a\\研究'));
+{
+  const fakeDsh = mkdtempSync(join(tmpdir(), 'fake-dsh-'));
+  const work = join(fakeDsh, 'proj');
+  mkdirSync(work, { recursive: true });
+  const baseDir = join(fakeDsh, 'home', 'sessions', dshFolderName(work));
+  mkdirSync(join(baseDir, 's-v3'), { recursive: true });
+  mkdirSync(join(baseDir, 's-v4'), { recursive: true });
+  writeFileSync(
+    join(baseDir, 's-v3', 'session.v3.jsonl.zstd'),
+    Buffer.concat([
+      zstdCompressSync(Buffer.from(JSON.stringify({ type: 'session', version: 3, id: 's-v3', cwd: work }) + '\n')),
+      zstdCompressSync(Buffer.from(JSON.stringify({ type: 'agent/inbox/spliced', data: { inserted: [{ role: 'user', content: [{ type: 'text', text: 'hello v3' }] }] } }) + '\n')),
+    ]),
+  );
+  writeFileSync(
+    join(baseDir, 's-v4', 'session.v4.jsonl.zstd'),
+    Buffer.concat([
+      zstdCompressSync(Buffer.from(JSON.stringify({ type: 'session', version: 4, id: 's-v4', cwd: work }) + '\n')),
+      zstdCompressSync(Buffer.from(JSON.stringify({ type: 'user/message', data: { source: { kind: 'user' }, content: [{ type: 'text', text: 'hello v4' }] } }) + '\n')),
+    ]),
+  );
+  const found = dshSessions(work, { home: join(fakeDsh, 'home') });
+  const byId = Object.fromEntries((found?.sessions ?? []).map((s) => [s.sessionId, s]));
+  check('dsh: dshSessions reads both v3 and v4 zstd session files and their titles', byId['s-v3']?.title === 'hello v3' && byId['s-v4']?.title === 'hello v4', JSON.stringify(found));
+}
 
 // providers: another endpoint and key
 const P = { id: 'mm', apiKey: 'sk-test-0123456789', models: ['m1', 'm2'] };

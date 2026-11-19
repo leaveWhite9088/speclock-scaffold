@@ -6,7 +6,7 @@
  * directly. This relies on a private format: every function returns null when anything looks
  * unfamiliar, and the caller falls back to asking the CLI.
  *
- *   ~/.dsh/sessions/<encoded cwd>/<session id>/session.v3.jsonl.zstd
+ *   ~/.dsh/sessions/<encoded cwd>/<session id>/session.v4.jsonl.zstd   (or session.v3.jsonl.zstd on older dsh)
  *
  * The file is many zstd frames; the first one holds the header line
  * {"type":"session","id","createdAt","cwd"}, the first user message is in one of the next few.
@@ -15,15 +15,19 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, resolve, win32 } from 'node:path';
 import { zstdDecompressSync } from 'node:zlib';
 
 const BS = String.fromCharCode(92);
-const norm = (p) => resolve(String(p ?? '')).split(BS).join('/').replace(/[/]+$/, '').toLowerCase();
+const resolveAny = (p) => {
+  const s = String(p ?? '');
+  return /^[A-Za-z]:(?:[/\\]|$)/.test(s) ? win32.resolve(s) : resolve(s);
+};
+const norm = (p) => resolveAny(p).split(BS).join('/').replace(/[/]+$/, '').toLowerCase();
 
 /** "D:\a\研究" -> "--D-a-~7814~7A76--" (path separators and ":" become "-", non-ASCII becomes ~UTF16HEX). */
 export function dshFolderName(cwd) {
-  const flat = resolve(cwd).split(BS).join('/').replace(/[/:]+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
+  const flat = resolveAny(cwd).split(BS).join('/').replace(/[/:]+/g, '-').replace(/^-+/, '').replace(/-+$/, '');
   let out = '';
   for (const ch of flat) {
     if (ch.charCodeAt(0) < 128) out += ch;
@@ -64,14 +68,36 @@ function readDsh(file) {
         continue;
       }
       if (ev.type === 'session' && !header) header = ev;
+      if (!title && ev.type === 'session/title' && typeof ev.data?.title === 'string' && ev.data.title.trim()) {
+        title = ev.data.title.split(/[ \t\r\n]+/).join(' ').trim().slice(0, 60);
+      }
+      if (!title && ev.type === 'user/message' && (!ev.data?.source || ev.data.source.kind === 'user')) {
+        const t = ev.data?.content?.find((c) => c.type === 'text')?.text;
+        if (t) title = t.split(/[ \t\r\n]+/).join(' ').trim().slice(0, 60);
+      }
       if (!title && ev.type === 'agent/inbox/spliced') {
-        const m = ev.data?.inserted?.find((x) => x.role === 'user');
+        const m = ev.data?.inserted?.find((x) => x.role === 'user') ?? ev.data?.inserted?.[0];
         const t = m?.content?.find((c) => c.type === 'text')?.text;
         if (t) title = t.split(/[ \t\r\n]+/).join(' ').trim().slice(0, 60);
       }
     }
   }
   return header?.id ? { header, title } : null;
+}
+
+function pickSessionFile(sessionDir) {
+  try {
+    const candidates = readdirSync(sessionDir)
+      .map((name) => {
+        const m = /^session\.v(\d+)\.jsonl\.zstd$/.exec(name);
+        return m ? { name, ver: Number(m[1]) } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.ver - a.ver);
+    return candidates.length ? join(sessionDir, candidates[0].name) : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Sessions dsh saved for exactly this directory, newest first. null = cannot tell, ask the CLI. */
@@ -83,8 +109,8 @@ export function dshSessions(cwd, { home = process.env.DSH_HOME || join(homedir()
     if (!existsSync(dir)) return { sessions: [] };
     const out = [];
     for (const id of readdirSync(dir)) {
-      const file = join(dir, id, 'session.v3.jsonl.zstd');
-      if (!existsSync(file)) continue;
+      const file = pickSessionFile(join(dir, id));
+      if (!file) continue;
       const got = readDsh(file);
       if (!got) return null;
       // The folder name is lossy; the header says which directory the session really belongs to.
