@@ -110,6 +110,7 @@ export async function probeDriver({ driver, install, agentdRoot, workRoot, log =
       add('mcp.new', false, 'no session');
       return finish();
     }
+    await sleep(400); // let eager stdio MCP servers finish async tools/list under parallel CPU load
     const first = await proc.prompt(sessionId, `${inj.prefix ? `${rule}\n\n---\n\n` : ''}${ask()}`, promptTimeoutMs);
     add('rules.new', first.text.includes(marker), first.error ?? tail(first.text));
     add('mcp.new', first.text.includes('PONG-T1') && /tools\/call/.test(logOf('new')), first.error ?? tail(first.text));
@@ -130,6 +131,7 @@ export async function probeDriver({ driver, install, agentdRoot, workRoot, log =
       add('mcp.resume', false, 'not resumed');
       return finish();
     }
+    await sleep(400);
     const second = await proc.prompt(res.result?.sessionId ?? sessionId, `Now do it again: ${ask()}`, promptTimeoutMs);
     add('rules.resume', second.text.includes(marker), second.error ?? tail(second.text));
     add('mcp.resume', second.text.includes('PONG-T2') && /tools\/call/.test(logOf('resume')), second.error ?? tail(second.text));

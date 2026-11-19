@@ -16,10 +16,10 @@ export default {
   description: 'MiniMax Code agent. Slower to start, strong at multi-step coding.',
 
   /** npm packages this CLI needs, at the versions the behaviours below were checked on. */
-  packages: [{ name: PKG, version: '0.7.6' }],
+  packages: [{ name: PKG, version: '0.7.7' }],
   verified: {
-    on: '2026-11-10',
-    note: 'rules channel and MCP servers checked on 0.7.6 (the rules channel was first checked on 0.6.12, 2026-10-23, and held across the upgrade)',
+    on: '2026-11-18',
+    note: 'rules channel and MCP servers checked on 0.7.7 (earlier verified on 0.7.6 and 0.6.12)',
   },
   capabilities: { compact: '/compact', rules: 'arg', mcp: 'acp', mcpStart: 'lazy' },
 

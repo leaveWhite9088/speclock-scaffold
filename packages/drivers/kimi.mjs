@@ -15,8 +15,8 @@ export default {
   label: 'Kimi Code',
   description: 'Moonshot AI coding agent; native ACP.',
 
-  packages: [{ name: PKG, version: '2.4.1' }],
-  verified: { on: '2026-11-14', note: 'ACP v1 over stdio, rules in first prompt, MCP servers, /compact and custom provider checked on 2.4.1' },
+  packages: [{ name: PKG, version: '2.6.3' }],
+  verified: { on: '2026-11-18', note: 'ACP v1 over stdio, rules in first prompt, MCP servers, /compact and custom provider checked on 2.6.3 (earlier 2.4.1)' },
   capabilities: { compact: '/compact', rules: 'prompt', mcp: 'acp', mcpStart: 'eager' },
 
   launch(install) {

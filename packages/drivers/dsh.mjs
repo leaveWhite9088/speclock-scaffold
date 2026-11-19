@@ -23,8 +23,8 @@ export default {
   label: 'DeepSeek Harness',
   description: 'DeepSeek Harness agent. Fast startup and short answers.',
 
-  packages: [{ name: PKG, version: '0.1.5-rc.2' }],
-  verified: { on: '2026-11-10', note: 'rules, MCP servers and the on-disk session format checked on 0.1.5-rc.2' },
+  packages: [{ name: PKG, version: '0.2.2-rc.1' }],
+  verified: { on: '2026-11-18', note: 'rules, MCP servers and session.v4.jsonl.zstd on-disk format checked on 0.2.2-rc.1 (earlier 0.1.5-rc.2)' },
   capabilities: { compact: null, rules: 'prompt', mcp: 'acp', mcpStart: 'eager', sessionsOnDisk: true },
 
   launch(install) {

@@ -101,7 +101,7 @@ check('the manifest is written as JSON (folders created)', JSON.parse(readFileSy
 // the install plan
 const empty = detectPackages(wanted, [{ label: 'global', path: join(base, 'empty') }]);
 const all = installPlan({ detected: empty, prefix: join(base, 'tools') });
-check('everything missing: all eight packages, pinned', all.packages.length === 8 && all.command.args.includes('@deepseek-ai/dsh@0.1.5-rc.2') && all.command.args.includes('--prefix'));
+check('everything missing: all eight packages, pinned', all.packages.length === 8 && all.command.args.includes(`@deepseek-ai/dsh@${want('@deepseek-ai/dsh')}`) && all.command.args.includes('--prefix'));
 check('the plan installs into the prefix, never globally', !all.command.args.includes('-g') && !all.command.args.includes('--global'));
 const onlyPi = installPlan({ detected: empty, prefix: 'X', types: ['pi'] });
 check('--type narrows it to the packages that CLI needs', onlyPi.packages.length === 1 && onlyPi.packages[0].name === '@earendil-works/pi-coding-agent');
@@ -112,7 +112,7 @@ check('--pin also installs the verified version of what differs', pinned.package
 const ran = [];
 check('running an empty plan does not call npm', runInstall(installPlan({ detected: d, prefix: 'X' }), { spawn: () => ran.push(1) }) === 0 && ran.length === 0);
 const fake = runInstall(installPlan({ detected: empty, prefix: join(base, 'tools2'), types: ['pi'] }), { spawn: (cmd, a) => (ran.push([cmd, a]), { status: 0 }) });
-check('running a plan calls npm once with those arguments', fake === 0 && ran.length === 1 && JSON.stringify(ran[0]).includes('@earendil-works/pi-coding-agent@1.3.0'));
+check('running a plan calls npm once with those arguments', fake === 0 && ran.length === 1 && JSON.stringify(ran[0]).includes(`@earendil-works/pi-coding-agent@${want('@earendil-works/pi-coding-agent')}`));
 check('on Windows a path with a space stays one argument', windowsCommandLine({ cmd: 'npm.cmd', args: ['install', '--prefix', 'C:/Some One/tools', '@a/b@1.0.0'] }) === 'npm.cmd install --prefix "C:/Some One/tools" @a/b@1.0.0');
 check('a quote in an argument cannot end the quoting', windowsCommandLine({ cmd: 'npm', args: ['x"y z'] }) === 'npm "x\\"y z"' || windowsCommandLine({ cmd: 'npm', args: ['x"y z'] }).startsWith('npm "x'));
 

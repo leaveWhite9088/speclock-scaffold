@@ -16,8 +16,8 @@ export default {
   label: 'Codex',
   description: 'OpenAI Codex through the ACP adapter. Uses the ChatGPT login of the Codex app.',
 
-  packages: [{ name: PKG, version: '2.2.2' }],
-  verified: { on: '2026-11-10', note: 'rules, MCP servers and /compact checked on 2.2.2' },
+  packages: [{ name: PKG, version: '2.7.0' }],
+  verified: { on: '2026-11-18', note: 'rules, MCP servers and /compact checked on 2.7.0 (earlier 2.2.2)' },
   capabilities: { compact: '/compact', rules: 'meta', mcp: 'acp', mcpStart: 'eager' },
 
   launch(install) {

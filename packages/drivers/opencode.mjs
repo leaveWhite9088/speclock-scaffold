@@ -15,8 +15,8 @@ export default {
   label: 'OpenCode',
   description: 'OpenCode. Speaks ACP natively; many providers.',
 
-  packages: [{ name: PKG, version: '1.19.1' }],
-  verified: { on: '2026-11-10', note: 'rules, MCP servers and /compact checked on 1.19.1' },
+  packages: [{ name: PKG, version: '1.19.6' }],
+  verified: { on: '2026-11-18', note: 'rules, MCP servers and /compact checked on 1.19.6 (earlier 1.19.1)' },
   capabilities: { compact: '/compact', rules: 'env', mcp: 'acp', mcpStart: 'eager' },
 
   launch(install) {

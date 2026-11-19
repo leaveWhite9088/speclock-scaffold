@@ -192,7 +192,9 @@ export class Sessions {
     }
 
     const t0 = Date.now();
-    const sess = await this.request('session/new', { cwd: wantCwd, mcpServers: this.mcpServers(), ...this.rulesMeta() });
+    const servers = this.mcpServers();
+    const sess = await this.request('session/new', { cwd: wantCwd, mcpServers: servers, ...this.rulesMeta() });
+    if (servers.length && this.agent.child) await new Promise((r) => setTimeout(r, 300)); // let newly spawned stdio MCP servers finish tools/list
     this.sessionId = sess?.sessionId;
     this.cwd = wantCwd;
     if (this.sessionId) this.live.add(this.sessionId);

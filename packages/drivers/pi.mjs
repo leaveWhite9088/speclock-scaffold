@@ -35,8 +35,8 @@ export default {
     'A separate pi instance, exposed through an ACP adapter over pi RPC mode. ' +
     'Runs with --no-mcp so it cannot call back into this server.',
 
-  packages: [{ name: PKG, version: '1.3.0' }],
-  verified: { on: '2026-11-10', note: 'rpc mode, -e builtin:mcp with registerMcpServer, rules and /compact checked on 1.3.0' },
+  packages: [{ name: PKG, version: '1.5.2' }],
+  verified: { on: '2026-11-18', note: 'rpc mode, -e builtin:mcp with registerMcpServer, rules, /compact and project dispatcher checked on 1.5.2 (earlier 1.3.0)' },
   capabilities: { compact: '/compact', rules: 'env', mcp: 'env', mcpStart: 'eager' },
 
   /** `ctx.agentdRoot` is packages/agentd: the adapter is part of it. */

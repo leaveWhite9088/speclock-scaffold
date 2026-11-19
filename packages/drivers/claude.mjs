@@ -35,10 +35,10 @@ export default {
   description: 'Claude Code through the ACP adapter. Uses the endpoint and login configured in ~/.claude/settings.json.',
 
   packages: [
-    { name: ADAPTER, version: '0.94.0' },
-    { name: CLI, version: '2.1.295' },
+    { name: ADAPTER, version: '0.108.0' },
+    { name: CLI, version: '2.1.327' },
   ],
-  verified: { on: '2026-11-10', note: 'rules, MCP servers and /compact checked on adapter 0.94.0 with Claude Code 2.1.295' },
+  verified: { on: '2026-11-18', note: 'rules, MCP servers and /compact checked on adapter 0.108.0 with Claude Code 2.1.327 (earlier 0.94.0 + 2.1.295)' },
   capabilities: { compact: '/compact', rules: 'meta', mcp: 'acp', mcpStart: 'eager' },
 
   launch(install) {
